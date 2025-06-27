@@ -172,7 +172,7 @@ func (em *EmailMonitor) initializeLastUID() error {
 		return nil
 	}
 
-	// Use SEARCH to find all messages, then get the last one efficiently
+	// Use SEARCH to find all messages
 	searchCmd := em.client.Search(&imap.SearchCriteria{}, nil)
 	searchData, err := searchCmd.Wait()
 	if err != nil {
@@ -180,19 +180,15 @@ func (em *EmailMonitor) initializeLastUID() error {
 	}
 
 	// Get all sequence numbers from search results
-	var allNums []imap.SeqNum
-	for searchData.Next() {
-		allNums = append(allNums, searchData.SeqNum)
-	}
-
-	if len(allNums) == 0 {
+	seqNums := searchData.SeqNums
+	if len(seqNums) == 0 {
 		em.lastUID = 0
 		log.Printf("No messages found in search, starting with UID: 0")
 		return nil
 	}
 
 	// Get the UID of the last message by fetching just the last sequence number
-	lastSeqNum := allNums[len(allNums)-1]
+	lastSeqNum := seqNums[len(seqNums)-1]
 	seqSet := imap.SeqSet{}
 	seqSet.AddNum(lastSeqNum)
 
@@ -201,14 +197,14 @@ func (em *EmailMonitor) initializeLastUID() error {
 	})
 
 	var highestUID imap.UID
-	for fetchCmd.Next() {
-		msg := fetchCmd.Message()
+	err = fetchCmd.ForEach(func(msg *imapclient.FetchMessageData) error {
 		if msg.UID > highestUID {
 			highestUID = msg.UID
 		}
-	}
+		return nil
+	})
 
-	if err := fetchCmd.Close(); err != nil {
+	if err != nil {
 		return err
 	}
 
@@ -280,11 +276,7 @@ func (em *EmailMonitor) checkForNewMessages() error {
 	}
 
 	// Get all UIDs from search results
-	var allUIDs []imap.UID
-	for searchData.Next() {
-		allUIDs = append(allUIDs, searchData.UID)
-	}
-
+	allUIDs := searchData.UIDs
 	if len(allUIDs) == 0 {
 		return nil
 	}
@@ -317,9 +309,7 @@ func (em *EmailMonitor) checkForNewMessages() error {
 	})
 
 	var processedUIDs []imap.UID
-	for fetchCmd.Next() {
-		msg := fetchCmd.Message()
-
+	err = fetchCmd.ForEach(func(msg *imapclient.FetchMessageData) error {
 		err := em.processMessage(msg)
 		if err != nil {
 			log.Printf("Error processing message UID %d: %v", msg.UID, err)
@@ -329,9 +319,10 @@ func (em *EmailMonitor) checkForNewMessages() error {
 		if msg.UID > em.lastUID {
 			em.lastUID = msg.UID
 		}
-	}
+		return nil
+	})
 
-	if err := fetchCmd.Close(); err != nil {
+	if err != nil {
 		return err
 	}
 
