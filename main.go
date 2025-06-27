@@ -69,7 +69,7 @@ func main() {
 	if err != nil {
 		// If the config file doesn't exist and it wasn't specified, just use the defaults.
 		if !os.IsNotExist(err) || *configFile != "" {
-			log.Fatalf("Failed to load config: %v", err)
+			log.Fatalf("failed to load config: %v", err)
 		}
 	}
 
@@ -98,19 +98,19 @@ func main() {
 	})
 
 	if config.IMAP.Server == "" {
-		log.Fatalf("IMAP server must be set")
+		log.Fatalf("iMAP server must be set")
 	}
 
 	if config.Monitor.RegexPattern == "" {
-		log.Fatalf("Regex pattern must be set")
+		log.Fatalf("regex pattern must be set")
 	}
 
 	monitor, err := NewEmailMonitor(config)
 	if err != nil {
-		log.Fatalf("Failed to create monitor: %v", err)
+		log.Fatalf("failed to create monitor: %v", err)
 	}
 
-	log.Println("Starting email monitor...")
+	log.Println("starting email monitor...")
 	monitor.Start()
 }
 
@@ -151,17 +151,17 @@ func (em *EmailMonitor) Start() {
 	for {
 		err := em.connect()
 		if err != nil {
-			log.Printf("Connection failed: %v. Retrying in 30 seconds...", err)
+			log.Printf("connection failed: %v. Retrying in 30 seconds...", err)
 			time.Sleep(30 * time.Second)
 			continue
 		}
 
-		log.Println("Connected to IMAP server")
+		log.Println("connected to IMAP server")
 
 		// Get initial state
 		err = em.initializeLastUID()
 		if err != nil {
-			log.Printf("Failed to initialize: %v", err)
+			log.Printf("failed to initialize: %v", err)
 			em.disconnect()
 			continue
 		}
@@ -169,7 +169,7 @@ func (em *EmailMonitor) Start() {
 		// Start monitoring
 		err = em.monitor()
 		if err != nil {
-			log.Printf("Monitor error: %v. Reconnecting...", err)
+			log.Printf("monitor error: %v. Reconnecting...", err)
 		}
 
 		em.disconnect()
@@ -223,7 +223,7 @@ func (em *EmailMonitor) initializeLastUID() error {
 	// If the mailbox is empty, there's no UID.
 	if mbox.Messages == 0 {
 		em.lastUID = 0
-		log.Printf("Mailbox is empty, starting with UID: 0")
+		log.Printf("mailbox is empty, starting with UID: 0")
 		return nil
 	}
 
@@ -238,7 +238,7 @@ func (em *EmailMonitor) initializeLastUID() error {
 
 	if len(uids) == 0 {
 		em.lastUID = 0
-		log.Printf("Mailbox is empty, starting with UID: 0")
+		log.Printf("mailbox is empty, starting with UID: 0")
 		return nil
 	}
 
@@ -259,7 +259,7 @@ func (em *EmailMonitor) initializeLastUID() error {
 		return err
 	}
 
-	log.Printf("Initialized with last UID: %d (UidNext: %d)", em.lastUID, mbox.UidNext)
+	log.Printf("initialized with last UID: %d (UidNext: %d)", em.lastUID, mbox.UidNext)
 	return nil
 }
 
@@ -333,7 +333,7 @@ func (em *EmailMonitor) checkForNewMessages() error {
 		return nil
 	}
 
-	log.Printf("Found %d new messages (UIDs: %v)", len(newUIDs), newUIDs)
+	log.Printf("found %d new messages (UIDs: %v)", len(newUIDs), newUIDs)
 
 	// Fetch new messages
 	seqset := new(imap.SeqSet)
@@ -352,7 +352,7 @@ func (em *EmailMonitor) checkForNewMessages() error {
 	for msg := range messages {
 		err := em.processMessage(msg)
 		if err != nil {
-			log.Printf("Error processing message UID %d: %v", msg.Uid, err)
+			log.Printf("error processing message UID %d: %v", msg.Uid, err)
 		}
 
 		processedUIDs = append(processedUIDs, msg.Uid)
@@ -365,13 +365,13 @@ func (em *EmailMonitor) checkForNewMessages() error {
 		return err
 	}
 
-	log.Printf("Processed messages with UIDs: %v, new lastUID: %d", processedUIDs, em.lastUID)
+	log.Printf("processed messages with UIDs: %v, new lastUID: %d", processedUIDs, em.lastUID)
 	return nil
 }
 
 func (em *EmailMonitor) processMessage(msg *imap.Message) error {
 	if msg == nil || msg.Envelope == nil {
-		log.Println("Skipping message with nil envelope")
+		log.Println("skipping message with nil envelope")
 		return nil
 	}
 
@@ -380,13 +380,13 @@ func (em *EmailMonitor) processMessage(msg *imap.Message) error {
 		from = msg.Envelope.From[0].Address()
 	}
 
-	log.Printf("Processing message from: %s, Subject: %s", from, msg.Envelope.Subject)
+	log.Printf("processing message from: %s, Subject: %s", from, msg.Envelope.Subject)
 
 	// Get message body
 	for _, part := range msg.Body {
 		body, err := em.extractTextFromPart(part)
 		if err != nil {
-			log.Printf("Error extracting text: %v", err)
+			log.Printf("error extracting text: %v", err)
 			continue
 		}
 
@@ -396,11 +396,11 @@ func (em *EmailMonitor) processMessage(msg *imap.Message) error {
 
 		// Check if body matches regex
 		if em.regex.MatchString(body) {
-			log.Printf("Regex match found in message from: %s", from)
+			log.Printf("regex match found in message from: %s", from)
 
 			err := em.executeCommand(msg, body)
 			if err != nil {
-				log.Printf("Error executing command: %v", err)
+				log.Printf("error executing command: %v", err)
 			}
 
 			return nil
@@ -444,7 +444,7 @@ func (em *EmailMonitor) extractTextFromPart(part io.Reader) (string, error) {
 
 func (em *EmailMonitor) executeCommand(msg *imap.Message, body string) error {
 	if em.config.Monitor.Command == "" {
-		log.Println("No command configured")
+		log.Println("no command configured")
 		return nil
 	}
 
@@ -472,10 +472,10 @@ func (em *EmailMonitor) executeCommand(msg *imap.Message, body string) error {
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Printf("Command execution failed: %v, Output: %s", err, string(output))
+		log.Printf("command execution failed: %v, Output: %s", err, string(output))
 		return err
 	}
 
-	log.Printf("Command executed successfully. Output: %s", string(output))
+	log.Printf("command executed successfully. Output: %s", string(output))
 	return nil
 }
