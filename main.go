@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/emersion/go-imap/v2"
-	"github.com/emersion/go-imap/v2/imapclient"
+	"github.com/emersion/go-imap"
+	"github.com/emersion/go-imap/client"
 	"github.com/emersion/go-message/mail"
 )
 
@@ -40,9 +40,9 @@ type Config struct {
 
 type EmailMonitor struct {
 	config      Config
-	client      *imapclient.Client
+	client      *client.Client
 	regex       *regexp.Regexp
-	lastUID     imap.UID
+	lastUID     uint32
 	reconnectCh chan bool
 }
 
@@ -160,8 +160,6 @@ func (em *EmailMonitor) Start() {
 		}
 
 		// Start monitoring
-		em.startMonitoring()
-
 		err = em.monitor()
 		if err != nil {
 			log.Printf("Monitor error: %v. Reconnecting...", err)
@@ -173,24 +171,22 @@ func (em *EmailMonitor) Start() {
 }
 
 func (em *EmailMonitor) connect() error {
-	var c *imapclient.Client
+	var c *client.Client
 	var err error
 
 	address := fmt.Sprintf("%s:%d", em.config.IMAP.Server, em.config.IMAP.Port)
-	options := &imapclient.Options{}
 
 	if em.config.IMAP.UseSSL {
-		options.TLSConfig = &tls.Config{}
-		c, err = imapclient.DialTLS(address, options)
+		c, err = client.DialTLS(address, &tls.Config{})
 	} else {
-		c, err = imapclient.DialStartTLS(address, options)
+		c, err = client.Dial(address)
 	}
 
 	if err != nil {
 		return err
 	}
 
-	if err := c.Login(em.config.IMAP.Username, em.config.IMAP.Password).Wait(); err != nil {
+	if err := c.Login(em.config.IMAP.Username, em.config.IMAP.Password); err != nil {
 		c.Close()
 		return err
 	}
@@ -212,61 +208,43 @@ func (em *EmailMonitor) initializeLastUID() error {
 		mailbox = "INBOX"
 	}
 
-	selectData, err := em.client.Select(mailbox, nil).Wait()
+	mbox, err := em.client.Select(mailbox, false)
 	if err != nil {
 		return err
 	}
 
-	// If mailbox is empty, start with UID 0
-	if selectData.NumMessages == 0 {
+	// Get the highest UID in the mailbox
+	if mbox.Messages == 0 {
 		em.lastUID = 0
 		log.Printf("Mailbox is empty, starting with UID: 0")
 		return nil
 	}
 
-	// Use SEARCH to find all messages
-	searchCmd := em.client.Search(&imap.SearchCriteria{}, nil)
-	searchData, err := searchCmd.Wait()
-	if err != nil {
-		return err
-	}
+	// Search for all messages to get the highest UID
+	seqset := new(imap.SeqSet)
+	seqset.AddRange(1, mbox.Messages)
 
-	// Get all sequence numbers from search results
-	seqNums := searchData.SeqNums
-	if len(seqNums) == 0 {
-		em.lastUID = 0
-		log.Printf("No messages found in search, starting with UID: 0")
-		return nil
-	}
+	messages := make(chan *imap.Message, 1)
+	done := make(chan error, 1)
 
-	// Get the UID of the last message by fetching just the last sequence number
-	lastSeqNum := seqNums[len(seqNums)-1]
-	seqSet := imap.SeqSet{}
-	seqSet.AddNum(lastSeqNum)
+	go func() {
+		done <- em.client.Fetch(seqset, []imap.FetchItem{imap.FetchUid}, messages)
+	}()
 
-	fetchCmd := em.client.Fetch(seqSet, &imap.FetchOptions{
-		UID: true,
-	})
-
-	var highestUID imap.UID
-	err = fetchCmd.ForEach(func(msg *imapclient.FetchMessageData) error {
-		if msg.UID > highestUID {
-			highestUID = msg.UID
+	var highestUID uint32
+	for msg := range messages {
+		if msg.Uid > highestUID {
+			highestUID = msg.Uid
 		}
-		return nil
-	})
+	}
 
-	if err != nil {
+	if err := <-done; err != nil {
 		return err
 	}
 
 	em.lastUID = highestUID
-	log.Printf("Initialized with last UID: %d (UidNext: %d)", em.lastUID, selectData.UIDNext)
+	log.Printf("Initialized with last UID: %d (UidNext: %d)", em.lastUID, mbox.UidNext)
 	return nil
-}
-
-func (em *EmailMonitor) startMonitoring() {
-	log.Printf("Starting to monitor for new messages (last processed UID: %d)", em.lastUID)
 }
 
 func (em *EmailMonitor) monitor() error {
@@ -300,42 +278,36 @@ func (em *EmailMonitor) checkForNewMessages() error {
 		mailbox = "INBOX"
 	}
 
-	selectData, err := em.client.Select(mailbox, nil).Wait()
+	mbox, err := em.client.Select(mailbox, false)
 	if err != nil {
 		return err
 	}
 
 	// If no messages in mailbox, nothing to do
-	if selectData.NumMessages == 0 {
+	if mbox.Messages == 0 {
 		return nil
 	}
 
 	// Search for messages with UID greater than lastUID
-	criteria := &imap.SearchCriteria{}
-	uidSet := imap.UIDSet{}
+	criteria := imap.NewSearchCriteria()
+	criteria.Uid = new(imap.SeqSet)
 
+	// Only search if we have a valid lastUID
 	if em.lastUID > 0 {
-		uidSet.AddRange(em.lastUID+1, 0) // From lastUID+1 to end
+		criteria.Uid.AddRange(em.lastUID+1, 0)
 	} else {
-		uidSet.AddRange(1, 0) // All messages
+		// If lastUID is 0, we want all messages
+		criteria.Uid.AddRange(1, 0)
 	}
-	criteria.UID = []imap.UIDSet{uidSet}
 
-	searchCmd := em.client.UIDSearch(criteria, nil)
-	searchData, err := searchCmd.Wait()
+	uids, err := em.client.UidSearch(criteria)
 	if err != nil {
 		return err
 	}
 
-	// Get all UIDs from search results
-	allUIDs := searchData.UIDs
-	if len(allUIDs) == 0 {
-		return nil
-	}
-
 	// Filter out UIDs that we've already seen (additional safety check)
-	var newUIDs []imap.UID
-	for _, uid := range allUIDs {
+	var newUIDs []uint32
+	for _, uid := range uids {
 		if uid > em.lastUID {
 			newUIDs = append(newUIDs, uid)
 		}
@@ -347,34 +319,33 @@ func (em *EmailMonitor) checkForNewMessages() error {
 
 	log.Printf("Found %d new messages (UIDs: %v)", len(newUIDs), newUIDs)
 
-	// Fetch new messages using UID FETCH
-	uidSet = imap.UIDSet{}
+	// Fetch new messages
+	seqset := new(imap.SeqSet)
 	for _, uid := range newUIDs {
-		uidSet.AddNum(uid)
+		seqset.AddNum(uid)
 	}
 
-	fetchCmd := em.client.Fetch(uidSet, &imap.FetchOptions{
-		Envelope:      true,
-		BodyStructure: &imap.FetchItemBodyStructure{},
-		BodySection:   []*imap.FetchItemBodySection{{}}, // Fetch full body
-		UID:           true,
-	})
+	messages := make(chan *imap.Message, 10)
+	done := make(chan error, 1)
 
-	var processedUIDs []imap.UID
-	err = fetchCmd.ForEach(func(msg *imapclient.FetchMessageData) error {
+	go func() {
+		done <- em.client.UidFetch(seqset, []imap.FetchItem{imap.FetchEnvelope, imap.FetchBodyStructure, "BODY[]"}, messages)
+	}()
+
+	var processedUIDs []uint32
+	for msg := range messages {
 		err := em.processMessage(msg)
 		if err != nil {
-			log.Printf("Error processing message UID %d: %v", msg.UID, err)
+			log.Printf("Error processing message UID %d: %v", msg.Uid, err)
 		}
 
-		processedUIDs = append(processedUIDs, msg.UID)
-		if msg.UID > em.lastUID {
-			em.lastUID = msg.UID
+		processedUIDs = append(processedUIDs, msg.Uid)
+		if msg.Uid > em.lastUID {
+			em.lastUID = msg.Uid
 		}
-		return nil
-	})
+	}
 
-	if err != nil {
+	if err := <-done; err != nil {
 		return err
 	}
 
@@ -382,17 +353,22 @@ func (em *EmailMonitor) checkForNewMessages() error {
 	return nil
 }
 
-func (em *EmailMonitor) processMessage(msg *imapclient.FetchMessageData) error {
-	var fromAddr string
-	if len(msg.Envelope.From) > 0 {
-		fromAddr = msg.Envelope.From[0].Address()
+func (em *EmailMonitor) processMessage(msg *imap.Message) error {
+	if msg == nil || msg.Envelope == nil {
+		log.Println("Skipping message with nil envelope")
+		return nil
 	}
 
-	log.Printf("Processing message from: %s, Subject: %s", fromAddr, msg.Envelope.Subject)
+	from := "<unknown>"
+	if len(msg.Envelope.From) > 0 {
+		from = msg.Envelope.From[0].Address()
+	}
+
+	log.Printf("Processing message from: %s, Subject: %s", from, msg.Envelope.Subject)
 
 	// Get message body
-	for _, bodyData := range msg.BodySection {
-		body, err := em.extractTextFromBody(bodyData)
+	for _, part := range msg.Body {
+		body, err := em.extractTextFromPart(part)
 		if err != nil {
 			log.Printf("Error extracting text: %v", err)
 			continue
@@ -404,7 +380,7 @@ func (em *EmailMonitor) processMessage(msg *imapclient.FetchMessageData) error {
 
 		// Check if body matches regex
 		if em.regex.MatchString(body) {
-			log.Printf("Regex match found in message from: %s", fromAddr)
+			log.Printf("Regex match found in message from: %s", from)
 
 			err := em.executeCommand(msg, body)
 			if err != nil {
@@ -418,8 +394,8 @@ func (em *EmailMonitor) processMessage(msg *imapclient.FetchMessageData) error {
 	return nil
 }
 
-func (em *EmailMonitor) extractTextFromBody(bodyData []byte) (string, error) {
-	mr, err := mail.CreateReader(strings.NewReader(string(bodyData)))
+func (em *EmailMonitor) extractTextFromPart(part io.Reader) (string, error) {
+	mr, err := mail.CreateReader(part)
 	if err != nil {
 		return "", err
 	}
@@ -450,23 +426,23 @@ func (em *EmailMonitor) extractTextFromBody(bodyData []byte) (string, error) {
 	return body.String(), nil
 }
 
-func (em *EmailMonitor) executeCommand(msg *imapclient.FetchMessageData, body string) error {
+func (em *EmailMonitor) executeCommand(msg *imap.Message, body string) error {
 	if em.config.Monitor.Command == "" {
 		log.Println("No command configured")
 		return nil
 	}
 
-	var fromAddr string
-	if len(msg.Envelope.From) > 0 {
-		fromAddr = msg.Envelope.From[0].Address()
+	from := "<unknown>"
+	if msg.Envelope != nil && len(msg.Envelope.From) > 0 {
+		from = msg.Envelope.From[0].Address()
 	}
 
 	// Set environment variables with message info
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("EMAIL_FROM=%s", fromAddr))
+	env = append(env, fmt.Sprintf("EMAIL_FROM=%s", from))
 	env = append(env, fmt.Sprintf("EMAIL_SUBJECT=%s", msg.Envelope.Subject))
 	env = append(env, fmt.Sprintf("EMAIL_DATE=%s", msg.Envelope.Date.Format(time.RFC3339)))
-	env = append(env, fmt.Sprintf("EMAIL_UID=%d", msg.UID))
+	env = append(env, fmt.Sprintf("EMAIL_UID=%d", msg.Uid))
 
 	// Parse command (simple shell command parsing)
 	parts := strings.Fields(em.config.Monitor.Command)
