@@ -161,8 +161,37 @@ func (em *EmailMonitor) initializeLastUID() error {
 		return err
 	}
 
-	em.lastUID = mbox.UidNext - 1
-	log.Printf("Initialized with last UID: %d", em.lastUID)
+	// Get the highest UID in the mailbox
+	if mbox.Messages == 0 {
+		em.lastUID = 0
+		log.Printf("Mailbox is empty, starting with UID: 0")
+		return nil
+	}
+
+	// Search for all messages to get the highest UID
+	seqset := new(imap.SeqSet)
+	seqset.AddRange(1, mbox.Messages)
+
+	messages := make(chan *imap.Message, 1)
+	done := make(chan error, 1)
+
+	go func() {
+		done <- em.client.Fetch(seqset, []imap.FetchItem{imap.FetchUid}, messages)
+	}()
+
+	var highestUID uint32
+	for msg := range messages {
+		if msg.Uid > highestUID {
+			highestUID = msg.Uid
+		}
+	}
+
+	if err := <-done; err != nil {
+		return err
+	}
+
+	em.lastUID = highestUID
+	log.Printf("Initialized with last UID: %d (UidNext: %d)", em.lastUID, mbox.UidNext)
 	return nil
 }
 
@@ -197,30 +226,50 @@ func (em *EmailMonitor) checkForNewMessages() error {
 		mailbox = "INBOX"
 	}
 
-	_, err := em.client.Select(mailbox, false)
+	mbox, err := em.client.Select(mailbox, false)
 	if err != nil {
 		return err
+	}
+
+	// If no messages in mailbox, nothing to do
+	if mbox.Messages == 0 {
+		return nil
 	}
 
 	// Search for messages with UID greater than lastUID
 	criteria := imap.NewSearchCriteria()
 	criteria.Uid = new(imap.SeqSet)
-	criteria.Uid.AddRange(em.lastUID+1, 0)
+
+	// Only search if we have a valid lastUID
+	if em.lastUID > 0 {
+		criteria.Uid.AddRange(em.lastUID+1, 0)
+	} else {
+		// If lastUID is 0, we want all messages
+		criteria.Uid.AddRange(1, 0)
+	}
 
 	uids, err := em.client.UidSearch(criteria)
 	if err != nil {
 		return err
 	}
 
-	if len(uids) == 0 {
+	// Filter out UIDs that we've already seen (additional safety check)
+	var newUIDs []uint32
+	for _, uid := range uids {
+		if uid > em.lastUID {
+			newUIDs = append(newUIDs, uid)
+		}
+	}
+
+	if len(newUIDs) == 0 {
 		return nil
 	}
 
-	log.Printf("Found %d new messages", len(uids))
+	log.Printf("Found %d new messages (UIDs: %v)", len(newUIDs), newUIDs)
 
 	// Fetch new messages
 	seqset := new(imap.SeqSet)
-	for _, uid := range uids {
+	for _, uid := range newUIDs {
 		seqset.AddNum(uid)
 	}
 
@@ -231,12 +280,14 @@ func (em *EmailMonitor) checkForNewMessages() error {
 		done <- em.client.UidFetch(seqset, []imap.FetchItem{imap.FetchEnvelope, imap.FetchBodyStructure, "BODY[]"}, messages)
 	}()
 
+	var processedUIDs []uint32
 	for msg := range messages {
 		err := em.processMessage(msg)
 		if err != nil {
-			log.Printf("Error processing message: %v", err)
+			log.Printf("Error processing message UID %d: %v", msg.Uid, err)
 		}
 
+		processedUIDs = append(processedUIDs, msg.Uid)
 		if msg.Uid > em.lastUID {
 			em.lastUID = msg.Uid
 		}
@@ -246,6 +297,7 @@ func (em *EmailMonitor) checkForNewMessages() error {
 		return err
 	}
 
+	log.Printf("Processed messages with UIDs: %v, new lastUID: %d", processedUIDs, em.lastUID)
 	return nil
 }
 
