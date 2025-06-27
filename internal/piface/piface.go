@@ -80,6 +80,15 @@ func (m *PiFace) ReadInputs() (uint8, error) {
 	return val ^ 0xFF, nil
 }
 
+func (m *PiFace) ReadInput(pin uint8) (uint8, error) {
+	vec, err := m.ReadInputs()
+	if err != nil {
+		return 0, err
+	}
+
+	return (vec >> pin) & 0x1, nil
+}
+
 func (m *PiFace) WriteOutputs(val uint8) error {
 	return m.writeRegister(GPIOA, val)
 }
