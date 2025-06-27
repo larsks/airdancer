@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/tls"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -12,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	flag "github.com/spf13/pflag"
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
@@ -47,7 +48,7 @@ type EmailMonitor struct {
 }
 
 func main() {
-	configFile := flag.String("config", "", "Path to the configuration file")
+	configFile := flag.String("config", "config.json", "Path to the configuration file")
 
 	// IMAP flags
 	imapServer := flag.String("imap.server", "", "IMAP server address")
@@ -55,12 +56,12 @@ func main() {
 	imapUsername := flag.String("imap.username", "", "IMAP username")
 	imapPassword := flag.String("imap.password", "", "IMAP password")
 	imapUseSSL := flag.Bool("imap.use_ssl", true, "Use SSL for IMAP connection")
-	imapMailbox := flag.String("imap.mailbox", "", "IMAP mailbox to monitor")
+	imapMailbox := flag.String("imap.mailbox", "INBOX", "IMAP mailbox to monitor")
 
 	// Monitor flags
 	monitorRegexPattern := flag.String("monitor.regex_pattern", "", "Regex pattern to match in email bodies")
 	monitorCommand := flag.String("monitor.command", "", "Command to execute on regex match")
-	monitorCheckInterval := flag.Int("monitor.check_interval_seconds", 0, "Interval in seconds to check for new emails")
+	monitorCheckInterval := flag.Int("monitor.check_interval", 30, "Interval in seconds to check for new emails")
 
 	flag.Parse()
 
@@ -115,6 +116,8 @@ func main() {
 
 func loadConfig(filename string) (Config, error) {
 	var config Config
+
+	log.Printf("loading configuration from %s", filename)
 
 	if filename == "" {
 		return config, nil
