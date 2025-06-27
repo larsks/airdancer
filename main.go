@@ -98,7 +98,14 @@ func main() {
 	})
 
 	if config.IMAP.Server == "" {
-		log.Fatalf("iMAP server must be set")
+		log.Fatalf("IMAP server must be set")
+	}
+
+	if config.IMAP.Port == 0 {
+		config.IMAP.Port = *imapPort
+		if config.IMAP.Port == 0 {
+			log.Fatalf("IMAP port must be non-zero")
+		}
 	}
 
 	if config.Monitor.RegexPattern == "" {
@@ -183,6 +190,8 @@ func (em *EmailMonitor) connect() error {
 
 	address := fmt.Sprintf("%s:%d", em.config.IMAP.Server, em.config.IMAP.Port)
 
+	log.Printf("connecting to %s", address)
+
 	if em.config.IMAP.UseSSL {
 		c, err = client.DialTLS(address, &tls.Config{})
 	} else {
@@ -264,11 +273,6 @@ func (em *EmailMonitor) initializeLastUID() error {
 }
 
 func (em *EmailMonitor) monitor() error {
-	mailbox := em.config.IMAP.Mailbox
-	if mailbox == "" {
-		mailbox = "INBOX"
-	}
-
 	checkInterval := time.Duration(em.config.Monitor.CheckInterval) * time.Second
 	if checkInterval == 0 {
 		checkInterval = 30 * time.Second
@@ -294,6 +298,8 @@ func (em *EmailMonitor) checkForNewMessages() error {
 		mailbox = "INBOX"
 	}
 
+	log.Printf("checking for new messages in %s", mailbox)
+
 	mbox, err := em.client.Select(mailbox, false)
 	if err != nil {
 		return err
@@ -301,6 +307,7 @@ func (em *EmailMonitor) checkForNewMessages() error {
 
 	// If no messages in mailbox, nothing to do
 	if mbox.Messages == 0 {
+		log.Println("no messages")
 		return nil
 	}
 
@@ -330,6 +337,7 @@ func (em *EmailMonitor) checkForNewMessages() error {
 	}
 
 	if len(newUIDs) == 0 {
+		log.Println("no new messages")
 		return nil
 	}
 
