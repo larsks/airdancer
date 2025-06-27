@@ -125,11 +125,13 @@ func (em *EmailMonitor) connect() error {
 	var err error
 
 	address := fmt.Sprintf("%s:%d", em.config.IMAP.Server, em.config.IMAP.Port)
+	options := &imapclient.Options{}
 
 	if em.config.IMAP.UseSSL {
-		c, err = imapclient.DialTLS(address, &tls.Config{})
+		options.TLSConfig = &tls.Config{}
+		c, err = imapclient.DialTLS(address, options)
 	} else {
-		c, err = imapclient.DialInsecure(address, nil)
+		c, err = imapclient.DialStartTLS(address, options)
 	}
 
 	if err != nil {
@@ -170,28 +172,28 @@ func (em *EmailMonitor) initializeLastUID() error {
 		return nil
 	}
 
-	// Use SEARCH to find the highest UID efficiently
-	// Search for all messages and get the last UID from the result
+	// Use SEARCH to find all messages, then get the last one efficiently
 	searchCmd := em.client.Search(&imap.SearchCriteria{}, nil)
 	searchData, err := searchCmd.Wait()
 	if err != nil {
 		return err
 	}
 
-	if len(searchData.AllNums) == 0 {
+	allNums := searchData.AllNums()
+	if len(allNums) == 0 {
 		em.lastUID = 0
 		log.Printf("No messages found in search, starting with UID: 0")
 		return nil
 	}
 
 	// Get the UID of the last message by fetching just the last sequence number
-	lastSeqNum := searchData.AllNums[len(searchData.AllNums)-1]
+	lastSeqNum := allNums[len(allNums)-1]
 	seqSet := imap.SeqSet{}
 	seqSet.AddNum(lastSeqNum)
 
 	fetchCmd := em.client.Fetch(seqSet, &imap.FetchOptions{
 		UID: true,
-	}, nil)
+	})
 
 	var highestUID imap.UID
 	for {
@@ -275,13 +277,14 @@ func (em *EmailMonitor) checkForNewMessages() error {
 		return err
 	}
 
-	if len(searchData.AllUIDs) == 0 {
+	allUIDs := searchData.AllUIDs()
+	if len(allUIDs) == 0 {
 		return nil
 	}
 
 	// Filter out UIDs that we've already seen (additional safety check)
 	var newUIDs []imap.UID
-	for _, uid := range searchData.AllUIDs {
+	for _, uid := range allUIDs {
 		if uid > em.lastUID {
 			newUIDs = append(newUIDs, uid)
 		}
@@ -293,7 +296,7 @@ func (em *EmailMonitor) checkForNewMessages() error {
 
 	log.Printf("Found %d new messages (UIDs: %v)", len(newUIDs), newUIDs)
 
-	// Fetch new messages
+	// Fetch new messages using UID FETCH
 	uidSet = imap.UIDSet{}
 	for _, uid := range newUIDs {
 		uidSet.AddNum(uid)
@@ -301,9 +304,9 @@ func (em *EmailMonitor) checkForNewMessages() error {
 
 	fetchCmd := em.client.UIDFetch(uidSet, &imap.FetchOptions{
 		Envelope:      true,
-		BodyStructure: true,
+		BodyStructure: &imap.FetchItemBodyStructure{},
 		BodySection:   []*imap.FetchItemBodySection{{}}, // Fetch full body
-	}, nil)
+	})
 
 	var processedUIDs []imap.UID
 	for {
