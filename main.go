@@ -100,6 +100,10 @@ func main() {
 		log.Fatalf("IMAP server must be set")
 	}
 
+	if config.Monitor.RegexPattern == "" {
+		log.Fatalf("Regex pattern must be set")
+	}
+
 	monitor, err := NewEmailMonitor(config)
 	if err != nil {
 		log.Fatalf("Failed to create monitor: %v", err)
@@ -213,36 +217,45 @@ func (em *EmailMonitor) initializeLastUID() error {
 		return err
 	}
 
-	// Get the highest UID in the mailbox
+	// If the mailbox is empty, there's no UID.
 	if mbox.Messages == 0 {
 		em.lastUID = 0
 		log.Printf("Mailbox is empty, starting with UID: 0")
 		return nil
 	}
 
-	// Search for all messages to get the highest UID
+	// Search for all messages to get the sequence numbers
+	criteria := imap.NewSearchCriteria()
+	criteria.SeqNum = new(imap.SeqSet)
+	criteria.SeqNum.AddRange(1, mbox.Messages)
+	uids, err := em.client.Search(criteria)
+	if err != nil {
+		return err
+	}
+
+	if len(uids) == 0 {
+		em.lastUID = 0
+		log.Printf("Mailbox is empty, starting with UID: 0")
+		return nil
+	}
+
+	// Fetch the UID of the last message
 	seqset := new(imap.SeqSet)
-	seqset.AddRange(1, mbox.Messages)
+	seqset.AddNum(uids[len(uids)-1])
 
 	messages := make(chan *imap.Message, 1)
 	done := make(chan error, 1)
-
 	go func() {
 		done <- em.client.Fetch(seqset, []imap.FetchItem{imap.FetchUid}, messages)
 	}()
 
-	var highestUID uint32
-	for msg := range messages {
-		if msg.Uid > highestUID {
-			highestUID = msg.Uid
-		}
-	}
+	msg := <-messages
+	em.lastUID = msg.Uid
 
 	if err := <-done; err != nil {
 		return err
 	}
 
-	em.lastUID = highestUID
 	log.Printf("Initialized with last UID: %d (UidNext: %d)", em.lastUID, mbox.UidNext)
 	return nil
 }
