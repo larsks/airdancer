@@ -55,13 +55,13 @@ func main() {
 	imapPort := flag.Int("imap.port", 993, "IMAP server port")
 	imapUsername := flag.String("imap.username", "", "IMAP username")
 	imapPassword := flag.String("imap.password", "", "IMAP password")
-	imapUseSSL := flag.Bool("imap.use_ssl", true, "Use SSL for IMAP connection")
+	imapUseSSL := flag.Bool("imap.use-ssl", true, "Use SSL for IMAP connection")
 	imapMailbox := flag.String("imap.mailbox", "INBOX", "IMAP mailbox to monitor")
 
 	// Monitor flags
-	monitorRegexPattern := flag.String("monitor.regex_pattern", "", "Regex pattern to match in email bodies")
+	monitorRegexPattern := flag.String("monitor.regex-pattern", "", "Regex pattern to match in email bodies")
 	monitorCommand := flag.String("monitor.command", "", "Command to execute on regex match")
-	monitorCheckInterval := flag.Int("monitor.check_interval", 30, "Interval in seconds to check for new emails")
+	monitorCheckInterval := flag.Int("monitor.check-interval", 30, "Interval in seconds to check for new emails")
 
 	flag.Parse()
 
