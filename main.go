@@ -179,7 +179,12 @@ func (em *EmailMonitor) initializeLastUID() error {
 		return err
 	}
 
-	allNums := searchData.AllNums()
+	// Get all sequence numbers from search results
+	var allNums []imap.SeqNum
+	for searchData.Next() {
+		allNums = append(allNums, searchData.SeqNum)
+	}
+
 	if len(allNums) == 0 {
 		em.lastUID = 0
 		log.Printf("No messages found in search, starting with UID: 0")
@@ -196,11 +201,8 @@ func (em *EmailMonitor) initializeLastUID() error {
 	})
 
 	var highestUID imap.UID
-	for {
-		msg := fetchCmd.Next()
-		if msg == nil {
-			break
-		}
+	for fetchCmd.Next() {
+		msg := fetchCmd.Message()
 		if msg.UID > highestUID {
 			highestUID = msg.UID
 		}
@@ -277,7 +279,12 @@ func (em *EmailMonitor) checkForNewMessages() error {
 		return err
 	}
 
-	allUIDs := searchData.AllUIDs()
+	// Get all UIDs from search results
+	var allUIDs []imap.UID
+	for searchData.Next() {
+		allUIDs = append(allUIDs, searchData.UID)
+	}
+
 	if len(allUIDs) == 0 {
 		return nil
 	}
@@ -302,18 +309,16 @@ func (em *EmailMonitor) checkForNewMessages() error {
 		uidSet.AddNum(uid)
 	}
 
-	fetchCmd := em.client.UIDFetch(uidSet, &imap.FetchOptions{
+	fetchCmd := em.client.Fetch(uidSet, &imap.FetchOptions{
 		Envelope:      true,
 		BodyStructure: &imap.FetchItemBodyStructure{},
 		BodySection:   []*imap.FetchItemBodySection{{}}, // Fetch full body
+		UID:           true,
 	})
 
 	var processedUIDs []imap.UID
-	for {
-		msg := fetchCmd.Next()
-		if msg == nil {
-			break
-		}
+	for fetchCmd.Next() {
+		msg := fetchCmd.Message()
 
 		err := em.processMessage(msg)
 		if err != nil {
