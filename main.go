@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -17,20 +18,24 @@ import (
 	"github.com/emersion/go-message/mail"
 )
 
+type IMAPConfig struct {
+	Server   string `json:"server"`
+	Port     int    `json:"port"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	UseSSL   bool   `json:"use_ssl"`
+	Mailbox  string `json:"mailbox"`
+}
+
+type MonitorConfig struct {
+	RegexPattern  string `json:"regex_pattern"`
+	Command       string `json:"command"`
+	CheckInterval int    `json:"check_interval_seconds"`
+}
+
 type Config struct {
-	IMAP struct {
-		Server   string `json:"server"`
-		Port     int    `json:"port"`
-		Username string `json:"username"`
-		Password string `json:"password"`
-		UseSSL   bool   `json:"use_ssl"`
-		Mailbox  string `json:"mailbox"`
-	} `json:"imap"`
-	Monitor struct {
-		RegexPattern  string `json:"regex_pattern"`
-		Command       string `json:"command"`
-		CheckInterval int    `json:"check_interval_seconds"`
-	} `json:"monitor"`
+	IMAP    IMAPConfig    `json:"imap"`
+	Monitor MonitorConfig `json:"monitor"`
 }
 
 type EmailMonitor struct {
@@ -42,15 +47,57 @@ type EmailMonitor struct {
 }
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: go run main.go <config.json>")
-		os.Exit(1)
+	configFile := flag.String("config", "", "Path to the configuration file")
+
+	// IMAP flags
+	imapServer := flag.String("imap.server", "", "IMAP server address")
+	imapPort := flag.Int("imap.port", 993, "IMAP server port")
+	imapUsername := flag.String("imap.username", "", "IMAP username")
+	imapPassword := flag.String("imap.password", "", "IMAP password")
+	imapUseSSL := flag.Bool("imap.use_ssl", true, "Use SSL for IMAP connection")
+	imapMailbox := flag.String("imap.mailbox", "", "IMAP mailbox to monitor")
+
+	// Monitor flags
+	monitorRegexPattern := flag.String("monitor.regex_pattern", "", "Regex pattern to match in email bodies")
+	monitorCommand := flag.String("monitor.command", "", "Command to execute on regex match")
+	monitorCheckInterval := flag.Int("monitor.check_interval_seconds", 0, "Interval in seconds to check for new emails")
+
+	flag.Parse()
+
+	config, err := loadConfig(*configFile)
+	if err != nil {
+		// If the config file doesn't exist and it wasn't specified, just use the defaults.
+		if !os.IsNotExist(err) || *configFile != "" {
+			log.Fatalf("Failed to load config: %v", err)
+		}
 	}
 
-	configFile := os.Args[1]
-	config, err := loadConfig(configFile)
-	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+	// Override config with flags if they are set
+	flag.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "imap.server":
+			config.IMAP.Server = *imapServer
+		case "imap.port":
+			config.IMAP.Port = *imapPort
+		case "imap.username":
+			config.IMAP.Username = *imapUsername
+		case "imap.password":
+			config.IMAP.Password = *imapPassword
+		case "imap.use_ssl":
+			config.IMAP.UseSSL = *imapUseSSL
+		case "imap.mailbox":
+			config.IMAP.Mailbox = *imapMailbox
+		case "monitor.regex_pattern":
+			config.Monitor.RegexPattern = *monitorRegexPattern
+		case "monitor.command":
+			config.Monitor.Command = *monitorCommand
+		case "monitor.check_interval_seconds":
+			config.Monitor.CheckInterval = *monitorCheckInterval
+		}
+	})
+
+	if config.IMAP.Server == "" {
+		log.Fatalf("IMAP server must be set")
 	}
 
 	monitor, err := NewEmailMonitor(config)
@@ -64,6 +111,11 @@ func main() {
 
 func loadConfig(filename string) (Config, error) {
 	var config Config
+
+	if filename == "" {
+		return config, nil
+	}
+
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return config, err
