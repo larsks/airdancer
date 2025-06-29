@@ -9,7 +9,8 @@ type (
 	}
 
 	SwitchCollection interface {
-		ListSwitches() ([]Switch, error)
+		CountSwitches() uint
+		ListSwitches() []Switch
 		GetSwitch(id uint) (Switch, error)
 		Close() error
 		String() string
