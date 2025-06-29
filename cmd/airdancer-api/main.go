@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
-	"os"
 	"sync"
 
 	"github.com/larsks/airdancer/internal/piface"
@@ -76,16 +76,20 @@ func relayHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "OK")
 }
 
+func getenvWithDefault(name string, defaultValue string) string {
+	if val, ok := os.LookupEnv(name); ok {
+		return val
+	}
+
+	return defaultValue
+}
+
 func main() {
 	var err error
 	var spidev string
 
-	pflag.StringVar(&spidev, "spidev", "/dev/spidev0.0", "SPI device to use")
+	pflag.StringVar(&spidev, "spidev", getenvWithDefault("AIRDANCER_SPIDEV", "/dev/spidev0.0"), "SPI device to use")
 	pflag.Parse()
-
-	if val, ok := os.LookupEnv("SPIDEV"); ok {
-		spidev = val
-	}
 
 	pf, err = piface.NewPiFace(spidev)
 	if err != nil {
@@ -105,4 +109,3 @@ func main() {
 		log.Fatalf("Server failed: %v", err)
 	}
 }
-
