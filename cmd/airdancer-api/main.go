@@ -59,12 +59,6 @@ func relayHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := strconv.Atoi(parts[2])
-	if err != nil || id < 0 || id > 7 {
-		sendJSONResponse(w, "error", "Invalid relay ID", http.StatusBadRequest, outputState)
-		return
-	}
-
 	var req relayRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		sendJSONResponse(w, "error", "Failed to decode request body", http.StatusBadRequest, outputState)
@@ -74,36 +68,52 @@ func relayHandler(w http.ResponseWriter, r *http.Request) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	// Cancel any existing timer for this relay
-	if timer, ok := timers[id]; ok {
-		timer.Stop()
-		delete(timers, id)
+	var relayIDs []int
+	if parts[2] == "all" {
+		for i := range 8 {
+			relayIDs = append(relayIDs, i)
+		}
+	} else {
+		id, err := strconv.Atoi(parts[2])
+		if err != nil || id < 0 || id > 7 {
+			sendJSONResponse(w, "error", "Invalid relay ID", http.StatusBadRequest, outputState)
+			return
+		}
+		relayIDs = append(relayIDs, id)
 	}
 
 	newState := outputState
-	switch req.State {
-	case "on":
-		newState |= (1 << uint(id))
-		if req.Duration != nil {
-			duration := time.Duration(*req.Duration) * time.Second
-			timers[id] = time.AfterFunc(duration, func() {
-				mutex.Lock()
-				defer mutex.Unlock()
-				delete(timers, id)
-				turnOffState := outputState &^ (1 << uint(id))
-				if err := pf.WriteOutputs(turnOffState); err != nil {
-					log.Printf("Failed to automatically turn off relay %d: %v", id, err)
-				} else {
-					outputState = turnOffState
-					log.Printf("Automatically turned off relay %d after %s", id, duration)
-				}
-			})
+	for _, id := range relayIDs {
+		// Cancel any existing timer for this relay
+		if timer, ok := timers[id]; ok {
+			timer.Stop()
+			delete(timers, id)
 		}
-	case "off":
-		newState &^= (1 << uint(id))
-	default:
-		sendJSONResponse(w, "error", "Invalid state, must be 'on' or 'off'", http.StatusBadRequest, outputState)
-		return
+
+		switch req.State {
+		case "on":
+			newState |= (1 << uint(id))
+			if req.Duration != nil {
+				duration := time.Duration(*req.Duration) * time.Second
+				timers[id] = time.AfterFunc(duration, func() {
+					mutex.Lock()
+					defer mutex.Unlock()
+					delete(timers, id)
+					turnOffState := outputState &^ (1 << uint(id))
+					if err := pf.WriteOutputs(turnOffState); err != nil {
+						log.Printf("Failed to automatically turn off relay %d: %v", id, err)
+					} else {
+						outputState = turnOffState
+						log.Printf("Automatically turned off relay %d after %s", id, duration)
+					}
+				})
+			}
+		case "off":
+			newState &^= (1 << uint(id))
+		default:
+			sendJSONResponse(w, "error", "Invalid state, must be 'on' or 'off'", http.StatusBadRequest, outputState)
+			return
+		}
 	}
 
 	if err := pf.WriteOutputs(newState); err != nil {
@@ -113,7 +123,7 @@ func relayHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	outputState = newState
-	log.Printf("Set relay %d to %s, new state: 0b%08b", id, req.State, outputState)
+	log.Printf("Set relays to %s, new state: 0b%08b", req.State, outputState)
 	sendJSONResponse(w, "ok", "", http.StatusOK, outputState)
 }
 
