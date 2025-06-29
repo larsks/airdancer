@@ -12,10 +12,11 @@ import (
 
 // MCP23017 register addresses
 const (
-	GPIOA  = 0x12 // GPIO port A register
-	GPIOB  = 0x13 // GPIO port B register
-	IODIRA = 0x00 // I/O direction register A
-	IODIRB = 0x01 // I/O direction register B
+	NUMBER_OF_OUTPUTS = 8
+	GPIOA             = 0x12 // GPIO port A register
+	GPIOB             = 0x13 // GPIO port B register
+	IODIRA            = 0x00 // I/O direction register A
+	IODIRB            = 0x01 // I/O direction register B
 )
 
 // MCP23017 SPI opcodes
@@ -25,8 +26,9 @@ const (
 )
 
 type PiFace struct {
-	spiPort spi.PortCloser
-	spiConn spi.Conn
+	spiPortName string
+	spiPort     spi.PortCloser
+	spiConn     spi.Conn
 }
 
 func NewPiFace(spiPortName string) (*PiFace, error) {
@@ -40,10 +42,12 @@ func NewPiFace(spiPortName string) (*PiFace, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to SPI: %v", err)
 	}
+	log.Printf("opened piface device at %s", spiPortName)
 
 	return &PiFace{
-		spiPort: spiPort,
-		spiConn: spiConn,
+		spiPortName: spiPortName,
+		spiPort:     spiPort,
+		spiConn:     spiConn,
 	}, nil
 }
 
@@ -102,6 +106,19 @@ func (m *PiFace) WriteOutput(pin uint8, val uint8) error {
 		return err
 	}
 	return m.writeRegister(GPIOA, outputs|(val<<pin))
+}
+
+func (m *PiFace) ReadOutputs() (uint8, error) {
+	return m.readRegister(GPIOA)
+}
+
+func (m *PiFace) ReadOutput(pin uint8) (uint8, error) {
+	val, err := m.ReadOutputs()
+	if err != nil {
+		return 0, err
+	}
+
+	return (val >> pin) & 1, nil
 }
 
 func init() {
