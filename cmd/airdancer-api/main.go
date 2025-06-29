@@ -31,27 +31,43 @@ type relayRequest struct {
 	Duration *int   `json:"duration,omitempty"`
 }
 
+type jsonResponse struct {
+	Status      string `json:"status"`
+	OutputState uint8  `json:"output_state"`
+	Message     string `json:"message,omitempty"`
+}
+
+func sendJSONResponse(w http.ResponseWriter, status string, message string, httpCode int, outputState uint8) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(httpCode)
+	json.NewEncoder(w).Encode(jsonResponse{
+		Status:      status,
+		Message:     message,
+		OutputState: outputState,
+	})
+}
+
 func relayHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Only POST method is accepted", http.StatusMethodNotAllowed)
+		sendJSONResponse(w, "error", "Only POST method is accepted", http.StatusMethodNotAllowed, outputState)
 		return
 	}
 
 	parts := strings.Split(r.URL.Path, "/")
 	if len(parts) != 3 || parts[1] != "relay" {
-		http.NotFound(w, r)
+		sendJSONResponse(w, "error", "Not found", http.StatusNotFound, outputState)
 		return
 	}
 
 	id, err := strconv.Atoi(parts[2])
 	if err != nil || id < 0 || id > 7 {
-		http.Error(w, "Invalid relay ID", http.StatusBadRequest)
+		sendJSONResponse(w, "error", "Invalid relay ID", http.StatusBadRequest, outputState)
 		return
 	}
 
 	var req relayRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Failed to decode request body", http.StatusBadRequest)
+		sendJSONResponse(w, "error", "Failed to decode request body", http.StatusBadRequest, outputState)
 		return
 	}
 
@@ -86,19 +102,23 @@ func relayHandler(w http.ResponseWriter, r *http.Request) {
 	case "off":
 		newState &^= (1 << uint(id))
 	default:
-		http.Error(w, "Invalid state, must be 'on' or 'off'", http.StatusBadRequest)
+		sendJSONResponse(w, "error", "Invalid state, must be 'on' or 'off'", http.StatusBadRequest, outputState)
 		return
 	}
 
 	if err := pf.WriteOutputs(newState); err != nil {
 		log.Printf("Failed to write outputs: %v", err)
-		http.Error(w, "Failed to write to PiFace device", http.StatusInternalServerError)
+		sendJSONResponse(w, "error", "Failed to write to PiFace device", http.StatusInternalServerError, outputState)
 		return
 	}
 
 	outputState = newState
 	log.Printf("Set relay %d to %s, new state: 0b%08b", id, req.State, outputState)
-	fmt.Fprintf(w, "OK")
+	sendJSONResponse(w, "ok", "", http.StatusOK, outputState)
+}
+
+func statusHandler(w http.ResponseWriter, r *http.Request) {
+	sendJSONResponse(w, "ok", "", http.StatusOK, outputState)
 }
 
 func getenvWithDefault(name string, defaultValue string) string {
@@ -137,6 +157,7 @@ func main() {
 	}
 
 	http.HandleFunc("/relay/", relayHandler)
+	http.HandleFunc("/status", statusHandler)
 
 	listenAddr := fmt.Sprintf("%s:%d", listenAddress, listenPort)
 	log.Printf("Starting server on %s", listenAddr)
