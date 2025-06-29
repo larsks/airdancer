@@ -93,6 +93,17 @@ func (m *PiFace) WriteOutputs(val uint8) error {
 	return m.writeRegister(GPIOA, val)
 }
 
+func (m *PiFace) WriteOutput(pin uint8, val uint8) error {
+	if val > 1 {
+		return fmt.Errorf("value must be 0 or 1")
+	}
+	outputs, err := m.readRegister(GPIOA)
+	if err != nil {
+		return err
+	}
+	return m.writeRegister(GPIOA, outputs|(val<<pin))
+}
+
 func init() {
 	// Initialize periph.io host
 	if _, err := host.Init(); err != nil {
