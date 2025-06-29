@@ -87,9 +87,18 @@ func getenvWithDefault(name string, defaultValue string) string {
 func main() {
 	var err error
 	var spidev string
+	var listenAddress string
+	var listenPortStr string
 
 	pflag.StringVar(&spidev, "spidev", getenvWithDefault("AIRDANCER_SPIDEV", "/dev/spidev0.0"), "SPI device to use")
+	pflag.StringVar(&listenAddress, "listen-address", getenvWithDefault("AIRDANCER_LISTEN_ADDRESS", ""), "Listen address for http server")
+	pflag.StringVar(&listenPortStr, "listen-port", getenvWithDefault("AIRDANCER_LISTEN_PORT", "8080"), "Listen port for http server")
 	pflag.Parse()
+
+	listenPort, err := strconv.Atoi(listenPortStr)
+	if err != nil {
+		log.Fatalf("invalid listen port %q: %v", listenPortStr, err)
+	}
 
 	pf, err = piface.NewPiFace(spidev)
 	if err != nil {
@@ -104,8 +113,9 @@ func main() {
 
 	http.HandleFunc("/relay/", relayHandler)
 
-	log.Println("Starting server on :8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	listenAddr := fmt.Sprintf("%s:%d", listenAddress, listenPort)
+	log.Printf("Starting server on %s", listenAddr)
+	if err := http.ListenAndServe(listenAddr, nil); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
 }
