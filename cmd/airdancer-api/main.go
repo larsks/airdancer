@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/larsks/airdancer/internal/piface"
 	"github.com/spf13/pflag"
@@ -21,10 +22,13 @@ var (
 	mutex sync.Mutex
 	// pf is the PiFace interface.
 	pf *piface.PiFace
+	// timers stores active timers for relays.
+	timers = make(map[int]*time.Timer)
 )
 
 type relayRequest struct {
-	State string `json:"state"`
+	State    string `json:"state"`
+	Duration *int   `json:"duration,omitempty"`
 }
 
 func relayHandler(w http.ResponseWriter, r *http.Request) {
@@ -54,10 +58,31 @@ func relayHandler(w http.ResponseWriter, r *http.Request) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
+	// Cancel any existing timer for this relay
+	if timer, ok := timers[id]; ok {
+		timer.Stop()
+		delete(timers, id)
+	}
+
 	newState := outputState
 	switch req.State {
 	case "on":
 		newState |= (1 << uint(id))
+		if req.Duration != nil {
+			duration := time.Duration(*req.Duration) * time.Second
+			timers[id] = time.AfterFunc(duration, func() {
+				mutex.Lock()
+				defer mutex.Unlock()
+				delete(timers, id)
+				turnOffState := outputState &^ (1 << uint(id))
+				if err := pf.WriteOutputs(turnOffState); err != nil {
+					log.Printf("Failed to automatically turn off relay %d: %v", id, err)
+				} else {
+					outputState = turnOffState
+					log.Printf("Automatically turned off relay %d after %s", id, duration)
+				}
+			})
+		}
 	case "off":
 		newState &^= (1 << uint(id))
 	default:
