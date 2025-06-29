@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"os"
 	"sync"
 
 	"github.com/larsks/airdancer/internal/piface"
+	"github.com/spf13/pflag"
 )
 
 var (
@@ -76,8 +78,16 @@ func relayHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	var err error
-	// Replace "/dev/spidev0.0" with your actual SPI port if different.
-	pf, err = piface.NewPiFace("/dev/spidev0.0")
+	var spidev string
+
+	pflag.StringVar(&spidev, "spidev", "/dev/spidev0.0", "SPI device to use")
+	pflag.Parse()
+
+	if val, ok := os.LookupEnv("SPIDEV"); ok {
+		spidev = val
+	}
+
+	pf, err = piface.NewPiFace(spidev)
 	if err != nil {
 		log.Fatalf("Failed to initialize PiFace: %v", err)
 	}
@@ -95,3 +105,4 @@ func main() {
 		log.Fatalf("Server failed: %v", err)
 	}
 }
+
