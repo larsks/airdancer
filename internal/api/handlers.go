@@ -70,15 +70,17 @@ func (s *Server) getSwitchesFromRequest(r *http.Request) ([]switchcollection.Swi
 }
 
 func (s *Server) switchHandler(w http.ResponseWriter, r *http.Request) {
-	var req switchRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.sendJSONResponse(w, "error", "Failed to decode request body", http.StatusBadRequest)
+	// Get pre-validated request from context
+	req, ok := getSwitchRequestFromContext(r)
+	if !ok {
+		s.sendJSONResponse(w, "error", "Internal error: missing request data", http.StatusInternalServerError)
 		return
 	}
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	// Get switches - validation already done by middleware
 	switches, err := s.getSwitchesFromRequest(r)
 	if err != nil {
 		log.Printf("Failed to get list of switches: %v", err)
@@ -86,19 +88,24 @@ func (s *Server) switchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Process each switch - validation already done by middleware
 	for _, sw := range switches {
 		swid := sw.String()
 
+		// Cancel any existing timer for this switch
 		if timer, ok := s.timers[swid]; ok {
 			timer.Stop()
 			delete(s.timers, swid)
 		}
 
+		// Execute switch operation
 		switch req.State {
 		case "on":
 			if err := sw.TurnOn(); err != nil {
-				s.sendJSONResponse(w, "error", "Failed to turn on switch", http.StatusBadRequest)
+				s.sendJSONResponse(w, "error", "Failed to turn on switch", http.StatusInternalServerError)
+				return
 			}
+			// Set up auto-off timer if duration specified
 			if req.Duration != nil {
 				duration := time.Duration(*req.Duration) * time.Second
 				s.timers[swid] = time.AfterFunc(duration, func() {
@@ -113,11 +120,9 @@ func (s *Server) switchHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		case "off":
 			if err := sw.TurnOff(); err != nil {
-				s.sendJSONResponse(w, "error", "Failed to turn off switch", http.StatusBadRequest)
+				s.sendJSONResponse(w, "error", "Failed to turn off switch", http.StatusInternalServerError)
+				return
 			}
-		default:
-			s.sendJSONResponse(w, "error", "Invalid state, must be 'on' or 'off'", http.StatusBadRequest)
-			return
 		}
 	}
 
@@ -162,19 +167,9 @@ func (s *Server) switchStatusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Handle single switch status
-	id, err := strconv.Atoi(switchIDStr)
-	if err != nil {
-		s.sendJSONResponse(w, "error", "Invalid switch ID", http.StatusBadRequest)
-		return
-	}
-
-	sw, err := s.switches.GetSwitch(uint(id))
-	if err != nil {
-		log.Printf("Failed to get switch %d: %v", id, err)
-		s.sendJSONResponse(w, "error", "Switch not found", http.StatusNotFound)
-		return
-	}
+	// Handle single switch status - ID already validated by middleware
+	id, _ := strconv.Atoi(switchIDStr)
+	sw, _ := s.switches.GetSwitch(uint(id)) // Already validated by middleware
 
 	state, err := sw.GetState()
 	if err != nil {
