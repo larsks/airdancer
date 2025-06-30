@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/larsks/airdancer/internal/gpiodriver"
+	"github.com/larsks/airdancer/internal/gpio"
 )
 
 func main() {
@@ -27,7 +27,7 @@ func main() {
 		actions[parts[0]] = parts[1]
 	}
 
-	collection, err := gpiodriver.NewGPIOSwitchCollection(false, pinNames)
+	collection, err := gpio.NewGPIOSwitchCollection(false, pinNames)
 	if err != nil {
 		log.Fatalf("failed to create switch collection: %s", err)
 	}

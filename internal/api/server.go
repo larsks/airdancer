@@ -13,7 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/larsks/airdancer/internal/gpiodriver"
+	"github.com/larsks/airdancer/internal/gpio"
 	"github.com/larsks/airdancer/internal/piface"
 	"github.com/larsks/airdancer/internal/switchcollection"
 	"github.com/spf13/pflag"
@@ -117,7 +117,7 @@ func NewServer(cfg *Config) (*Server, error) {
 			return nil, fmt.Errorf("failed to open PiFace: %w", err)
 		}
 	case "gpio":
-		switches, err = gpiodriver.NewGPIOSwitchCollection(true, cfg.GPIOConfig.Pins)
+		switches, err = gpio.NewGPIOSwitchCollection(true, cfg.GPIOConfig.Pins)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create gpio driver: %w", err)
 		}
