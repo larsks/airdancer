@@ -112,7 +112,7 @@ func NewServer(cfg *Config) (*Server, error) {
 
 	switch cfg.Driver {
 	case "piface":
-		switches, err = piface.NewPiFace(cfg.PiFaceConfig.SPIDev)
+		switches, err = piface.NewPiFace(true, cfg.PiFaceConfig.SPIDev)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open PiFace: %w", err)
 		}
