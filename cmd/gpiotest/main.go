@@ -27,7 +27,7 @@ func main() {
 		actions[parts[0]] = parts[1]
 	}
 
-	collection, err := gpiodriver.NewGpioSwitchCollection(false, pinNames)
+	collection, err := gpiodriver.NewGPIOSwitchCollection(false, pinNames)
 	if err != nil {
 		log.Fatalf("failed to create switch collection: %s", err)
 	}
@@ -61,4 +61,3 @@ func main() {
 		}
 	}
 }
-
