@@ -98,6 +98,31 @@ func (sc *GPIOSwitchCollection) TurnOff() error {
 	return nil
 }
 
+func (sc *GPIOSwitchCollection) GetState() (bool, error) {
+	for _, s := range sc.switches {
+		state, err := s.GetState()
+		if err != nil {
+			return false, err
+		}
+		if !state {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func (sc *GPIOSwitchCollection) GetDetailedState() ([]bool, error) {
+	states := make([]bool, len(sc.switches))
+	for i, s := range sc.switches {
+		state, err := s.GetState()
+		if err != nil {
+			return nil, err
+		}
+		states[i] = state
+	}
+	return states, nil
+}
+
 func (sc *GPIOSwitchCollection) String() string {
 	return fmt.Sprintf("gpio switch collection with %d switches", len(sc.switches))
 }
@@ -116,6 +141,10 @@ func (s *GPIOSwitch) TurnOff() error {
 		return fmt.Errorf("failed to turn off switch %s: %w", s, err)
 	}
 	return nil
+}
+
+func (s *GPIOSwitch) GetState() (bool, error) {
+	return s.pin.Read() == gpio.High, nil
 }
 
 func (s *GPIOSwitch) String() string {
