@@ -10,7 +10,7 @@ import (
 
 func main() {
 	spiPortName := "/dev/spidev0.0"
-	pf, err := piface.NewPiFace(spiPortName)
+	pf, err := piface.NewPiFace(false, spiPortName)
 	if err != nil {
 		log.Fatal("Failed to open piface:", err)
 	}

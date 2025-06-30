@@ -32,9 +32,10 @@ type PiFace struct {
 	spiPortName string
 	spiPort     spi.PortCloser
 	spiConn     spi.Conn
+	offOnClose  bool
 }
 
-func NewPiFace(spiPortName string) (*PiFace, error) {
+func NewPiFace(offOnClose bool, spiPortName string) (*PiFace, error) {
 	// Open SPI port
 	spiPort, err := spireg.Open(spiPortName)
 	if err != nil {
@@ -51,6 +52,7 @@ func NewPiFace(spiPortName string) (*PiFace, error) {
 		spiPortName: spiPortName,
 		spiPort:     spiPort,
 		spiConn:     spiConn,
+		offOnClose:  offOnClose,
 	}, nil
 }
 
@@ -73,6 +75,9 @@ func (m *PiFace) Init() error {
 }
 
 func (m *PiFace) Close() error {
+	if m.offOnClose {
+		_ = m.TurnOff()
+	}
 	return m.spiPort.Close()
 }
 
