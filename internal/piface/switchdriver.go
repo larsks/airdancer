@@ -2,6 +2,8 @@ package piface
 
 import (
 	"fmt"
+	"log"
+
 	"github.com/larsks/airdancer/internal/switchdriver"
 )
 
@@ -60,10 +62,12 @@ func (pf *PiFace) TurnAllOff() error {
 }
 
 func (pfo *PiFaceOutput) TurnOn() error {
+	log.Printf("turn on output %s", pfo)
 	return pfo.pf.WriteOutput(pfo.pin, 1)
 }
 
 func (pfo *PiFaceOutput) TurnOff() error {
+	log.Printf("turn off output %s", pfo)
 	return pfo.pf.WriteOutput(pfo.pin, 0)
 }
 

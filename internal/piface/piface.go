@@ -122,11 +122,18 @@ func (m *PiFace) WriteOutput(pin uint8, val uint8) error {
 	if val > 1 {
 		return fmt.Errorf("value must be 0 or 1")
 	}
-	outputs, err := m.readRegister(GPIOA)
+	outputs, err := m.ReadOutputs()
 	if err != nil {
 		return err
 	}
-	return m.writeRegister(GPIOA, outputs|(val<<pin))
+
+	if val == 1 {
+		outputs |= (1 << pin)
+	} else {
+		outputs &^= (1 << pin)
+	}
+
+	return m.WriteOutputs(outputs)
 }
 
 func (m *PiFace) ReadOutputs() (uint8, error) {
