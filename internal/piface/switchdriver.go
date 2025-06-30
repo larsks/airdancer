@@ -41,12 +41,34 @@ func (pf *PiFace) GetSwitch(id uint) (switchdriver.Switch, error) {
 	}, nil
 }
 
+func (pf *PiFace) TurnAllOn() error {
+	for _, sw := range pf.ListSwitches() {
+		if err := sw.TurnOn(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (pf *PiFace) TurnAllOff() error {
+	for _, sw := range pf.ListSwitches() {
+		if err := sw.TurnOff(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (pfo *PiFaceOutput) TurnOn() error {
 	return pfo.pf.WriteOutput(pfo.pin, 1)
 }
 
 func (pfo *PiFaceOutput) TurnOff() error {
 	return pfo.pf.WriteOutput(pfo.pin, 0)
+}
+
+func (pfo *PiFaceOutput) GetID() uint {
+	return uint(pfo.pin)
 }
 
 func (pfo *PiFaceOutput) GetState() (bool, error) {

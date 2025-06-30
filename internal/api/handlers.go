@@ -8,9 +8,11 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/larsks/airdancer/internal/switchdriver"
 )
 
-type relayRequest struct {
+type switchRequest struct {
 	State    string `json:"state"`
 	Duration *int   `json:"duration,omitempty"`
 }
@@ -21,85 +23,108 @@ type jsonResponse struct {
 	Message     string `json:"message,omitempty"`
 }
 
-func (s *Server) sendJSONResponse(w http.ResponseWriter, status string, message string, httpCode int, outputState uint8) {
+func (s *Server) sendJSONResponse(w http.ResponseWriter, status string, message string, httpCode int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(httpCode)
 	json.NewEncoder(w).Encode(jsonResponse{
-		Status:      status,
-		Message:     message,
-		OutputState: outputState,
+		Status:  status,
+		Message: message,
 	})
 }
 
-func (s *Server) relayHandler(w http.ResponseWriter, r *http.Request) {
-	var req relayRequest
+func (s *Server) getSwitchesFromRequest(r *http.Request) ([]switchdriver.Switch, error) {
+	switchIDStr := chi.URLParam(r, "id")
+	var switches []switchdriver.Switch
+	if switchIDStr == "all" {
+		switches = s.switches.ListSwitches()
+	} else {
+		id, err := strconv.Atoi(switchIDStr)
+		if err != nil {
+			return nil, err
+		}
+
+		sw, err := s.switches.GetSwitch(uint(id))
+		if err != nil {
+			return nil, err
+		}
+
+		switches = append(switches, sw)
+	}
+
+	return switches, nil
+}
+
+func (s *Server) switchHandler(w http.ResponseWriter, r *http.Request) {
+	var req switchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.sendJSONResponse(w, "error", "Failed to decode request body", http.StatusBadRequest, s.outputState)
+		s.sendJSONResponse(w, "error", "Failed to decode request body", http.StatusBadRequest)
 		return
 	}
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	var relayIDs []int
-	relayIDStr := chi.URLParam(r, "id")
-	if relayIDStr == "all" {
-		for i := 0; i < 8; i++ {
-			relayIDs = append(relayIDs, i)
-		}
-	} else {
-		id, err := strconv.Atoi(relayIDStr)
-		if err != nil || id < 0 || id > 7 {
-			s.sendJSONResponse(w, "error", "Invalid relay ID", http.StatusBadRequest, s.outputState)
-			return
-		}
-		relayIDs = append(relayIDs, id)
+	switches, err := s.getSwitchesFromRequest(r)
+	if err != nil {
+		log.Printf("Failed to get list of switches: %v", err)
+		s.sendJSONResponse(w, "error", "Failed to get list of switches", http.StatusInternalServerError)
 	}
 
-	newState := s.outputState
-	for _, id := range relayIDs {
-		if timer, ok := s.timers[id]; ok {
+	for _, sw := range switches {
+		if timer, ok := s.timers[sw.GetID()]; ok {
 			timer.Stop()
-			delete(s.timers, id)
+			delete(s.timers, sw.GetID())
 		}
 
 		switch req.State {
 		case "on":
-			newState |= (1 << uint(id))
+			if err := sw.TurnOn(); err != nil {
+				s.sendJSONResponse(w, "error", "Failed to turn on switch", http.StatusBadRequest)
+			}
 			if req.Duration != nil {
 				duration := time.Duration(*req.Duration) * time.Second
-				s.timers[id] = time.AfterFunc(duration, func() {
+				s.timers[sw.GetID()] = time.AfterFunc(duration, func() {
 					s.mutex.Lock()
 					defer s.mutex.Unlock()
-					delete(s.timers, id)
-					turnOffState := s.outputState &^ (1 << uint(id))
-					if err := s.pf.WriteOutputs(turnOffState); err != nil {
-						log.Printf("Failed to automatically turn off relay %d: %v", id, err)
-					} else {
-						s.outputState = turnOffState
-						log.Printf("Automatically turned off relay %d after %s", id, duration)
+					delete(s.timers, sw.GetID())
+					if err := sw.TurnOff(); err != nil {
+						log.Printf("Failed to automatically turn off switch %d: %v", sw.GetID(), err)
 					}
+					log.Printf("Automatically turned off switch %d after %s", sw.GetID(), duration)
 				})
 			}
 		case "off":
-			newState &^= (1 << uint(id))
+			if err := sw.TurnOff(); err != nil {
+				s.sendJSONResponse(w, "error", "Failed to turn off switch", http.StatusBadRequest)
+			}
 		default:
-			s.sendJSONResponse(w, "error", "Invalid state, must be 'on' or 'off'", http.StatusBadRequest, s.outputState)
+			s.sendJSONResponse(w, "error", "Invalid state, must be 'on' or 'off'", http.StatusBadRequest)
 			return
 		}
 	}
 
-	if err := s.pf.WriteOutputs(newState); err != nil {
-		log.Printf("Failed to write outputs: %v", err)
-		s.sendJSONResponse(w, "error", "Failed to write to PiFace device", http.StatusInternalServerError, s.outputState)
+	s.sendJSONResponse(w, "ok", "", http.StatusOK)
+}
+
+func (s *Server) switchStatusHandler(w http.ResponseWriter, r *http.Request) {
+	var req switchRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.sendJSONResponse(w, "error", "Failed to decode request body", http.StatusBadRequest)
 		return
 	}
 
-	s.outputState = newState
-	log.Printf("Set relays to %s, new state: 0b%08b", req.State, s.outputState)
-	s.sendJSONResponse(w, "ok", "", http.StatusOK, s.outputState)
-}
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
-func (s *Server) statusHandler(w http.ResponseWriter, r *http.Request) {
-	s.sendJSONResponse(w, "ok", "", http.StatusOK, s.outputState)
+	switches, err := s.getSwitchesFromRequest(r)
+	if err != nil {
+		log.Printf("Failed to get list of switches: %v", err)
+		s.sendJSONResponse(w, "error", "Failed to get list of switches", http.StatusInternalServerError)
+	}
+
+	for _, _ = range switches {
+
+	}
+
+	s.sendJSONResponse(w, "ok", "", http.StatusOK)
 }

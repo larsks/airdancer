@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/larsks/airdancer/internal/piface"
+	"github.com/larsks/airdancer/internal/switchdriver"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
@@ -22,10 +23,10 @@ import (
 
 type Server struct {
 	listenAddr  string
-	pf          *piface.PiFace
+	switches    switchdriver.SwitchCollection
 	outputState uint8
 	mutex       sync.Mutex
-	timers      map[int]*time.Timer
+	timers      map[uint]*time.Timer
 	router      *chi.Mux
 }
 
@@ -93,14 +94,14 @@ func NewServer(cfg *Config) (*Server, error) {
 
 	s := &Server{
 		listenAddr: fmt.Sprintf("%s:%d", cfg.ListenAddress, cfg.ListenPort),
-		pf:         pf,
-		timers:     make(map[int]*time.Timer),
+		switches:   pf,
+		timers:     make(map[uint]*time.Timer),
 		router:     chi.NewRouter(),
 	}
 
 	s.router.Use(middleware.Logger)
-	s.router.Post("/relay/{id}", s.relayHandler)
-	s.router.Get("/status", s.statusHandler)
+	s.router.Post("/switch/{id}", s.switchHandler)
+	s.router.Get("/switch/{id}", s.switchStatusHandler)
 
 	return s, nil
 }
@@ -108,9 +109,9 @@ func NewServer(cfg *Config) (*Server, error) {
 // Start starts the API server.
 
 func (s *Server) Start() error {
-	// Initialize all outputs to off
-	if err := s.pf.WriteOutputs(0); err != nil {
-		return fmt.Errorf("failed to initialize outputs: %w", err)
+	// Initialize all switches to off
+	if err := s.switches.TurnAllOff(); err != nil {
+		return fmt.Errorf("failed to initialize switches: %w", err)
 	}
 
 	srv := &http.Server{
@@ -145,6 +146,5 @@ func (s *Server) Start() error {
 // Close closes the PiFace connection.
 
 func (s *Server) Close() {
-	s.pf.Close()
+	s.switches.Close()
 }
-
