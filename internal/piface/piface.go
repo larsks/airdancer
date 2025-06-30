@@ -39,7 +39,7 @@ func NewPiFace(offOnClose bool, spiPortName string) (*PiFace, error) {
 	// Open SPI port
 	spiPort, err := spireg.Open(spiPortName)
 	if err != nil {
-		log.Fatalf("Failed to open SPI port %s: %s", spiPortName, err)
+		return nil, fmt.Errorf("failed to open SPI port %s: %s", spiPortName, err)
 	}
 	// Configure SPI connection with proper frequency units
 	spiConn, err := spiPort.Connect(1*physic.MegaHertz, spi.Mode0, 8) // 1MHz, Mode 0, 8 bits
