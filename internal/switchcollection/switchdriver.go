@@ -1,4 +1,4 @@
-package switchdriver
+package switchcollection
 
 type (
 	Switch interface {

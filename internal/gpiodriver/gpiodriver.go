@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/larsks/airdancer/internal/switchdriver"
+	"github.com/larsks/airdancer/internal/switchcollection"
 	"periph.io/x/conn/v3/gpio"
 	"periph.io/x/conn/v3/gpio/gpioreg"
 	"periph.io/x/host/v3"
@@ -17,7 +17,7 @@ type (
 
 	GPIOSwitchCollection struct {
 		offOnClose bool
-		switches   []switchdriver.Switch
+		switches   []switchcollection.Switch
 	}
 )
 
@@ -26,7 +26,7 @@ func NewGPIOSwitchCollection(offOnClose bool, pins []string) (*GPIOSwitchCollect
 		return nil, fmt.Errorf("failed to init periph: %w", err)
 	}
 
-	switches := make([]switchdriver.Switch, len(pins))
+	switches := make([]switchcollection.Switch, len(pins))
 	for i, pinName := range pins {
 		pin := gpioreg.ByName(pinName)
 		if pin == nil {
@@ -69,11 +69,11 @@ func (sc *GPIOSwitchCollection) CountSwitches() uint {
 	return uint(len(sc.switches))
 }
 
-func (sc *GPIOSwitchCollection) ListSwitches() []switchdriver.Switch {
+func (sc *GPIOSwitchCollection) ListSwitches() []switchcollection.Switch {
 	return sc.switches
 }
 
-func (sc *GPIOSwitchCollection) GetSwitch(id uint) (switchdriver.Switch, error) {
+func (sc *GPIOSwitchCollection) GetSwitch(id uint) (switchcollection.Switch, error) {
 	if id >= uint(len(sc.switches)) {
 		return nil, fmt.Errorf("invalid switch id %d", id)
 	}

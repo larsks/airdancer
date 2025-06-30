@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/larsks/airdancer/internal/switchdriver"
+	"github.com/larsks/airdancer/internal/switchcollection"
 )
 
 type (
@@ -22,8 +22,8 @@ func (pf *PiFace) CountSwitches() uint {
 	return NUMBER_OF_OUTPUTS
 }
 
-func (pf *PiFace) ListSwitches() []switchdriver.Switch {
-	var switches []switchdriver.Switch
+func (pf *PiFace) ListSwitches() []switchcollection.Switch {
+	var switches []switchcollection.Switch
 	for i := range NUMBER_OF_OUTPUTS {
 		if sw, err := pf.GetSwitch(uint(i)); err == nil {
 			switches = append(switches, sw)
@@ -33,7 +33,7 @@ func (pf *PiFace) ListSwitches() []switchdriver.Switch {
 	return switches
 }
 
-func (pf *PiFace) GetSwitch(id uint) (switchdriver.Switch, error) {
+func (pf *PiFace) GetSwitch(id uint) (switchcollection.Switch, error) {
 	if id > 7 {
 		return nil, fmt.Errorf("invalid switch id")
 	}

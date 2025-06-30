@@ -9,7 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/larsks/airdancer/internal/switchdriver"
+	"github.com/larsks/airdancer/internal/switchcollection"
 )
 
 type switchRequest struct {
@@ -32,9 +32,9 @@ func (s *Server) sendJSONResponse(w http.ResponseWriter, status string, message 
 	})
 }
 
-func (s *Server) getSwitchesFromRequest(r *http.Request) ([]switchdriver.Switch, error) {
+func (s *Server) getSwitchesFromRequest(r *http.Request) ([]switchcollection.Switch, error) {
 	switchIDStr := chi.URLParam(r, "id")
-	var switches []switchdriver.Switch
+	var switches []switchcollection.Switch
 	if switchIDStr == "all" {
 		switches = append(switches, s.switches)
 	} else {
