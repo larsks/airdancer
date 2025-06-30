@@ -137,8 +137,20 @@ func NewServer(cfg *Config) (*Server, error) {
 	}
 
 	s.router.Use(middleware.Logger)
-	s.router.Post("/switch/{id}", s.switchHandler)
-	s.router.Get("/switch/{id}", s.switchStatusHandler)
+	
+	// Set up routes with validation middleware
+	s.router.Route("/switch", func(r chi.Router) {
+		// GET endpoints for status queries
+		r.With(s.validateSwitchID, s.validateSwitchExists).Get("/{id}", s.switchStatusHandler)
+		
+		// POST endpoints for switch control
+		r.With(
+			s.validateSwitchID,
+			s.validateSwitchExists,
+			s.validateJSONRequest,
+			s.validateSwitchRequest,
+		).Post("/{id}", s.switchHandler)
+	})
 
 	return s, nil
 }
