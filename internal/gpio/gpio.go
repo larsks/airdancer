@@ -150,3 +150,10 @@ func (s *GPIOSwitch) GetState() (bool, error) {
 func (s *GPIOSwitch) String() string {
 	return s.pin.Name()
 }
+
+func init() {
+	// Initialize periph.io host
+	if _, err := host.Init(); err != nil {
+		log.Fatal("Failed to initialize periph.io:", err)
+	}
+}

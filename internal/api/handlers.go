@@ -18,9 +18,24 @@ type switchRequest struct {
 }
 
 type jsonResponse struct {
-	Status      string `json:"status"`
-	OutputState uint8  `json:"output_state"`
-	Message     string `json:"message,omitempty"`
+	Status  string `json:"status"`
+	Message string `json:"message,omitempty"`
+}
+
+type switchStatusResponse struct {
+	Status string      `json:"status"`
+	Data   interface{} `json:"data"`
+}
+
+type singleSwitchStatus struct {
+	ID    string `json:"id"`
+	State bool   `json:"state"`
+}
+
+type allSwitchesStatus struct {
+	Count   uint   `json:"count"`
+	States  []bool `json:"states"`
+	Summary bool   `json:"summary"`
 }
 
 func (s *Server) sendJSONResponse(w http.ResponseWriter, status string, message string, httpCode int) {
@@ -68,6 +83,7 @@ func (s *Server) switchHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Failed to get list of switches: %v", err)
 		s.sendJSONResponse(w, "error", "Failed to get list of switches", http.StatusInternalServerError)
+		return
 	}
 
 	for _, sw := range switches {
@@ -109,4 +125,73 @@ func (s *Server) switchHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) switchStatusHandler(w http.ResponseWriter, r *http.Request) {
+	switchIDStr := chi.URLParam(r, "id")
+
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	if switchIDStr == "all" {
+		// Get detailed state for all switches
+		states, err := s.switches.GetDetailedState()
+		if err != nil {
+			log.Printf("Failed to get detailed switch states: %v", err)
+			s.sendJSONResponse(w, "error", "Failed to get switch states", http.StatusInternalServerError)
+			return
+		}
+
+		// Get summary state (true if all switches are on)
+		summary, err := s.switches.GetState()
+		if err != nil {
+			log.Printf("Failed to get summary switch state: %v", err)
+			s.sendJSONResponse(w, "error", "Failed to get switch state", http.StatusInternalServerError)
+			return
+		}
+
+		response := switchStatusResponse{
+			Status: "ok",
+			Data: allSwitchesStatus{
+				Count:   s.switches.CountSwitches(),
+				States:  states,
+				Summary: summary,
+			},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	// Handle single switch status
+	id, err := strconv.Atoi(switchIDStr)
+	if err != nil {
+		s.sendJSONResponse(w, "error", "Invalid switch ID", http.StatusBadRequest)
+		return
+	}
+
+	sw, err := s.switches.GetSwitch(uint(id))
+	if err != nil {
+		log.Printf("Failed to get switch %d: %v", id, err)
+		s.sendJSONResponse(w, "error", "Switch not found", http.StatusNotFound)
+		return
+	}
+
+	state, err := sw.GetState()
+	if err != nil {
+		log.Printf("Failed to get state for switch %d: %v", id, err)
+		s.sendJSONResponse(w, "error", "Failed to get switch state", http.StatusInternalServerError)
+		return
+	}
+
+	response := switchStatusResponse{
+		Status: "ok",
+		Data: singleSwitchStatus{
+			ID:    switchIDStr,
+			State: state,
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
 }
