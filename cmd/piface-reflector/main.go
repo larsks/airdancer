@@ -12,9 +12,13 @@ func main() {
 	spiPortName := "/dev/spidev0.0"
 	pf, err := piface.NewPiFace(spiPortName)
 	if err != nil {
-		log.Fatal("Failed to initialize piface:", err)
+		log.Fatal("Failed to open piface:", err)
 	}
 	defer pf.Close()
+
+	if err := pf.Init(); err != nil {
+		log.Fatal("Failed to initialize piface:", err)
+	}
 
 	// Reflect inputs to outputs
 	var oldval uint8

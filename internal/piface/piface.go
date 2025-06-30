@@ -17,6 +17,9 @@ const (
 	GPIOB             = 0x13 // GPIO port B register
 	IODIRA            = 0x00 // I/O direction register A
 	IODIRB            = 0x01 // I/O direction register B
+	IOCON             = 10   // I/O config
+	GPPUA             = 12   // Port A pullups
+	GPPUB             = 13   // Port B pullups
 )
 
 // MCP23017 SPI opcodes
@@ -49,6 +52,24 @@ func NewPiFace(spiPortName string) (*PiFace, error) {
 		spiPort:     spiPort,
 		spiConn:     spiConn,
 	}, nil
+}
+
+func (m *PiFace) Init() error {
+	initVars := map[uint8]uint8{
+		IOCON:  8,
+		IODIRA: 0,
+		IODIRB: 0xff,
+		GPPUB:  0xff,
+	}
+
+	log.Printf("initializing piface %s", m)
+	for k, v := range initVars {
+		if err := m.writeRegister(k, v); err != nil {
+			return fmt.Errorf("failed to initialize piface: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (m *PiFace) Close() error {
