@@ -16,11 +16,12 @@ type (
 	}
 
 	GpioSwitchCollection struct {
-		switches []switchdriver.Switch
+		offOnClose bool
+		switches   []switchdriver.Switch
 	}
 )
 
-func NewGpioSwitchCollection(pins []string) (*GpioSwitchCollection, error) {
+func NewGpioSwitchCollection(offOnClose bool, pins []string) (*GpioSwitchCollection, error) {
 	if _, err := host.Init(); err != nil {
 		return nil, fmt.Errorf("failed to init periph: %w", err)
 	}
@@ -37,7 +38,8 @@ func NewGpioSwitchCollection(pins []string) (*GpioSwitchCollection, error) {
 	}
 
 	return &GpioSwitchCollection{
-		switches: switches,
+		offOnClose: offOnClose,
+		switches:   switches,
 	}, nil
 }
 
@@ -53,9 +55,11 @@ func (sc *GpioSwitchCollection) Init() error {
 
 func (sc *GpioSwitchCollection) Close() error {
 	log.Printf("closing gpio driver")
-	for _, s := range sc.switches {
-		if err := s.(*GpioSwitch).pin.Out(gpio.Low); err != nil {
-			log.Printf("failed to reset pin to low: %s", err)
+	if sc.offOnClose {
+		for _, s := range sc.switches {
+			if err := s.(*GpioSwitch).pin.Out(gpio.Low); err != nil {
+				log.Printf("failed to reset pin to low: %s", err)
+			}
 		}
 	}
 	return nil

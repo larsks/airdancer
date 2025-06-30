@@ -1,2 +1,7 @@
 .envrc
 config.json
+airdancer-api
+airdancer-api.toml
+airdancer-monitor
+gpiotest
+piface-reflector
