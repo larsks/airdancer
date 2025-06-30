@@ -15,7 +15,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/larsks/airdancer/internal/gpiodriver"
 	"github.com/larsks/airdancer/internal/piface"
-	"github.com/larsks/airdancer/internal/switchdriver"
+	"github.com/larsks/airdancer/internal/switchcollection"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
@@ -24,7 +24,7 @@ import (
 
 type Server struct {
 	listenAddr  string
-	switches    switchdriver.SwitchCollection
+	switches    switchcollection.SwitchCollection
 	outputState uint8
 	mutex       sync.Mutex
 	timers      map[string]*time.Timer
@@ -107,7 +107,7 @@ func (c *Config) LoadConfig() error {
 // NewServer creates a new Server instance.
 
 func NewServer(cfg *Config) (*Server, error) {
-	var switches switchdriver.SwitchCollection
+	var switches switchcollection.SwitchCollection
 	var err error
 
 	switch cfg.Driver {
