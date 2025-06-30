@@ -15,6 +15,7 @@ type (
 		GetSwitch(id uint) (Switch, error)
 		TurnAllOff() error
 		TurnAllOn() error
+		Init() error
 		Close() error
 		String() string
 	}

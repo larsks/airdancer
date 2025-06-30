@@ -89,6 +89,9 @@ func (c *Config) LoadConfig() error {
 func NewServer(cfg *Config) (*Server, error) {
 	pf, err := piface.NewPiFace(cfg.SPIDev)
 	if err != nil {
+		return nil, fmt.Errorf("failed to open PiFace: %w", err)
+	}
+	if err := pf.Init(); err != nil {
 		return nil, fmt.Errorf("failed to initialize PiFace: %w", err)
 	}
 
