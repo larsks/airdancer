@@ -36,7 +36,7 @@ func (s *Server) getSwitchesFromRequest(r *http.Request) ([]switchdriver.Switch,
 	switchIDStr := chi.URLParam(r, "id")
 	var switches []switchdriver.Switch
 	if switchIDStr == "all" {
-		switches = s.switches.ListSwitches()
+		switches = append(switches, s.switches)
 	} else {
 		id, err := strconv.Atoi(switchIDStr)
 		if err != nil {
@@ -71,9 +71,11 @@ func (s *Server) switchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, sw := range switches {
-		if timer, ok := s.timers[sw.GetID()]; ok {
+		swid := sw.String()
+
+		if timer, ok := s.timers[swid]; ok {
 			timer.Stop()
-			delete(s.timers, sw.GetID())
+			delete(s.timers, swid)
 		}
 
 		switch req.State {
@@ -83,14 +85,14 @@ func (s *Server) switchHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			if req.Duration != nil {
 				duration := time.Duration(*req.Duration) * time.Second
-				s.timers[sw.GetID()] = time.AfterFunc(duration, func() {
+				s.timers[swid] = time.AfterFunc(duration, func() {
 					s.mutex.Lock()
 					defer s.mutex.Unlock()
-					delete(s.timers, sw.GetID())
+					delete(s.timers, swid)
 					if err := sw.TurnOff(); err != nil {
-						log.Printf("Failed to automatically turn off switch %d: %v", sw.GetID(), err)
+						log.Printf("Failed to automatically turn off switch %s: %v", swid, err)
 					}
-					log.Printf("Automatically turned off switch %d after %s", sw.GetID(), duration)
+					log.Printf("Automatically turned off switch %s after %s", swid, duration)
 				})
 			}
 		case "off":
