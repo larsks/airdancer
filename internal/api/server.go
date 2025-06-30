@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/larsks/airdancer/internal/gpiodriver"
 	"github.com/larsks/airdancer/internal/piface"
 	"github.com/larsks/airdancer/internal/switchdriver"
 	"github.com/spf13/pflag"
@@ -32,12 +33,24 @@ type Server struct {
 
 // Config holds the configuration for the API server.
 
-type Config struct {
-	ListenAddress string `mapstructure:"listen-address"`
-	ListenPort    int    `mapstructure:"listen-port"`
-	SPIDev        string `mapstructure:"spidev"`
-	ConfigFile    string `mapstructure:"config-file"`
-}
+type (
+	PiFaceConfig struct {
+		SPIDev string `mapstructure:"spidev"`
+	}
+
+	GPIOConfig struct {
+		Pins []string `mapstructure:"pins"`
+	}
+
+	Config struct {
+		ListenAddress string `mapstructure:"listen-address"`
+		ListenPort    int    `mapstructure:"listen-port"`
+		ConfigFile    string `mapstructure:"config-file"`
+		Driver        string `mapstructure:"driver"`
+		GPIOConfig    GPIOConfig
+		PiFaceConfig  PiFaceConfig
+	}
+)
 
 // NewConfig creates a new Config instance with default values.
 
@@ -45,7 +58,10 @@ func NewConfig() *Config {
 	return &Config{
 		ListenAddress: "",
 		ListenPort:    8080,
-		SPIDev:        "/dev/spidev0.0",
+		Driver:        "piface",
+		PiFaceConfig: PiFaceConfig{
+			SPIDev: "/dev/spidev0.0",
+		},
 	}
 }
 
@@ -53,9 +69,11 @@ func NewConfig() *Config {
 
 func (c *Config) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&c.ConfigFile, "config-file", "", "Config file to use")
-	fs.StringVar(&c.SPIDev, "spidev", c.SPIDev, "SPI device to use")
 	fs.StringVar(&c.ListenAddress, "listen-address", c.ListenAddress, "Listen address for http server")
 	fs.IntVar(&c.ListenPort, "listen-port", c.ListenPort, "Listen port for http server")
+	fs.StringVar(&c.Driver, "driver", c.Driver, "Driver to use (piface or gpio)")
+	fs.StringVar(&c.PiFaceConfig.SPIDev, "piface.spidev", c.PiFaceConfig.SPIDev, "SPI device to use")
+	fs.StringSliceVar(&c.GPIOConfig.Pins, "gpio.pins", c.GPIOConfig.Pins, "GPIO pins to use (for gpio driver)")
 }
 
 // LoadConfig loads the configuration from a file and binds it to the Config struct.
@@ -64,7 +82,9 @@ func (c *Config) LoadConfig() error {
 	v := viper.New()
 	v.SetDefault("listen-address", c.ListenAddress)
 	v.SetDefault("listen-port", c.ListenPort)
-	v.SetDefault("spidev", c.SPIDev)
+	v.SetDefault("driver", c.Driver)
+	v.SetDefault("piface.spidev", c.PiFaceConfig.SPIDev)
+	v.SetDefault("gpio.pins", c.GPIOConfig.Pins)
 
 	if c.ConfigFile != "" {
 		v.SetConfigFile(c.ConfigFile)
@@ -87,17 +107,31 @@ func (c *Config) LoadConfig() error {
 // NewServer creates a new Server instance.
 
 func NewServer(cfg *Config) (*Server, error) {
-	pf, err := piface.NewPiFace(cfg.SPIDev)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open PiFace: %w", err)
+	var switches switchdriver.SwitchCollection
+	var err error
+
+	switch cfg.Driver {
+	case "piface":
+		switches, err = piface.NewPiFace(cfg.PiFaceConfig.SPIDev)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open PiFace: %w", err)
+		}
+	case "gpio":
+		switches, err = gpiodriver.NewGPIOSwitchCollection(true, cfg.GPIOConfig.Pins)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create gpio driver: %w", err)
+		}
+	default:
+		return nil, fmt.Errorf("unknown driver: %s", cfg.Driver)
 	}
-	if err := pf.Init(); err != nil {
-		return nil, fmt.Errorf("failed to initialize PiFace: %w", err)
+
+	if err := switches.Init(); err != nil {
+		return nil, fmt.Errorf("failed to initialize driver: %w", err)
 	}
 
 	s := &Server{
 		listenAddr: fmt.Sprintf("%s:%d", cfg.ListenAddress, cfg.ListenPort),
-		switches:   pf,
+		switches:   switches,
 		timers:     make(map[string]*time.Timer),
 		router:     chi.NewRouter(),
 	}

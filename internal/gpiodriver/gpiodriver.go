@@ -11,17 +11,17 @@ import (
 )
 
 type (
-	GpioSwitch struct {
+	GPIOSwitch struct {
 		pin gpio.PinIO
 	}
 
-	GpioSwitchCollection struct {
+	GPIOSwitchCollection struct {
 		offOnClose bool
 		switches   []switchdriver.Switch
 	}
 )
 
-func NewGpioSwitchCollection(offOnClose bool, pins []string) (*GpioSwitchCollection, error) {
+func NewGPIOSwitchCollection(offOnClose bool, pins []string) (*GPIOSwitchCollection, error) {
 	if _, err := host.Init(); err != nil {
 		return nil, fmt.Errorf("failed to init periph: %w", err)
 	}
@@ -32,32 +32,32 @@ func NewGpioSwitchCollection(offOnClose bool, pins []string) (*GpioSwitchCollect
 		if pin == nil {
 			return nil, fmt.Errorf("failed to find pin %s", pinName)
 		}
-		switches[i] = &GpioSwitch{
+		switches[i] = &GPIOSwitch{
 			pin: pin,
 		}
 	}
 
-	return &GpioSwitchCollection{
+	return &GPIOSwitchCollection{
 		offOnClose: offOnClose,
 		switches:   switches,
 	}, nil
 }
 
-func (sc *GpioSwitchCollection) Init() error {
+func (sc *GPIOSwitchCollection) Init() error {
 	log.Printf("initializing gpio driver")
 	for _, s := range sc.switches {
-		if err := s.(*GpioSwitch).pin.Out(gpio.Low); err != nil {
+		if err := s.(*GPIOSwitch).pin.Out(gpio.Low); err != nil {
 			return fmt.Errorf("failed to set pin to output mode: %w", err)
 		}
 	}
 	return nil
 }
 
-func (sc *GpioSwitchCollection) Close() error {
+func (sc *GPIOSwitchCollection) Close() error {
 	log.Printf("closing gpio driver")
 	if sc.offOnClose {
 		for _, s := range sc.switches {
-			if err := s.(*GpioSwitch).pin.Out(gpio.Low); err != nil {
+			if err := s.(*GPIOSwitch).pin.Out(gpio.Low); err != nil {
 				log.Printf("failed to reset pin to low: %s", err)
 			}
 		}
@@ -65,22 +65,22 @@ func (sc *GpioSwitchCollection) Close() error {
 	return nil
 }
 
-func (sc *GpioSwitchCollection) CountSwitches() uint {
+func (sc *GPIOSwitchCollection) CountSwitches() uint {
 	return uint(len(sc.switches))
 }
 
-func (sc *GpioSwitchCollection) ListSwitches() []switchdriver.Switch {
+func (sc *GPIOSwitchCollection) ListSwitches() []switchdriver.Switch {
 	return sc.switches
 }
 
-func (sc *GpioSwitchCollection) GetSwitch(id uint) (switchdriver.Switch, error) {
+func (sc *GPIOSwitchCollection) GetSwitch(id uint) (switchdriver.Switch, error) {
 	if id >= uint(len(sc.switches)) {
 		return nil, fmt.Errorf("invalid switch id %d", id)
 	}
 	return sc.switches[id], nil
 }
 
-func (sc *GpioSwitchCollection) TurnOn() error {
+func (sc *GPIOSwitchCollection) TurnOn() error {
 	for _, s := range sc.switches {
 		if err := s.TurnOn(); err != nil {
 			return err
@@ -89,7 +89,7 @@ func (sc *GpioSwitchCollection) TurnOn() error {
 	return nil
 }
 
-func (sc *GpioSwitchCollection) TurnOff() error {
+func (sc *GPIOSwitchCollection) TurnOff() error {
 	for _, s := range sc.switches {
 		if err := s.TurnOff(); err != nil {
 			return err
@@ -98,11 +98,11 @@ func (sc *GpioSwitchCollection) TurnOff() error {
 	return nil
 }
 
-func (sc *GpioSwitchCollection) String() string {
+func (sc *GPIOSwitchCollection) String() string {
 	return fmt.Sprintf("gpio switch collection with %d switches", len(sc.switches))
 }
 
-func (s *GpioSwitch) TurnOn() error {
+func (s *GPIOSwitch) TurnOn() error {
 	log.Printf("activating switch %s", s)
 	if err := s.pin.Out(gpio.High); err != nil {
 		return fmt.Errorf("failed to turn on switch %s: %w", s, err)
@@ -110,7 +110,7 @@ func (s *GpioSwitch) TurnOn() error {
 	return nil
 }
 
-func (s *GpioSwitch) TurnOff() error {
+func (s *GPIOSwitch) TurnOff() error {
 	log.Printf("deactivating switch %s", s)
 	if err := s.pin.Out(gpio.Low); err != nil {
 		return fmt.Errorf("failed to turn off switch %s: %w", s, err)
@@ -118,6 +118,6 @@ func (s *GpioSwitch) TurnOff() error {
 	return nil
 }
 
-func (s *GpioSwitch) String() string {
+func (s *GPIOSwitch) String() string {
 	return s.pin.Name()
 }
