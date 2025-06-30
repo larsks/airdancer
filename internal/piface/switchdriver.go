@@ -43,22 +43,14 @@ func (pf *PiFace) GetSwitch(id uint) (switchdriver.Switch, error) {
 	}, nil
 }
 
-func (pf *PiFace) TurnAllOn() error {
-	for _, sw := range pf.ListSwitches() {
-		if err := sw.TurnOn(); err != nil {
-			return err
-		}
-	}
-	return nil
+func (pf *PiFace) TurnOn() error {
+	log.Printf("turn on all switches on %s", pf)
+	return pf.WriteOutputs(0xff)
 }
 
-func (pf *PiFace) TurnAllOff() error {
-	for _, sw := range pf.ListSwitches() {
-		if err := sw.TurnOff(); err != nil {
-			return err
-		}
-	}
-	return nil
+func (pf *PiFace) TurnOff() error {
+	log.Printf("turn off all switches on %s", pf)
+	return pf.WriteOutputs(0x0)
 }
 
 func (pfo *PiFaceOutput) TurnOn() error {

@@ -26,7 +26,7 @@ type Server struct {
 	switches    switchdriver.SwitchCollection
 	outputState uint8
 	mutex       sync.Mutex
-	timers      map[uint]*time.Timer
+	timers      map[string]*time.Timer
 	router      *chi.Mux
 }
 
@@ -98,7 +98,7 @@ func NewServer(cfg *Config) (*Server, error) {
 	s := &Server{
 		listenAddr: fmt.Sprintf("%s:%d", cfg.ListenAddress, cfg.ListenPort),
 		switches:   pf,
-		timers:     make(map[uint]*time.Timer),
+		timers:     make(map[string]*time.Timer),
 		router:     chi.NewRouter(),
 	}
 
@@ -113,7 +113,7 @@ func NewServer(cfg *Config) (*Server, error) {
 
 func (s *Server) Start() error {
 	// Initialize all switches to off
-	if err := s.switches.TurnAllOff(); err != nil {
+	if err := s.switches.TurnOff(); err != nil {
 		return fmt.Errorf("failed to initialize switches: %w", err)
 	}
 
