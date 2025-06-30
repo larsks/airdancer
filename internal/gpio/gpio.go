@@ -1,4 +1,4 @@
-package gpiodriver
+package gpio
 
 import (
 	"fmt"
