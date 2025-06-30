@@ -109,24 +109,4 @@ func (s *Server) switchHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) switchStatusHandler(w http.ResponseWriter, r *http.Request) {
-	var req switchRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.sendJSONResponse(w, "error", "Failed to decode request body", http.StatusBadRequest)
-		return
-	}
-
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	switches, err := s.getSwitchesFromRequest(r)
-	if err != nil {
-		log.Printf("Failed to get list of switches: %v", err)
-		s.sendJSONResponse(w, "error", "Failed to get list of switches", http.StatusInternalServerError)
-	}
-
-	for _, _ = range switches {
-
-	}
-
-	s.sendJSONResponse(w, "ok", "", http.StatusOK)
 }

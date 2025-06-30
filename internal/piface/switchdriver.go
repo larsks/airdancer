@@ -76,6 +76,27 @@ func (pfo *PiFaceOutput) GetState() (bool, error) {
 	return val != 0, nil
 }
 
+func (pf *PiFace) GetState() (bool, error) {
+	outputs, err := pf.ReadOutputs()
+	if err != nil {
+		return false, err
+	}
+	return outputs == 0xFF, nil
+}
+
+func (pf *PiFace) GetDetailedState() ([]bool, error) {
+	outputs, err := pf.ReadOutputs()
+	if err != nil {
+		return nil, err
+	}
+	
+	states := make([]bool, NUMBER_OF_OUTPUTS)
+	for i := 0; i < NUMBER_OF_OUTPUTS; i++ {
+		states[i] = (outputs>>i)&1 != 0
+	}
+	return states, nil
+}
+
 func (pfo *PiFaceOutput) String() string {
 	return fmt.Sprintf("%s:%d", pfo.pf, pfo.pin)
 }
