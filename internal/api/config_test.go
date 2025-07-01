@@ -35,8 +35,8 @@ func TestNewConfig(t *testing.T) {
 		t.Errorf("NewConfig() PiFaceConfig.SPIDev = %v, want /dev/spidev0.0", config.PiFaceConfig.SPIDev)
 	}
 
-	if config.DummyConfig.SwitchCount != 8 {
-		t.Errorf("NewConfig() DummyConfig.SwitchCount = %v, want 8", config.DummyConfig.SwitchCount)
+	if config.DummyConfig.SwitchCount != 4 {
+		t.Errorf("NewConfig() DummyConfig.SwitchCount = %v, want 4", config.DummyConfig.SwitchCount)
 	}
 }
 
