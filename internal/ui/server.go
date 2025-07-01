@@ -121,7 +121,7 @@ func (ui *UIServer) indexHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(indexContent))
+	w.Write([]byte(indexContent)) //nolint:errcheck
 }
 
 func (ui *UIServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -155,7 +155,7 @@ func (ui *UIServer) Start() error {
 	log.Println("Shutting down UI server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	defer cancel() //nolint:errcheck
 
 	if err := srv.Shutdown(ctx); err != nil {
 		return fmt.Errorf("UI server shutdown failed: %w", err)
