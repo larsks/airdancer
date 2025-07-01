@@ -1,12 +1,23 @@
+PKG = github.com/larsks/airdancer
 BIN_DIR = bin
 GO = go
-GOFLAGS = -ldflags="-s -w"
+GOLDFLAGS = \
+			-s \
+			-w \
+	    -X '$(PKG)/internal/version.BuildVersion=$(VERSION)' \
+	    -X '$(PKG)/internal/version.BuildRef=$(COMMIT)' \
+	    -X '$(PKG)/internal/version.BuildDate=$(DATE)'
+GOFLAGS = -ldflags="$(GOLDFLAGS)"
 
 BINS = $(BIN_DIR)/airdancer-api $(BIN_DIR)/airdancer-monitor $(BIN_DIR)/airdancer-ui $(BIN_DIR)/gpiotest $(BIN_DIR)/piface-reflector
 
 # Find all Go source files using go list (more accurate than find)
 GO_SOURCES = $(shell go list -f '{{$$dir := .Dir}}{{range .GoFiles}}{{$$dir}}/{{.}} {{end}}' ./...)
 GO_MOD_FILES = go.mod go.sum
+
+VERSION = $(shell git describe --tags --exact-match 2> /dev/null || echo dev)
+COMMIT = $(shell git rev-parse --short=10 HEAD)
+DATE = $(shell date -u +"%Y-%m-%dT%H:%M:%S")
 
 .PHONY: all
 all: $(BINS)

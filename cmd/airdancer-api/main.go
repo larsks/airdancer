@@ -2,15 +2,24 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/larsks/airdancer/internal/api"
+	"github.com/larsks/airdancer/internal/version"
 	"github.com/spf13/pflag"
 )
 
 func main() {
+	versionFlag := pflag.Bool("version", false, "Show version and exit")
+
 	cfg := api.NewConfig()
 	cfg.AddFlags(pflag.CommandLine)
 	pflag.Parse()
+
+	if *versionFlag {
+		version.ShowVersion()
+		os.Exit(0)
+	}
 
 	if err := cfg.LoadConfig(); err != nil {
 		log.Fatalf("Failed to load config: %v", err)
