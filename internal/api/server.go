@@ -69,7 +69,7 @@ func NewConfig() *Config {
 // AddFlags adds pflag flags for the configuration.
 
 func (c *Config) AddFlags(fs *pflag.FlagSet) {
-	fs.StringVar(&c.ConfigFile, "config-file", "", "Config file to use")
+	fs.StringVar(&c.ConfigFile, "config", "", "Config file to use")
 	fs.StringVar(&c.ListenAddress, "listen-address", c.ListenAddress, "Listen address for http server")
 	fs.IntVar(&c.ListenPort, "listen-port", c.ListenPort, "Listen port for http server")
 	fs.StringVar(&c.Driver, "driver", c.Driver, "Driver to use (piface or gpio)")
@@ -146,12 +146,12 @@ func NewServer(cfg *Config) (*Server, error) {
 		AllowCredentials: true,
 		MaxAge:           300, // Maximum value not ignored by any of major browsers
 	}))
-	
+
 	// Set up routes with validation middleware
 	s.router.Route("/switch", func(r chi.Router) {
 		// GET endpoints for status queries
 		r.With(s.validateSwitchID, s.validateSwitchExists).Get("/{id}", s.switchStatusHandler)
-		
+
 		// POST endpoints for switch control
 		r.With(
 			s.validateSwitchID,

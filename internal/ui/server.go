@@ -41,7 +41,7 @@ func NewConfig() *Config {
 
 // AddFlags adds pflag flags for the configuration.
 func (c *Config) AddFlags(fs *pflag.FlagSet) {
-	fs.StringVar(&c.ConfigFile, "config-file", "", "Config file to use")
+	fs.StringVar(&c.ConfigFile, "config", "", "Config file to use")
 	fs.StringVar(&c.ListenAddress, "listen-address", c.ListenAddress, "Listen address for UI server")
 	fs.IntVar(&c.ListenPort, "listen-port", c.ListenPort, "Listen port for UI server")
 	fs.StringVar(&c.APIBaseURL, "api-base-url", c.APIBaseURL, "Base URL for the API server")

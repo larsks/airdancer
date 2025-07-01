@@ -40,15 +40,15 @@ func ParsePinConfig(pinSpec string) PinConfig {
 	if len(parts) == 1 {
 		return PinConfig{Name: parts[0], Polarity: ActiveHigh}
 	}
-	
+
 	pinName := parts[0]
 	polarityStr := strings.ToLower(parts[1])
-	
+
 	polarity := ActiveHigh
 	if polarityStr == "activelow" {
 		polarity = ActiveLow
 	}
-	
+
 	return PinConfig{Name: pinName, Polarity: polarity}
 }
 
