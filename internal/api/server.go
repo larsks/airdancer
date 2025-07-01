@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	"github.com/larsks/airdancer/internal/gpio"
 	"github.com/larsks/airdancer/internal/piface"
 	"github.com/larsks/airdancer/internal/switchcollection"
@@ -137,6 +138,14 @@ func NewServer(cfg *Config) (*Server, error) {
 	}
 
 	s.router.Use(middleware.Logger)
+	s.router.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"http://*", "https://*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300, // Maximum value not ignored by any of major browsers
+	}))
 	
 	// Set up routes with validation middleware
 	s.router.Route("/switch", func(r chi.Router) {
