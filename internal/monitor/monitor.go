@@ -374,13 +374,7 @@ func (em *EmailMonitor) executeCommand(msg *imap.Message, body string) error {
 	env = append(env, fmt.Sprintf("EMAIL_DATE=%s", msg.Envelope.Date.Format(time.RFC3339)))
 	env = append(env, fmt.Sprintf("EMAIL_UID=%d", msg.Uid))
 
-	// Parse command (simple shell command parsing)
-	parts := strings.Fields(em.config.Monitor.Command)
-	if len(parts) == 0 {
-		return fmt.Errorf("empty command")
-	}
-
-	cmd := exec.Command(parts[0], parts[1:]...)
+	cmd := exec.Command("sh", "-c", em.config.Monitor.Command)
 	cmd.Env = env
 	cmd.Stdin = strings.NewReader(body)
 
