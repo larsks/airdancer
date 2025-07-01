@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/larsks/airdancer/internal/piface" // Replace with actual module path
+	"github.com/larsks/airdancer/internal/piface"
 )
 
 func main() {
