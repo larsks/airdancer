@@ -94,6 +94,7 @@ func (s *Server) switchHandler(w http.ResponseWriter, r *http.Request) {
 
 		// Cancel any existing timer for this switch
 		if timer, ok := s.timers[swid]; ok {
+			log.Printf("Cancelling timer on %s", swid)
 			timer.Stop()
 			delete(s.timers, swid)
 		}
