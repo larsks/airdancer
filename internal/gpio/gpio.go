@@ -3,6 +3,7 @@ package gpio
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/larsks/airdancer/internal/switchcollection"
 	"periph.io/x/conn/v3/gpio"
@@ -11,8 +12,11 @@ import (
 )
 
 type (
+	Polarity int
+
 	GPIOSwitch struct {
-		pin gpio.PinIO
+		pin      gpio.PinIO
+		polarity Polarity
 	}
 
 	GPIOSwitchCollection struct {
@@ -21,19 +25,48 @@ type (
 	}
 )
 
+const (
+	ActiveHigh Polarity = iota
+	ActiveLow
+)
+
+type PinConfig struct {
+	Name     string
+	Polarity Polarity
+}
+
+func ParsePinConfig(pinSpec string) PinConfig {
+	parts := strings.Split(pinSpec, ":")
+	if len(parts) == 1 {
+		return PinConfig{Name: parts[0], Polarity: ActiveHigh}
+	}
+	
+	pinName := parts[0]
+	polarityStr := strings.ToLower(parts[1])
+	
+	polarity := ActiveHigh
+	if polarityStr == "activelow" {
+		polarity = ActiveLow
+	}
+	
+	return PinConfig{Name: pinName, Polarity: polarity}
+}
+
 func NewGPIOSwitchCollection(offOnClose bool, pins []string) (*GPIOSwitchCollection, error) {
 	if _, err := host.Init(); err != nil {
 		return nil, fmt.Errorf("failed to init periph: %w", err)
 	}
 
 	switches := make([]switchcollection.Switch, len(pins))
-	for i, pinName := range pins {
-		pin := gpioreg.ByName(pinName)
+	for i, pinSpec := range pins {
+		pinConfig := ParsePinConfig(pinSpec)
+		pin := gpioreg.ByName(pinConfig.Name)
 		if pin == nil {
-			return nil, fmt.Errorf("failed to find pin %s", pinName)
+			return nil, fmt.Errorf("failed to find pin %s", pinConfig.Name)
 		}
 		switches[i] = &GPIOSwitch{
-			pin: pin,
+			pin:      pin,
+			polarity: pinConfig.Polarity,
 		}
 	}
 
@@ -46,7 +79,9 @@ func NewGPIOSwitchCollection(offOnClose bool, pins []string) (*GPIOSwitchCollect
 func (sc *GPIOSwitchCollection) Init() error {
 	log.Printf("initializing gpio driver")
 	for _, s := range sc.switches {
-		if err := s.(*GPIOSwitch).pin.Out(gpio.Low); err != nil {
+		gpioSwitch := s.(*GPIOSwitch)
+		initialLevel := gpioSwitch.getOffLevel()
+		if err := gpioSwitch.pin.Out(initialLevel); err != nil {
 			return fmt.Errorf("failed to set pin to output mode: %w", err)
 		}
 	}
@@ -57,8 +92,10 @@ func (sc *GPIOSwitchCollection) Close() error {
 	log.Printf("closing gpio driver")
 	if sc.offOnClose {
 		for _, s := range sc.switches {
-			if err := s.(*GPIOSwitch).pin.Out(gpio.Low); err != nil {
-				log.Printf("failed to reset pin to low: %s", err)
+			gpioSwitch := s.(*GPIOSwitch)
+			offLevel := gpioSwitch.getOffLevel()
+			if err := gpioSwitch.pin.Out(offLevel); err != nil {
+				log.Printf("failed to reset pin to off state: %s", err)
 			}
 		}
 	}
@@ -129,7 +166,8 @@ func (sc *GPIOSwitchCollection) String() string {
 
 func (s *GPIOSwitch) TurnOn() error {
 	log.Printf("activating switch %s", s)
-	if err := s.pin.Out(gpio.High); err != nil {
+	onLevel := s.getOnLevel()
+	if err := s.pin.Out(onLevel); err != nil {
 		return fmt.Errorf("failed to turn on switch %s: %w", s, err)
 	}
 	return nil
@@ -137,18 +175,35 @@ func (s *GPIOSwitch) TurnOn() error {
 
 func (s *GPIOSwitch) TurnOff() error {
 	log.Printf("deactivating switch %s", s)
-	if err := s.pin.Out(gpio.Low); err != nil {
+	offLevel := s.getOffLevel()
+	if err := s.pin.Out(offLevel); err != nil {
 		return fmt.Errorf("failed to turn off switch %s: %w", s, err)
 	}
 	return nil
 }
 
 func (s *GPIOSwitch) GetState() (bool, error) {
-	return s.pin.Read() == gpio.High, nil
+	pinLevel := s.pin.Read()
+	onLevel := s.getOnLevel()
+	return pinLevel == onLevel, nil
 }
 
 func (s *GPIOSwitch) String() string {
 	return s.pin.Name()
+}
+
+func (s *GPIOSwitch) getOnLevel() gpio.Level {
+	if s.polarity == ActiveHigh {
+		return gpio.High
+	}
+	return gpio.Low
+}
+
+func (s *GPIOSwitch) getOffLevel() gpio.Level {
+	if s.polarity == ActiveHigh {
+		return gpio.Low
+	}
+	return gpio.High
 }
 
 func init() {
