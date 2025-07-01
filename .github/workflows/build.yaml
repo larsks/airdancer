@@ -1,4 +1,4 @@
-name: Lint
+name: Build
 on:
   push:
     branches:
@@ -22,7 +22,6 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: stable
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v8
-        with:
-          version: v2.2.1
+      - name: build
+        run: |
+          make all
