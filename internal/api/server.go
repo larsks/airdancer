@@ -42,6 +42,10 @@ type (
 		Pins []string `mapstructure:"pins"`
 	}
 
+	DummyConfig struct {
+		SwitchCount uint `mapstructure:"switch_count"`
+	}
+
 	Config struct {
 		ListenAddress string `mapstructure:"listen-address"`
 		ListenPort    int    `mapstructure:"listen-port"`
@@ -49,6 +53,7 @@ type (
 		Driver        string `mapstructure:"driver"`
 		GPIOConfig    GPIOConfig
 		PiFaceConfig  PiFaceConfig
+		DummyConfig   DummyConfig
 	}
 )
 
@@ -62,6 +67,9 @@ func NewConfig() *Config {
 		PiFaceConfig: PiFaceConfig{
 			SPIDev: "/dev/spidev0.0",
 		},
+		DummyConfig: DummyConfig{
+			SwitchCount: 8,
+		},
 	}
 }
 
@@ -71,9 +79,10 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&c.ConfigFile, "config", "", "Config file to use")
 	fs.StringVar(&c.ListenAddress, "listen-address", c.ListenAddress, "Listen address for http server")
 	fs.IntVar(&c.ListenPort, "listen-port", c.ListenPort, "Listen port for http server")
-	fs.StringVar(&c.Driver, "driver", c.Driver, "Driver to use (piface or gpio)")
+	fs.StringVar(&c.Driver, "driver", c.Driver, "Driver to use (piface, gpio, or dummy)")
 	fs.StringVar(&c.PiFaceConfig.SPIDev, "piface.spidev", c.PiFaceConfig.SPIDev, "SPI device to use")
 	fs.StringSliceVar(&c.GPIOConfig.Pins, "gpio.pins", c.GPIOConfig.Pins, "GPIO pins to use (for gpio driver)")
+	fs.UintVar(&c.DummyConfig.SwitchCount, "dummy.switch-count", c.DummyConfig.SwitchCount, "Number of switches for dummy driver")
 }
 
 // LoadConfig loads the configuration from a file and binds it to the Config struct.
@@ -85,6 +94,7 @@ func (c *Config) LoadConfig() error {
 	v.SetDefault("driver", c.Driver)
 	v.SetDefault("piface.spidev", c.PiFaceConfig.SPIDev)
 	v.SetDefault("gpio.pins", c.GPIOConfig.Pins)
+	v.SetDefault("dummy.switch_count", c.DummyConfig.SwitchCount)
 
 	if c.ConfigFile != "" {
 		v.SetConfigFile(c.ConfigFile)
@@ -121,6 +131,8 @@ func NewServer(cfg *Config) (*Server, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create gpio driver: %w", err)
 		}
+	case "dummy":
+		switches = switchcollection.NewDummySwitchCollection(cfg.DummyConfig.SwitchCount)
 	default:
 		return nil, fmt.Errorf("unknown driver: %s", cfg.Driver)
 	}
