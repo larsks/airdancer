@@ -68,7 +68,7 @@ func NewConfig() *Config {
 			SPIDev: "/dev/spidev0.0",
 		},
 		DummyConfig: DummyConfig{
-			SwitchCount: 8,
+			SwitchCount: 4,
 		},
 	}
 }
