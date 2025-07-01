@@ -171,12 +171,16 @@
             pointer-events: none;
         }
 
+        #message-container {
+            min-height: 50px;
+            margin-bottom: 20px;
+        }
+
         .error {
             background: #f8d7da;
             color: #721c24;
             padding: 15px;
             border-radius: 8px;
-            margin-bottom: 20px;
             border: 1px solid #f5c6cb;
         }
 
@@ -185,7 +189,6 @@
             color: #155724;
             padding: 15px;
             border-radius: 8px;
-            margin-bottom: 20px;
             border: 1px solid #c3e6cb;
         }
 
@@ -225,8 +228,7 @@
         </div>
         
         <div class="content">
-            <div id="error-message"></div>
-            <div id="success-message"></div>
+            <div id="message-container"></div>
             
             <div class="control-all">
                 <div class="control-group">
@@ -290,13 +292,39 @@
                     this.switches = data.data.states;
                     this.renderSwitches();
                     this.updateLastUpdated();
-                    this.showSuccess('Switches loaded successfully');
+                    this.showMessage('Switches loaded successfully', 'success');
                 } catch (error) {
                     console.error('Failed to load switches:', error);
-                    this.showError(`Failed to load switches: ${error.message}`);
+                    this.showMessage(`Failed to load switches: ${error.message}`, 'error');
                     this.updateConnectionStatus('Connection Error');
                 } finally {
                     this.setLoading(false);
+                }
+            }
+
+            async updateSwitches() {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/switch/all`);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    const data = await response.json();
+                    if (data.status !== 'ok') {
+                        throw new Error(data.message || 'Failed to update switches');
+                    }
+
+                    this.updateConnectionStatus('Connected');
+                    const newSwitches = data.data.states;
+                    for (let i = 0; i < newSwitches.length; i++) {
+                        if (this.switches[i] !== newSwitches[i]) {
+                            this.switches[i] = newSwitches[i];
+                            this.updateSwitchUI(i, newSwitches[i]);
+                        }
+                    }
+                    this.updateLastUpdated();
+                } catch (error) {
+                    console.error('Failed to update switches:', error);
+                    this.updateConnectionStatus('Connection Error');
                 }
             }
 
@@ -320,10 +348,10 @@
                             ${state ? 'ON' : 'OFF'}
                         </div>
                     </div>
-                    <div class="toggle-switch">
+                    <label class="toggle-switch">
                         <input type="checkbox" id="switch-${id}" ${state ? 'checked' : ''}>
                         <span class="slider"></span>
-                    </div>
+                    </label>
                 `;
 
                 const checkbox = card.querySelector(`#switch-${id}`);
@@ -357,15 +385,13 @@
                         throw new Error(data.message || 'Failed to toggle switch');
                     }
 
-                    // Update local state and UI
                     this.switches[id] = state;
                     this.updateSwitchUI(id, state);
                     this.updateLastUpdated();
                     
                 } catch (error) {
                     console.error(`Failed to toggle switch ${id}:`, error);
-                    this.showError(`Failed to toggle switch ${id}: ${error.message}`);
-                    // Revert checkbox state
+                    this.showMessage(`Failed to toggle switch ${id}: ${error.message}`, 'error');
                     const checkbox = document.getElementById(`switch-${id}`);
                     if (checkbox) {
                         checkbox.checked = !state;
@@ -398,18 +424,17 @@
                         throw new Error(data.message || 'Failed to control all switches');
                     }
 
-                    // Update all switches
                     for (let i = 0; i < switchCount; i++) {
                         this.switches[i] = state;
                         this.updateSwitchUI(i, state);
                     }
                     
                     this.updateLastUpdated();
-                    this.showSuccess(`All switches turned ${state ? 'on' : 'off'}`);
+                    this.showMessage(`All switches turned ${state ? 'on' : 'off'}`, 'success');
                     
                 } catch (error) {
                     console.error('Failed to control all switches:', error);
-                    this.showError(`Failed to control all switches: ${error.message}`);
+                    this.showMessage(`Failed to control all switches: ${error.message}`, 'error');
                 } finally {
                     this.setLoading(false);
                 }
@@ -440,9 +465,8 @@
             }
 
             startAutoUpdate() {
-                // Poll for updates every 2 seconds
                 this.updateInterval = setInterval(() => {
-                    this.loadSwitches();
+                    this.updateSwitches();
                 }, 2000);
             }
 
@@ -456,20 +480,12 @@
                 }
             }
 
-            showError(message) {
-                const errorDiv = document.getElementById('error-message');
-                errorDiv.innerHTML = `<div class="error">${message}</div>`;
+            showMessage(message, type) {
+                const messageContainer = document.getElementById('message-container');
+                messageContainer.innerHTML = `<div class="${type}">${message}</div>`;
                 setTimeout(() => {
-                    errorDiv.innerHTML = '';
-                }, 5000);
-            }
-
-            showSuccess(message) {
-                const successDiv = document.getElementById('success-message');
-                successDiv.innerHTML = `<div class="success">${message}</div>`;
-                setTimeout(() => {
-                    successDiv.innerHTML = '';
-                }, 3000);
+                    messageContainer.innerHTML = '';
+                }, type === 'error' ? 5000 : 3000);
             }
 
             updateConnectionStatus(status) {
@@ -483,7 +499,6 @@
             }
         }
 
-        // Initialize the switch controller when the page loads
         document.addEventListener('DOMContentLoaded', () => {
             new SwitchController();
         });
