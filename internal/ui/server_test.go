@@ -20,7 +20,7 @@ func TestUIServer(t *testing.T) {
 	// Test the index handler
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
-	
+
 	server.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -28,7 +28,7 @@ func TestUIServer(t *testing.T) {
 	}
 
 	body := w.Body.String()
-	
+
 	// Check that the API URL was properly injected
 	if !strings.Contains(body, apiURL) {
 		t.Error("API URL was not properly injected into the HTML")
@@ -65,7 +65,7 @@ func TestStaticFileServing(t *testing.T) {
 	// Test that the static file route is set up (even though we don't have other static files)
 	req := httptest.NewRequest("GET", "/static/nonexistent.css", nil)
 	w := httptest.NewRecorder()
-	
+
 	server.ServeHTTP(w, req)
 
 	// Should return 404 for non-existent files, not a server error

@@ -48,7 +48,7 @@ func NewEmailMonitor(config Config) (*EmailMonitor, error) {
 // Start begins monitoring the IMAP mailbox for new emails
 func (em *EmailMonitor) Start() {
 	log.Println("starting email monitor...")
-	
+
 	for {
 		err := em.connect()
 		if err != nil {
