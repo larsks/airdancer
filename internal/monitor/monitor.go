@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"bytes"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -374,16 +375,25 @@ func (em *EmailMonitor) executeCommand(msg *imap.Message, body string) error {
 	env = append(env, fmt.Sprintf("EMAIL_DATE=%s", msg.Envelope.Date.Format(time.RFC3339)))
 	env = append(env, fmt.Sprintf("EMAIL_UID=%d", msg.Uid))
 
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
 	cmd := exec.Command("sh", "-c", em.config.Monitor.Command)
 	cmd.Env = env
 	cmd.Stdin = strings.NewReader(body)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		log.Printf("command execution failed: %v, Output: %s", err, string(output))
-		return err
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to execute command: %w", err)
 	}
 
-	log.Printf("command executed successfully. Output: %s", string(output))
+	go func() {
+		if err := cmd.Wait(); err != nil {
+			log.Printf("command execution failed: %v, stdout: %s, stderr: %s", err, stdout.String(), stderr.String())
+		} else {
+			log.Printf("command executed successfully. stdout: %s, stderr: %s", stdout.String(), stderr.String())
+		}
+	}()
+
 	return nil
 }
