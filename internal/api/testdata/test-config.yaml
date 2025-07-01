@@ -1,0 +1,11 @@
+listen-address: "127.0.0.1"
+listen-port: 9090
+driver: dummy
+dummy:
+  switch_count: 5
+piface:
+  spidev: "/dev/spidev1.0"
+gpio:
+  pins:
+  - "GPIO18"
+  - "GPIO19" 
