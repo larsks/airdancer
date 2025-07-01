@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Airdancer Switch Control</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header .status {
+            font-size: 1.1em;
+            opacity: 0.8;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .controls {
+            margin-bottom: 40px;
+        }
+
+        .control-group {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .control-all {
+            background: #ecf0f1;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+
+        .switches-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .switch-card {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .switch-card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .switch-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .switch-name {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .switch-state {
+            font-size: 0.9em;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+
+        .switch-state.on {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .switch-state.off {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* Toggle Switch Styles */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #4CAF50;
+        }
+
+        input:focus + .slider {
+            box-shadow: 0 0 1px #4CAF50;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #f5c6cb;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #c3e6cb;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background 0.3s ease;
+        }
+
+        .btn:hover {
+            background: #5a6fd8;
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .last-updated {
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.9em;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Airdancer Switch Control</h1>
+            <div class="status" id="connection-status">Connecting...</div>
+        </div>
+        
+        <div class="content">
+            <div id="error-message"></div>
+            <div id="success-message"></div>
+            
+            <div class="control-all">
+                <div class="control-group">
+                    <div>
+                        <h3>Master Control</h3>
+                        <p>Control all switches simultaneously</p>
+                    </div>
+                    <div>
+                        <button class="btn" id="all-on-btn">All On</button>
+                        <button class="btn" id="all-off-btn">All Off</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="switches-grid" id="switches-container">
+                <!-- Switches will be populated here -->
+            </div>
+
+            <div class="last-updated" id="last-updated">
+                Last updated: Never
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = '{{API_BASE_URL}}';
+        let switchCount = 0;
+        let lastUpdated = null;
+
+        class SwitchController {
+            constructor() {
+                this.switches = [];
+                this.isLoading = false;
+                this.updateInterval = null;
+                this.init();
+            }
+
+            async init() {
+                await this.loadSwitches();
+                this.setupEventListeners();
+                this.startAutoUpdate();
+                this.updateConnectionStatus('Connected');
+            }
+
+            async loadSwitches() {
+                try {
+                    this.setLoading(true);
+                    const response = await fetch(`${API_BASE_URL}/switch/all`);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    if (data.status !== 'ok') {
+                        throw new Error(data.message || 'Failed to load switches');
+                    }
+
+                    switchCount = data.data.count;
+                    this.switches = data.data.states;
+                    this.renderSwitches();
+                    this.updateLastUpdated();
+                    this.showSuccess('Switches loaded successfully');
+                } catch (error) {
+                    console.error('Failed to load switches:', error);
+                    this.showError(`Failed to load switches: ${error.message}`);
+                    this.updateConnectionStatus('Connection Error');
+                } finally {
+                    this.setLoading(false);
+                }
+            }
+
+            renderSwitches() {
+                const container = document.getElementById('switches-container');
+                container.innerHTML = '';
+
+                for (let i = 0; i < switchCount; i++) {
+                    const switchCard = this.createSwitchCard(i, this.switches[i]);
+                    container.appendChild(switchCard);
+                }
+            }
+
+            createSwitchCard(id, state) {
+                const card = document.createElement('div');
+                card.className = 'switch-card';
+                card.innerHTML = `
+                    <div class="switch-header">
+                        <div class="switch-name">Switch ${id}</div>
+                        <div class="switch-state ${state ? 'on' : 'off'}" id="state-${id}">
+                            ${state ? 'ON' : 'OFF'}
+                        </div>
+                    </div>
+                    <div class="toggle-switch">
+                        <input type="checkbox" id="switch-${id}" ${state ? 'checked' : ''}>
+                        <span class="slider"></span>
+                    </div>
+                `;
+
+                const checkbox = card.querySelector(`#switch-${id}`);
+                checkbox.addEventListener('change', (e) => {
+                    this.toggleSwitch(id, e.target.checked);
+                });
+
+                return card;
+            }
+
+            async toggleSwitch(id, state) {
+                try {
+                    this.setLoading(true);
+                    const response = await fetch(`${API_BASE_URL}/switch/${id}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            state: state ? 'on' : 'off'
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    const data = await response.json();
+                    
+                    if (data.status !== 'ok') {
+                        throw new Error(data.message || 'Failed to toggle switch');
+                    }
+
+                    // Update local state and UI
+                    this.switches[id] = state;
+                    this.updateSwitchUI(id, state);
+                    this.updateLastUpdated();
+                    
+                } catch (error) {
+                    console.error(`Failed to toggle switch ${id}:`, error);
+                    this.showError(`Failed to toggle switch ${id}: ${error.message}`);
+                    // Revert checkbox state
+                    const checkbox = document.getElementById(`switch-${id}`);
+                    if (checkbox) {
+                        checkbox.checked = !state;
+                    }
+                } finally {
+                    this.setLoading(false);
+                }
+            }
+
+            async controlAllSwitches(state) {
+                try {
+                    this.setLoading(true);
+                    const response = await fetch(`${API_BASE_URL}/switch/all`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            state: state ? 'on' : 'off'
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    const data = await response.json();
+                    
+                    if (data.status !== 'ok') {
+                        throw new Error(data.message || 'Failed to control all switches');
+                    }
+
+                    // Update all switches
+                    for (let i = 0; i < switchCount; i++) {
+                        this.switches[i] = state;
+                        this.updateSwitchUI(i, state);
+                    }
+                    
+                    this.updateLastUpdated();
+                    this.showSuccess(`All switches turned ${state ? 'on' : 'off'}`);
+                    
+                } catch (error) {
+                    console.error('Failed to control all switches:', error);
+                    this.showError(`Failed to control all switches: ${error.message}`);
+                } finally {
+                    this.setLoading(false);
+                }
+            }
+
+            updateSwitchUI(id, state) {
+                const checkbox = document.getElementById(`switch-${id}`);
+                const stateLabel = document.getElementById(`state-${id}`);
+                
+                if (checkbox) {
+                    checkbox.checked = state;
+                }
+                
+                if (stateLabel) {
+                    stateLabel.textContent = state ? 'ON' : 'OFF';
+                    stateLabel.className = `switch-state ${state ? 'on' : 'off'}`;
+                }
+            }
+
+            setupEventListeners() {
+                document.getElementById('all-on-btn').addEventListener('click', () => {
+                    this.controlAllSwitches(true);
+                });
+
+                document.getElementById('all-off-btn').addEventListener('click', () => {
+                    this.controlAllSwitches(false);
+                });
+            }
+
+            startAutoUpdate() {
+                // Poll for updates every 2 seconds
+                this.updateInterval = setInterval(() => {
+                    this.loadSwitches();
+                }, 2000);
+            }
+
+            setLoading(loading) {
+                this.isLoading = loading;
+                const container = document.querySelector('.container');
+                if (loading) {
+                    container.classList.add('loading');
+                } else {
+                    container.classList.remove('loading');
+                }
+            }
+
+            showError(message) {
+                const errorDiv = document.getElementById('error-message');
+                errorDiv.innerHTML = `<div class="error">${message}</div>`;
+                setTimeout(() => {
+                    errorDiv.innerHTML = '';
+                }, 5000);
+            }
+
+            showSuccess(message) {
+                const successDiv = document.getElementById('success-message');
+                successDiv.innerHTML = `<div class="success">${message}</div>`;
+                setTimeout(() => {
+                    successDiv.innerHTML = '';
+                }, 3000);
+            }
+
+            updateConnectionStatus(status) {
+                document.getElementById('connection-status').textContent = status;
+            }
+
+            updateLastUpdated() {
+                lastUpdated = new Date();
+                document.getElementById('last-updated').textContent = 
+                    `Last updated: ${lastUpdated.toLocaleTimeString()}`;
+            }
+        }
+
+        // Initialize the switch controller when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new SwitchController();
+        });
+    </script>
+</body>
+</html>
