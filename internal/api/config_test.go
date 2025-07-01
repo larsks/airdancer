@@ -9,11 +9,11 @@ import (
 	"github.com/spf13/pflag"
 )
 
-//go:embed testdata/test-config.yaml
-var testConfigYAML []byte
+//go:embed testdata/test-config.toml
+var testConfigTOML []byte
 
-//go:embed testdata/invalid-config.yaml
-var invalidConfigYAML []byte
+//go:embed testdata/invalid-config.toml
+var invalidConfigTOML []byte
 
 func TestNewConfig(t *testing.T) {
 	config := NewConfig()
@@ -99,18 +99,18 @@ func TestConfigLoadConfig(t *testing.T) {
 }
 
 func TestConfigLoadConfigWithEmbeddedFile(t *testing.T) {
-	// This test uses embedded configuration files to avoid filesystem dependencies
+	// This test uses embedded TOML configuration files to avoid filesystem dependencies
 	// and demonstrates that LoadConfig works with valid configuration files.
 
 	// Create a temporary file with embedded content
-	tmpFile, err := os.CreateTemp("", "test-config-*.yaml")
+	tmpFile, err := os.CreateTemp("", "test-config-*.toml")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer os.Remove(tmpFile.Name())
 
 	// Write the embedded test config to the temp file
-	if _, err := tmpFile.Write(testConfigYAML); err != nil {
+	if _, err := tmpFile.Write(testConfigTOML); err != nil {
 		t.Fatalf("Failed to write embedded config to temp file: %v", err)
 	}
 	tmpFile.Close()
@@ -126,42 +126,42 @@ func TestConfigLoadConfigWithEmbeddedFile(t *testing.T) {
 	pflag.CommandLine = pflag.NewFlagSet("test", pflag.ContinueOnError)
 	config.AddFlags(pflag.CommandLine)
 
-	// Test that LoadConfig doesn't return an error with a valid config file
+	// Test that LoadConfig doesn't return an error with a valid TOML config file
 	err = config.LoadConfig()
 	if err != nil {
-		t.Errorf("LoadConfig() with valid embedded config file failed: %v", err)
+		t.Errorf("LoadConfig() with valid embedded TOML config file failed: %v", err)
 	}
 
 	// Verify that the embedded config content is non-empty
-	if len(testConfigYAML) == 0 {
+	if len(testConfigTOML) == 0 {
 		t.Error("Embedded test config should not be empty")
 	}
 }
 
 func TestEmbeddedConfigContent(t *testing.T) {
-	// Test that embedded configuration files are properly loaded and accessible
+	// Test that embedded TOML configuration files are properly loaded and accessible
 
-	// Verify that the embedded test config content is non-empty and contains expected content
-	if len(testConfigYAML) == 0 {
-		t.Error("Embedded test config should not be empty")
+	// Verify that the embedded test TOML config content is non-empty and contains expected content
+	if len(testConfigTOML) == 0 {
+		t.Error("Embedded test TOML config should not be empty")
 	}
 
-	// Check that the test config contains expected configuration keys
-	configStr := string(testConfigYAML)
+	// Check that the test TOML config contains expected configuration keys
+	configStr := string(testConfigTOML)
 	expectedKeys := []string{"listen-address", "listen-port", "driver", "dummy", "switch_count"}
 
 	for _, key := range expectedKeys {
 		if !strings.Contains(configStr, key) {
-			t.Errorf("Embedded test config should contain key %q", key)
+			t.Errorf("Embedded test TOML config should contain key %q", key)
 		}
 	}
 
-	// Verify that the embedded invalid config content is non-empty
-	if len(invalidConfigYAML) == 0 {
-		t.Error("Embedded invalid config should not be empty")
+	// Verify that the embedded invalid TOML config content is non-empty
+	if len(invalidConfigTOML) == 0 {
+		t.Error("Embedded invalid TOML config should not be empty")
 	}
 
-	// Test that we can access the embedded content without filesystem operations
-	t.Logf("Embedded test config size: %d bytes", len(testConfigYAML))
-	t.Logf("Embedded invalid config size: %d bytes", len(invalidConfigYAML))
+	// Test that we can access the embedded TOML content without filesystem operations
+	t.Logf("Embedded test TOML config size: %d bytes", len(testConfigTOML))
+	t.Logf("Embedded invalid TOML config size: %d bytes", len(invalidConfigTOML))
 }

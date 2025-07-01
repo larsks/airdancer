@@ -1,0 +1,7 @@
+# Invalid TOML - syntax errors
+listen-address = "unclosed quote
+[malformed-key-bracket
+invalid = {broken: toml
+missing_equals
+  bad indentation
+] 
