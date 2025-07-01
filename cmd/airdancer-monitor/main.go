@@ -42,4 +42,3 @@ func main() {
 	// Start monitoring (this blocks)
 	emailMonitor.Start()
 }
-

@@ -63,7 +63,7 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 // LoadConfig loads configuration using viper with support for multiple formats
 func (c *Config) LoadConfig(configFile string) error {
 	v := viper.New()
-	
+
 	// Set defaults
 	v.SetDefault("imap.server", c.IMAP.Server)
 	v.SetDefault("imap.port", c.IMAP.Port)
@@ -74,12 +74,12 @@ func (c *Config) LoadConfig(configFile string) error {
 	v.SetDefault("monitor.regex_pattern", c.Monitor.RegexPattern)
 	v.SetDefault("monitor.command", c.Monitor.Command)
 	v.SetDefault("monitor.check_interval_seconds", c.Monitor.CheckInterval)
-	
+
 	// Bind flags to viper
 	if err := v.BindPFlags(pflag.CommandLine); err != nil {
 		return fmt.Errorf("failed to bind flags: %w", err)
 	}
-	
+
 	// Read config file if specified
 	if configFile != "" {
 		v.SetConfigFile(configFile)
@@ -87,12 +87,12 @@ func (c *Config) LoadConfig(configFile string) error {
 			return fmt.Errorf("failed to read config file: %w", err)
 		}
 	}
-	
+
 	// Unmarshal into config struct
 	if err := v.Unmarshal(c); err != nil {
 		return fmt.Errorf("failed to unmarshal config: %w", err)
 	}
-	
+
 	return nil
 }
 

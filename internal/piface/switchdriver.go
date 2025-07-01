@@ -89,7 +89,7 @@ func (pf *PiFace) GetDetailedState() ([]bool, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	states := make([]bool, NUMBER_OF_OUTPUTS)
 	for i := 0; i < NUMBER_OF_OUTPUTS; i++ {
 		states[i] = (outputs>>i)&1 != 0

@@ -20,19 +20,19 @@ const (
 func (s *Server) validateSwitchID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switchIDStr := chi.URLParam(r, "id")
-		
+
 		if switchIDStr == "" {
 			s.sendJSONResponse(w, "error", "Switch ID is required", http.StatusBadRequest)
 			return
 		}
-		
+
 		if switchIDStr != "all" {
 			if _, err := strconv.Atoi(switchIDStr); err != nil {
 				s.sendJSONResponse(w, "error", "Invalid switch ID - must be an integer or 'all'", http.StatusBadRequest)
 				return
 			}
 		}
-		
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -45,7 +45,7 @@ func (s *Server) validateJSONRequest(next http.Handler) http.Handler {
 			s.sendJSONResponse(w, "error", "Content-Type must be application/json", http.StatusBadRequest)
 			return
 		}
-		
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -58,19 +58,19 @@ func (s *Server) validateSwitchRequest(next http.Handler) http.Handler {
 			s.sendJSONResponse(w, "error", "Invalid JSON format", http.StatusBadRequest)
 			return
 		}
-		
+
 		// Validate state field
 		if req.State != "on" && req.State != "off" {
 			s.sendJSONResponse(w, "error", "State must be 'on' or 'off'", http.StatusBadRequest)
 			return
 		}
-		
+
 		// Validate duration field if present
 		if req.Duration != nil && *req.Duration <= 0 {
 			s.sendJSONResponse(w, "error", "Duration must be positive", http.StatusBadRequest)
 			return
 		}
-		
+
 		// Store validated request in context for handler to use
 		ctx := context.WithValue(r.Context(), switchRequestKey, req)
 		next.ServeHTTP(w, r.WithContext(ctx))
@@ -81,7 +81,7 @@ func (s *Server) validateSwitchRequest(next http.Handler) http.Handler {
 func (s *Server) validateSwitchExists(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switchIDStr := chi.URLParam(r, "id")
-		
+
 		if switchIDStr != "all" {
 			id, _ := strconv.Atoi(switchIDStr) // Already validated by validateSwitchID
 			if _, err := s.switches.GetSwitch(uint(id)); err != nil {
@@ -89,7 +89,7 @@ func (s *Server) validateSwitchExists(next http.Handler) http.Handler {
 				return
 			}
 		}
-		
+
 		next.ServeHTTP(w, r)
 	})
 }
