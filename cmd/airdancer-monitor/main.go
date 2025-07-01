@@ -2,13 +2,17 @@ package main
 
 import (
 	"log"
+	"os"
 
 	flag "github.com/spf13/pflag"
 
 	"github.com/larsks/airdancer/internal/monitor"
+	"github.com/larsks/airdancer/internal/version"
 )
 
 func main() {
+	versionFlag := flag.Bool("version", false, "Show version and exit")
+
 	// Create config with defaults
 	config := monitor.NewConfig()
 
@@ -17,6 +21,11 @@ func main() {
 	config.AddFlags(flag.CommandLine)
 
 	flag.Parse()
+
+	if *versionFlag {
+		version.ShowVersion()
+		os.Exit(0)
+	}
 
 	// Load configuration using viper
 	err := config.LoadConfig(*configFile)
