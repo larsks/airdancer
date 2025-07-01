@@ -103,7 +103,7 @@ func (em *EmailMonitor) connect() error {
 	}
 
 	if err := c.Login(em.config.IMAP.Username, em.config.IMAP.Password); err != nil {
-		c.Close()
+		c.Close() //nolint:errcheck
 		return fmt.Errorf("%w: %v", ErrAuthenticationFailed, err)
 	}
 
@@ -114,7 +114,7 @@ func (em *EmailMonitor) connect() error {
 // disconnect closes the IMAP connection
 func (em *EmailMonitor) disconnect() {
 	if em.client != nil {
-		em.client.Close()
+		em.client.Close() //nolint:errcheck
 		em.client = nil
 	}
 }
@@ -182,17 +182,16 @@ func (em *EmailMonitor) monitor() error {
 	}
 
 	ticker := time.NewTicker(checkInterval)
-	defer ticker.Stop()
+	defer ticker.Stop() //nolint:errcheck
 
-	for {
-		select {
-		case <-ticker.C:
-			err := em.checkForNewMessages()
-			if err != nil {
-				return err
-			}
+	for range ticker.C {
+		err := em.checkForNewMessages()
+		if err != nil {
+			return err
 		}
 	}
+
+	return nil
 }
 
 // checkForNewMessages looks for new messages and processes them

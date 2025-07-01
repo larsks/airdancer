@@ -14,7 +14,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to open piface:", err)
 	}
-	defer pf.Close()
+	defer pf.Close() //nolint:errcheck
 
 	if err := pf.Init(); err != nil {
 		log.Fatal("Failed to initialize piface:", err)

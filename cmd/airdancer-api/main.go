@@ -29,7 +29,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create server: %v", err)
 	}
-	defer srv.Close()
+	defer srv.Close() //nolint:errcheck
 
 	if err := srv.Start(); err != nil {
 		log.Fatalf("Server failed: %v", err)

@@ -41,7 +41,7 @@ type allSwitchesStatus struct {
 func (s *Server) sendJSONResponse(w http.ResponseWriter, status string, message string, httpCode int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(httpCode)
-	json.NewEncoder(w).Encode(jsonResponse{
+	json.NewEncoder(w).Encode(jsonResponse{ //nolint:errcheck
 		Status:  status,
 		Message: message,
 	})
@@ -78,7 +78,7 @@ func (s *Server) switchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	defer s.mutex.Unlock() //nolint:errcheck
 
 	// Get switches - validation already done by middleware
 	switches, err := s.getSwitchesFromRequest(r)
@@ -111,7 +111,7 @@ func (s *Server) switchHandler(w http.ResponseWriter, r *http.Request) {
 				duration := time.Duration(*req.Duration) * time.Second
 				s.timers[swid] = time.AfterFunc(duration, func() {
 					s.mutex.Lock()
-					defer s.mutex.Unlock()
+					defer s.mutex.Unlock() //nolint:errcheck
 					delete(s.timers, swid)
 					if err := sw.TurnOff(); err != nil {
 						log.Printf("Failed to automatically turn off switch %s: %v", swid, err)
@@ -134,7 +134,7 @@ func (s *Server) switchStatusHandler(w http.ResponseWriter, r *http.Request) {
 	switchIDStr := chi.URLParam(r, "id")
 
 	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	defer s.mutex.Unlock() //nolint:errcheck
 
 	if switchIDStr == "all" {
 		// Get detailed state for all switches
@@ -164,7 +164,7 @@ func (s *Server) switchStatusHandler(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(response)
+		json.NewEncoder(w).Encode(response) //nolint:errcheck
 		return
 	}
 
@@ -189,5 +189,5 @@ func (s *Server) switchStatusHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(response) //nolint:errcheck
 }

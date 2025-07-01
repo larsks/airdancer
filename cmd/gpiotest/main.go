@@ -52,7 +52,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create switch collection: %s", err)
 	}
-	defer collection.Close()
+	defer collection.Close() //nolint:errcheck
 
 	if err := collection.Init(); err != nil {
 		log.Fatalf("failed to initialize switch collection: %s", err)

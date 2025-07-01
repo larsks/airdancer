@@ -24,12 +24,11 @@ import (
 // Server represents the API server.
 
 type Server struct {
-	listenAddr  string
-	switches    switchcollection.SwitchCollection
-	outputState uint8
-	mutex       sync.Mutex
-	timers      map[string]*time.Timer
-	router      *chi.Mux
+	listenAddr string
+	switches   switchcollection.SwitchCollection
+	mutex      sync.Mutex
+	timers     map[string]*time.Timer
+	router     *chi.Mux
 }
 
 // Config holds the configuration for the API server.
@@ -191,7 +190,7 @@ func (s *Server) Start() error {
 	log.Println("Shutting down server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	defer cancel() //nolint:errcheck
 
 	if err := srv.Shutdown(ctx); err != nil {
 		return fmt.Errorf("server shutdown failed: %w", err)
@@ -203,6 +202,6 @@ func (s *Server) Start() error {
 
 // Close closes the PiFace connection.
 
-func (s *Server) Close() {
-	s.switches.Close()
+func (s *Server) Close() error {
+	return s.switches.Close()
 }
