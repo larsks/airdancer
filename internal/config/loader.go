@@ -108,6 +108,37 @@ func (cl *ConfigLoader) LoadConfig(config any) error {
 				} else {
 					v.Set(viperKey, flag.Value.String())
 				}
+			case "stringSlice":
+				// Handle StringSliceVar flags properly by getting the actual slice value
+				// instead of using String() which returns "[item1 item2]" format
+				if sliceFlag, ok := flag.Value.(pflag.SliceValue); ok {
+					v.Set(viperKey, sliceFlag.GetSlice())
+				} else {
+					// Fallback: try to parse the string representation
+					// This handles the case where String() returns "[item1 item2]" format
+					str := flag.Value.String()
+					if strings.HasPrefix(str, "[") && strings.HasSuffix(str, "]") {
+						// Remove brackets and split by spaces
+						str = strings.Trim(str, "[]")
+						if str == "" {
+							v.Set(viperKey, []string{})
+						} else {
+							items := strings.Fields(str)
+							v.Set(viperKey, items)
+						}
+					} else {
+						// Comma-separated format
+						if str == "" {
+							v.Set(viperKey, []string{})
+						} else {
+							items := strings.Split(str, ",")
+							for i, item := range items {
+								items[i] = strings.TrimSpace(item)
+							}
+							v.Set(viperKey, items)
+						}
+					}
+				}
 			default:
 				// String or other type
 				v.Set(viperKey, flag.Value.String())
