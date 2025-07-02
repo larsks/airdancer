@@ -54,7 +54,7 @@ func ParsePinConfig(pinSpec string) PinConfig {
 
 func NewGPIOSwitchCollection(offOnClose bool, pins []string) (*GPIOSwitchCollection, error) {
 	if _, err := host.Init(); err != nil {
-		return nil, fmt.Errorf("failed to init periph: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrPeriphInitFailed, err)
 	}
 
 	switches := make([]switchcollection.Switch, len(pins))
@@ -62,7 +62,7 @@ func NewGPIOSwitchCollection(offOnClose bool, pins []string) (*GPIOSwitchCollect
 		pinConfig := ParsePinConfig(pinSpec)
 		pin := gpioreg.ByName(pinConfig.Name)
 		if pin == nil {
-			return nil, fmt.Errorf("failed to find pin %s", pinConfig.Name)
+			return nil, fmt.Errorf("%w: %s", ErrPinNotFound, pinConfig.Name)
 		}
 		switches[i] = &GPIOSwitch{
 			pin:      pin,
@@ -82,7 +82,7 @@ func (sc *GPIOSwitchCollection) Init() error {
 		gpioSwitch := s.(*GPIOSwitch)
 		initialLevel := gpioSwitch.getOffLevel()
 		if err := gpioSwitch.pin.Out(initialLevel); err != nil {
-			return fmt.Errorf("failed to set pin to output mode: %w", err)
+			return fmt.Errorf("%w: %v", ErrPinOutputMode, err)
 		}
 	}
 	return nil
@@ -112,7 +112,7 @@ func (sc *GPIOSwitchCollection) ListSwitches() []switchcollection.Switch {
 
 func (sc *GPIOSwitchCollection) GetSwitch(id uint) (switchcollection.Switch, error) {
 	if id >= uint(len(sc.switches)) {
-		return nil, fmt.Errorf("invalid switch id %d", id)
+		return nil, fmt.Errorf("%w: %d", ErrInvalidSwitchID, id)
 	}
 	return sc.switches[id], nil
 }
@@ -168,7 +168,7 @@ func (s *GPIOSwitch) TurnOn() error {
 	log.Printf("activating switch %s", s)
 	onLevel := s.getOnLevel()
 	if err := s.pin.Out(onLevel); err != nil {
-		return fmt.Errorf("failed to turn on switch %s: %w", s, err)
+		return fmt.Errorf("%w %s: %v", ErrSwitchTurnOn, s, err)
 	}
 	return nil
 }
@@ -177,7 +177,7 @@ func (s *GPIOSwitch) TurnOff() error {
 	log.Printf("deactivating switch %s", s)
 	offLevel := s.getOffLevel()
 	if err := s.pin.Out(offLevel); err != nil {
-		return fmt.Errorf("failed to turn off switch %s: %w", s, err)
+		return fmt.Errorf("%w %s: %v", ErrSwitchTurnOff, s, err)
 	}
 	return nil
 }

@@ -68,7 +68,7 @@ func (cl *ConfigLoader) LoadConfig(config any) error {
 	if cl.configFile != "" {
 		v.SetConfigFile(cl.configFile)
 		if err := v.ReadInConfig(); err != nil {
-			return fmt.Errorf("failed to read config file: %w", err)
+			return fmt.Errorf("%w: %v", ErrConfigFileRead, err)
 		}
 	}
 
@@ -147,7 +147,7 @@ func (cl *ConfigLoader) LoadConfig(config any) error {
 	})
 
 	if err := v.Unmarshal(config); err != nil {
-		return fmt.Errorf("failed to unmarshal config: %w", err)
+		return fmt.Errorf("%w: %v", ErrConfigUnmarshal, err)
 	}
 
 	// Restore configFile after unmarshal if it was set (prevents viper from clearing it)
@@ -165,12 +165,12 @@ func (cl *ConfigLoader) LoadConfig(config any) error {
 func (cl *ConfigLoader) setConfigFileField(config any, configFile string) error {
 	v := reflect.ValueOf(config)
 	if v.Kind() != reflect.Ptr || v.IsNil() {
-		return fmt.Errorf("config must be a non-nil pointer")
+		return ErrConfigNotPointer
 	}
 
 	v = v.Elem()
 	if v.Kind() != reflect.Struct {
-		return fmt.Errorf("config must be a pointer to struct")
+		return ErrConfigNotStruct
 	}
 
 	// Look for a field named "ConfigFile"
@@ -181,11 +181,11 @@ func (cl *ConfigLoader) setConfigFileField(config any, configFile string) error 
 	}
 
 	if !field.CanSet() {
-		return fmt.Errorf("ConfigFile field is not settable")
+		return ErrConfigFieldNotSet
 	}
 
 	if field.Kind() != reflect.String {
-		return fmt.Errorf("ConfigFile field must be a string")
+		return ErrConfigFieldNotString
 	}
 
 	field.SetString(configFile)

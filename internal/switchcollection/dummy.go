@@ -66,7 +66,7 @@ func (dsc *DummySwitchCollection) GetSwitch(id uint) (Switch, error) {
 	defer dsc.mutex.RUnlock()
 
 	if id >= uint(len(dsc.switches)) {
-		return nil, fmt.Errorf("invalid switch id %d", id)
+		return nil, fmt.Errorf("%w: %d", ErrInvalidSwitchID, id)
 	}
 	return dsc.switches[id], nil
 }

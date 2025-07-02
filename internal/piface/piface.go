@@ -45,7 +45,7 @@ type PiFaceOutput struct {
 // Helper functions for bit operations and validation
 func validatePin(pin uint8) error {
 	if pin > 7 {
-		return fmt.Errorf("invalid pin %d: must be 0-7", pin)
+		return fmt.Errorf("%w: %d (must be 0-7)", ErrInvalidPin, pin)
 	}
 	return nil
 }
@@ -64,19 +64,19 @@ func getBit(value uint8, pin uint8) bool {
 func NewPiFace(offOnClose bool, spiPortName string) (*PiFace, error) {
 	// Initialize periph.io host
 	if _, err := host.Init(); err != nil {
-		return nil, fmt.Errorf("failed to initialize periph.io: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrPeriphInitFailed, err)
 	}
 
 	// Open SPI port
 	spiPort, err := spireg.Open(spiPortName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open SPI port %s: %w", spiPortName, err)
+		return nil, fmt.Errorf("%w %s: %v", ErrSPIPortOpen, spiPortName, err)
 	}
 	// Configure SPI connection with proper frequency units
 	spiConn, err := spiPort.Connect(1*physic.MegaHertz, spi.Mode0, 8) // 1MHz, Mode 0, 8 bits
 	if err != nil {
 		spiPort.Close() // Clean up on error
-		return nil, fmt.Errorf("failed to connect to SPI: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrSPIConnect, err)
 	}
 	log.Printf("opened piface device at %s", spiPortName)
 
@@ -126,7 +126,7 @@ func (pf *PiFace) writeRegister(reg, value uint8) error {
 	read := make([]byte, len(write))
 
 	if err := pf.spiConn.Tx(write, read); err != nil {
-		return fmt.Errorf("failed to write register 0x%02x: %w", reg, err)
+		return fmt.Errorf("%w 0x%02x: %v", ErrRegisterWrite, reg, err)
 	}
 	return nil
 }
@@ -137,7 +137,7 @@ func (pf *PiFace) readRegister(reg uint8) (uint8, error) {
 	read := make([]byte, len(write))
 
 	if err := pf.spiConn.Tx(write, read); err != nil {
-		return 0, fmt.Errorf("failed to read register 0x%02x: %w", reg, err)
+		return 0, fmt.Errorf("%w 0x%02x: %v", ErrRegisterRead, reg, err)
 	}
 
 	return read[2], nil // The third byte contains the register value
@@ -146,7 +146,7 @@ func (pf *PiFace) readRegister(reg uint8) (uint8, error) {
 func (pf *PiFace) ReadInputs() (uint8, error) {
 	val, err := pf.readRegister(GPIOB)
 	if err != nil {
-		return 0, fmt.Errorf("failed to read inputs: %w", err)
+		return 0, fmt.Errorf("%w: %v", ErrReadInputs, err)
 	}
 
 	return val ^ 0xFF, nil
@@ -177,7 +177,7 @@ func (pf *PiFace) WriteOutput(pin uint8, val uint8) error {
 		return fmt.Errorf("failed to write output: %w", err)
 	}
 	if val > 1 {
-		return fmt.Errorf("invalid output value %d: must be 0 or 1", val)
+		return fmt.Errorf("%w: %d (must be 0 or 1)", ErrInvalidOutputValue, val)
 	}
 
 	outputs, err := pf.ReadOutputs()
@@ -237,7 +237,7 @@ func (pf *PiFace) ListSwitches() []switchcollection.Switch {
 
 func (pf *PiFace) GetSwitch(id uint) (switchcollection.Switch, error) {
 	if id > 7 {
-		return nil, fmt.Errorf("invalid switch id %d: must be 0-7", id)
+		return nil, fmt.Errorf("%w: %d (must be 0-7)", ErrInvalidSwitchID, id)
 	}
 	return &PiFaceOutput{
 		pf:  pf,
