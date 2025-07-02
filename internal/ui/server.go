@@ -15,8 +15,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/larsks/airdancer/internal/config"
 	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 )
 
 //go:embed static/*
@@ -49,27 +49,17 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 
 // LoadConfig loads the configuration from a file and binds it to the Config struct.
 func (c *Config) LoadConfig() error {
-	v := viper.New()
-	v.SetDefault("listen-address", c.ListenAddress)
-	v.SetDefault("listen-port", c.ListenPort)
-	v.SetDefault("api-base-url", c.APIBaseURL)
-
-	if c.ConfigFile != "" {
-		v.SetConfigFile(c.ConfigFile)
-		if err := v.ReadInConfig(); err != nil {
-			return fmt.Errorf("failed to read config file: %w", err)
-		}
-	}
-
-	if err := v.BindPFlags(pflag.CommandLine); err != nil {
-		return fmt.Errorf("failed to bind flags to config options: %w", err)
-	}
-
-	if err := v.Unmarshal(c); err != nil {
-		return fmt.Errorf("failed to unmarshal config: %w", err)
-	}
-
-	return nil
+	loader := config.NewConfigLoader()
+	loader.SetConfigFile(c.ConfigFile)
+	
+	// Set default values
+	loader.SetDefaults(map[string]any{
+		"listen_address": "",
+		"listen_port":    8081,
+		"api_base_url":   "http://localhost:8080",
+	})
+	
+	return loader.LoadConfig(c)
 }
 
 type UIServer struct {

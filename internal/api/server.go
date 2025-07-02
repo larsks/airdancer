@@ -14,11 +14,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/larsks/airdancer/internal/config"
 	"github.com/larsks/airdancer/internal/gpio"
 	"github.com/larsks/airdancer/internal/piface"
 	"github.com/larsks/airdancer/internal/switchcollection"
 	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 )
 
 // Server represents the API server.
@@ -51,9 +51,9 @@ type (
 		ListenPort    int    `mapstructure:"listen-port"`
 		ConfigFile    string `mapstructure:"config-file"`
 		Driver        string `mapstructure:"driver"`
-		GPIOConfig    GPIOConfig
-		PiFaceConfig  PiFaceConfig
-		DummyConfig   DummyConfig
+		GPIOConfig    GPIOConfig  `mapstructure:"gpio"`
+		PiFaceConfig  PiFaceConfig `mapstructure:"piface"`
+		DummyConfig   DummyConfig  `mapstructure:"dummy"`
 	}
 )
 
@@ -88,30 +88,20 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 // LoadConfig loads the configuration from a file and binds it to the Config struct.
 
 func (c *Config) LoadConfig() error {
-	v := viper.New()
-	v.SetDefault("listen-address", c.ListenAddress)
-	v.SetDefault("listen-port", c.ListenPort)
-	v.SetDefault("driver", c.Driver)
-	v.SetDefault("piface.spidev", c.PiFaceConfig.SPIDev)
-	v.SetDefault("gpio.pins", c.GPIOConfig.Pins)
-	v.SetDefault("dummy.switch_count", c.DummyConfig.SwitchCount)
-
-	if c.ConfigFile != "" {
-		v.SetConfigFile(c.ConfigFile)
-		if err := v.ReadInConfig(); err != nil {
-			return fmt.Errorf("failed to read config file: %w", err)
-		}
-	}
-
-	if err := v.BindPFlags(pflag.CommandLine); err != nil {
-		return fmt.Errorf("failed to bind flags to config options: %w", err)
-	}
-
-	if err := v.Unmarshal(c); err != nil {
-		return fmt.Errorf("failed to unmarshal config: %w", err)
-	}
-
-	return nil
+	loader := config.NewConfigLoader()
+	loader.SetConfigFile(c.ConfigFile)
+	
+	// Set default values
+	loader.SetDefaults(map[string]any{
+		"listen_address":      "",
+		"listen_port":         8080,
+		"driver":              "piface",
+		"piface.spidev":       "/dev/spidev0.0",
+		"gpio.pins":           []string{},
+		"dummy.switch_count":  4,
+	})
+	
+	return loader.LoadConfig(c)
 }
 
 // NewServer creates a new Server instance.

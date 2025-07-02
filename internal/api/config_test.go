@@ -3,7 +3,6 @@ package api
 import (
 	_ "embed"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -141,18 +140,75 @@ func TestConfigLoadConfigWithEmbeddedFile(t *testing.T) {
 func TestEmbeddedConfigContent(t *testing.T) {
 	// Test that embedded TOML configuration files are properly loaded and accessible
 
-	// Verify that the embedded test TOML config content is non-empty and contains expected content
+	// Verify that the embedded test TOML config content is non-empty
 	if len(testConfigTOML) == 0 {
 		t.Error("Embedded test TOML config should not be empty")
 	}
 
-	// Check that the test TOML config contains expected configuration keys
-	configStr := string(testConfigTOML)
-	expectedKeys := []string{"listen-address", "listen-port", "driver", "dummy", "switch_count"}
+	// Create a temporary file with the embedded test config
+	tmpFile, err := os.CreateTemp("", "test-config-*.toml")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
 
-	for _, key := range expectedKeys {
-		if !strings.Contains(configStr, key) {
-			t.Errorf("Embedded test TOML config should contain key %q", key)
+	// Write the embedded test config to the temp file
+	if _, err := tmpFile.Write(testConfigTOML); err != nil {
+		t.Fatalf("Failed to write embedded config to temp file: %v", err)
+	}
+	tmpFile.Close()
+
+	// Load and parse the config to verify specific values
+	config := NewConfig()
+
+	// Save original command line flags
+	originalFlags := pflag.CommandLine
+	defer func() { pflag.CommandLine = originalFlags }()
+
+	// Create a clean flag set for testing and add flags (but don't set them explicitly)
+	pflag.CommandLine = pflag.NewFlagSet("test", pflag.ContinueOnError)
+	config.AddFlags(pflag.CommandLine)
+	
+	// Set ConfigFile AFTER AddFlags to prevent it from being overwritten by flag defaults
+	config.ConfigFile = tmpFile.Name()
+
+	// Load the config from the embedded test file
+	err = config.LoadConfig()
+	if err != nil {
+		t.Fatalf("Failed to load embedded test config: %v", err)
+	}
+	
+
+
+	// Verify specific configuration values from the test-config.toml file
+	if config.ListenAddress != "127.0.0.1" {
+		t.Errorf("Expected ListenAddress to be '127.0.0.1', got %q", config.ListenAddress)
+	}
+
+	if config.ListenPort != 9090 {
+		t.Errorf("Expected ListenPort to be 9090, got %d", config.ListenPort)
+	}
+
+	if config.Driver != "dummy" {
+		t.Errorf("Expected Driver to be 'dummy', got %q", config.Driver)
+	}
+
+	if config.DummyConfig.SwitchCount != 5 {
+		t.Errorf("Expected DummyConfig.SwitchCount to be 5, got %d", config.DummyConfig.SwitchCount)
+	}
+
+	if config.PiFaceConfig.SPIDev != "/dev/spidev1.0" {
+		t.Errorf("Expected PiFaceConfig.SPIDev to be '/dev/spidev1.0', got %q", config.PiFaceConfig.SPIDev)
+	}
+
+	expectedGPIOPins := []string{"GPIO18", "GPIO19"}
+	if len(config.GPIOConfig.Pins) != len(expectedGPIOPins) {
+		t.Errorf("Expected GPIOConfig.Pins to have %d elements, got %d", len(expectedGPIOPins), len(config.GPIOConfig.Pins))
+	} else {
+		for i, expectedPin := range expectedGPIOPins {
+			if config.GPIOConfig.Pins[i] != expectedPin {
+				t.Errorf("Expected GPIOConfig.Pins[%d] to be %q, got %q", i, expectedPin, config.GPIOConfig.Pins[i])
+			}
 		}
 	}
 
@@ -165,3 +221,7 @@ func TestEmbeddedConfigContent(t *testing.T) {
 	t.Logf("Embedded test TOML config size: %d bytes", len(testConfigTOML))
 	t.Logf("Embedded invalid TOML config size: %d bytes", len(invalidConfigTOML))
 }
+
+
+
+
