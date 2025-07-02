@@ -56,7 +56,7 @@ func NewPiFace(offOnClose bool, spiPortName string) (*PiFace, error) {
 	}, nil
 }
 
-func (m *PiFace) Init() error {
+func (pf *PiFace) Init() error {
 	initVars := map[uint8]uint8{
 		IOCON:  8,
 		IODIRA: 0,
@@ -64,9 +64,9 @@ func (m *PiFace) Init() error {
 		GPPUB:  0xff,
 	}
 
-	log.Printf("initializing piface %s", m)
+	log.Printf("initializing piface %s", pf)
 	for k, v := range initVars {
-		if err := m.writeRegister(k, v); err != nil {
+		if err := pf.writeRegister(k, v); err != nil {
 			return fmt.Errorf("failed to initialize piface: %w", err)
 		}
 	}
@@ -74,35 +74,35 @@ func (m *PiFace) Init() error {
 	return nil
 }
 
-func (m *PiFace) Close() error {
-	if m.offOnClose {
-		_ = m.TurnOff()
+func (pf *PiFace) Close() error {
+	if pf.offOnClose {
+		_ = pf.TurnOff()
 	}
-	return m.spiPort.Close()
+	return pf.spiPort.Close()
 }
 
-func (m *PiFace) writeRegister(reg, value uint8) error {
+func (pf *PiFace) writeRegister(reg, value uint8) error {
 	// Hardware CS is handled automatically by the SPI subsystem
 	write := []byte{OPCODE_WRITE, reg, value}
 	read := make([]byte, len(write))
 
-	return m.spiConn.Tx(write, read)
+	return pf.spiConn.Tx(write, read)
 }
 
-func (m *PiFace) readRegister(reg uint8) (uint8, error) {
+func (pf *PiFace) readRegister(reg uint8) (uint8, error) {
 	// Hardware CS is handled automatically by the SPI subsystem
 	write := []byte{OPCODE_READ, reg, 0x00}
 	read := make([]byte, len(write))
 
-	if err := m.spiConn.Tx(write, read); err != nil {
+	if err := pf.spiConn.Tx(write, read); err != nil {
 		return 0, err
 	}
 
 	return read[2], nil // The third byte contains the register value
 }
 
-func (m *PiFace) ReadInputs() (uint8, error) {
-	val, err := m.readRegister(GPIOB)
+func (pf *PiFace) ReadInputs() (uint8, error) {
+	val, err := pf.readRegister(GPIOB)
 	if err != nil {
 		return 0, err
 	}
@@ -110,8 +110,8 @@ func (m *PiFace) ReadInputs() (uint8, error) {
 	return val ^ 0xFF, nil
 }
 
-func (m *PiFace) ReadInput(pin uint8) (uint8, error) {
-	vec, err := m.ReadInputs()
+func (pf *PiFace) ReadInput(pin uint8) (uint8, error) {
+	vec, err := pf.ReadInputs()
 	if err != nil {
 		return 0, err
 	}
@@ -119,15 +119,15 @@ func (m *PiFace) ReadInput(pin uint8) (uint8, error) {
 	return (vec >> pin) & 0x1, nil
 }
 
-func (m *PiFace) WriteOutputs(val uint8) error {
-	return m.writeRegister(GPIOA, val)
+func (pf *PiFace) WriteOutputs(val uint8) error {
+	return pf.writeRegister(GPIOA, val)
 }
 
-func (m *PiFace) WriteOutput(pin uint8, val uint8) error {
+func (pf *PiFace) WriteOutput(pin uint8, val uint8) error {
 	if val > 1 {
 		return fmt.Errorf("value must be 0 or 1")
 	}
-	outputs, err := m.ReadOutputs()
+	outputs, err := pf.ReadOutputs()
 	if err != nil {
 		return err
 	}
@@ -138,15 +138,15 @@ func (m *PiFace) WriteOutput(pin uint8, val uint8) error {
 		outputs &^= (1 << pin)
 	}
 
-	return m.WriteOutputs(outputs)
+	return pf.WriteOutputs(outputs)
 }
 
-func (m *PiFace) ReadOutputs() (uint8, error) {
-	return m.readRegister(GPIOA)
+func (pf *PiFace) ReadOutputs() (uint8, error) {
+	return pf.readRegister(GPIOA)
 }
 
-func (m *PiFace) ReadOutput(pin uint8) (uint8, error) {
-	val, err := m.ReadOutputs()
+func (pf *PiFace) ReadOutput(pin uint8) (uint8, error) {
+	val, err := pf.ReadOutputs()
 	if err != nil {
 		return 0, err
 	}
