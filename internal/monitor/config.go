@@ -1,10 +1,8 @@
 package monitor
 
 import (
-	"fmt"
-
+	"github.com/larsks/airdancer/internal/config"
 	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 )
 
 // IMAPConfig holds IMAP server configuration
@@ -26,8 +24,9 @@ type MonitorConfig struct {
 
 // Config holds the complete configuration for the email monitor
 type Config struct {
-	IMAP    IMAPConfig    `mapstructure:"imap"`
-	Monitor MonitorConfig `mapstructure:"monitor"`
+	ConfigFile string        `mapstructure:"config-file"`
+	IMAP       IMAPConfig    `mapstructure:"imap"`
+	Monitor    MonitorConfig `mapstructure:"monitor"`
 }
 
 // NewConfig creates a new Config with default values
@@ -46,6 +45,9 @@ func NewConfig() *Config {
 
 // AddFlags adds command-line flags for all configuration options
 func (c *Config) AddFlags(fs *pflag.FlagSet) {
+	// Config file flag
+	fs.StringVar(&c.ConfigFile, "config", c.ConfigFile, "Config file to use")
+	
 	// IMAP flags
 	fs.StringVar(&c.IMAP.Server, "imap.server", c.IMAP.Server, "IMAP server address")
 	fs.IntVar(&c.IMAP.Port, "imap.port", c.IMAP.Port, "IMAP server port")
@@ -60,40 +62,47 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&c.Monitor.CheckInterval, "monitor.check-interval", c.Monitor.CheckInterval, "Interval in seconds to check for new emails")
 }
 
-// LoadConfig loads configuration using viper with support for multiple formats
+// LoadConfig loads configuration using the common config loader.
 func (c *Config) LoadConfig(configFile string) error {
-	v := viper.New()
+	loader := config.NewConfigLoader()
+	loader.SetConfigFile(configFile)
+	
+	// Set default values
+	loader.SetDefaults(map[string]interface{}{
+		"imap.server":                     c.IMAP.Server,
+		"imap.port":                       c.IMAP.Port,
+		"imap.username":                   c.IMAP.Username,
+		"imap.password":                   c.IMAP.Password,
+		"imap.use_ssl":                    c.IMAP.UseSSL,
+		"imap.mailbox":                    c.IMAP.Mailbox,
+		"monitor.regex_pattern":           c.Monitor.RegexPattern,
+		"monitor.command":                 c.Monitor.Command,
+		"monitor.check_interval_seconds":  c.Monitor.CheckInterval,
+	})
+	
+	return loader.LoadConfig(c)
+}
 
-	// Set defaults
-	v.SetDefault("imap.server", c.IMAP.Server)
-	v.SetDefault("imap.port", c.IMAP.Port)
-	v.SetDefault("imap.username", c.IMAP.Username)
-	v.SetDefault("imap.password", c.IMAP.Password)
-	v.SetDefault("imap.use_ssl", c.IMAP.UseSSL)
-	v.SetDefault("imap.mailbox", c.IMAP.Mailbox)
-	v.SetDefault("monitor.regex_pattern", c.Monitor.RegexPattern)
-	v.SetDefault("monitor.command", c.Monitor.Command)
-	v.SetDefault("monitor.check_interval_seconds", c.Monitor.CheckInterval)
-
-	// Bind flags to viper
-	if err := v.BindPFlags(pflag.CommandLine); err != nil {
-		return fmt.Errorf("failed to bind flags: %w", err)
-	}
-
-	// Read config file if specified
-	if configFile != "" {
-		v.SetConfigFile(configFile)
-		if err := v.ReadInConfig(); err != nil {
-			return fmt.Errorf("failed to read config file: %w", err)
-		}
-	}
-
-	// Unmarshal into config struct
-	if err := v.Unmarshal(c); err != nil {
-		return fmt.Errorf("failed to unmarshal config: %w", err)
-	}
-
-	return nil
+// LoadConfigFromStruct loads configuration with proper precedence using the common pattern.
+// This is the preferred method that follows the same pattern as API and UI.
+func (c *Config) LoadConfigFromStruct() error {
+	loader := config.NewConfigLoader()
+	loader.SetConfigFile(c.ConfigFile)
+	
+	// Set default values using the struct defaults
+	loader.SetDefaults(map[string]interface{}{
+		"imap.server":                     "",
+		"imap.port":                       993,
+		"imap.username":                   "",
+		"imap.password":                   "",
+		"imap.use_ssl":                    true,
+		"imap.mailbox":                    "INBOX",
+		"monitor.regex_pattern":           "",
+		"monitor.command":                 "",
+		"monitor.check_interval_seconds":  30,
+	})
+	
+	return loader.LoadConfig(c)
 }
 
 // Validate checks that required configuration values are set

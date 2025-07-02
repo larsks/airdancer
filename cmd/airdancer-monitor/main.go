@@ -15,11 +15,7 @@ func main() {
 
 	// Create config with defaults
 	config := monitor.NewConfig()
-
-	// Add command-line flags
-	configFile := flag.String("config", "", "Path to the configuration file (supports JSON, YAML, TOML)")
 	config.AddFlags(flag.CommandLine)
-
 	flag.Parse()
 
 	if *versionFlag {
@@ -27,11 +23,11 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Load configuration using viper
-	err := config.LoadConfig(*configFile)
+	// Load configuration using the common pattern
+	err := config.LoadConfigFromStruct()
 	if err != nil {
 		// Only fail if config file was explicitly specified but couldn't be loaded
-		if *configFile != "" {
+		if config.ConfigFile != "" {
 			log.Fatalf("failed to load config: %v", err)
 		}
 		log.Printf("using default configuration: %v", err)
