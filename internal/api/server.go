@@ -131,27 +131,45 @@ func NewServer(cfg *Config) (*Server, error) {
 		return nil, fmt.Errorf("%w: %v", ErrDriverInitFailed, err)
 	}
 
+	listenAddr := fmt.Sprintf("%s:%d", cfg.ListenAddress, cfg.ListenPort)
+	return newServerWithSwitches(switches, listenAddr, true), nil
+}
+
+// newServerWithSwitches creates a new Server instance with the given switches.
+// If addProductionMiddleware is true, adds logger and CORS middleware.
+func newServerWithSwitches(switches switchcollection.SwitchCollection, listenAddr string, addProductionMiddleware bool) *Server {
 	s := &Server{
-		listenAddr: fmt.Sprintf("%s:%d", cfg.ListenAddress, cfg.ListenPort),
+		listenAddr: listenAddr,
 		switches:   switches,
 		timers:     make(map[string]*time.Timer),
 		router:     chi.NewRouter(),
 	}
 
-	s.router.Use(middleware.Logger)
-	s.router.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://*", "https://*"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		ExposedHeaders:   []string{"Link"},
-		AllowCredentials: true,
-		MaxAge:           300, // Maximum value not ignored by any of major browsers
-	}))
+	if addProductionMiddleware {
+		s.router.Use(middleware.Logger)
+		s.router.Use(cors.Handler(cors.Options{
+			AllowedOrigins:   []string{"http://*", "https://*"},
+			AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+			ExposedHeaders:   []string{"Link"},
+			AllowCredentials: true,
+			MaxAge:           300, // Maximum value not ignored by any of major browsers
+		}))
+	}
 
+	s.setupRoutes()
+	return s
+}
+
+// setupRoutes configures the HTTP routes and middleware for the server.
+func (s *Server) setupRoutes() {
 	// Set up routes with validation middleware
 	s.router.Route("/switch", func(r chi.Router) {
 		// GET endpoints for status queries - only need basic ID validation for status
-		r.Get("/{id}", s.switchStatusHandler)
+		r.With(
+			s.validateSwitchID,
+			s.validateSwitchExists,
+		).Get("/{id}", s.switchStatusHandler)
 
 		// POST endpoints for switch control - restore full validation middleware chain
 		r.With(
@@ -161,8 +179,6 @@ func NewServer(cfg *Config) (*Server, error) {
 			s.validateSwitchRequest,
 		).Post("/{id}", s.switchHandler)
 	})
-
-	return s, nil
 }
 
 // Start starts the API server.
