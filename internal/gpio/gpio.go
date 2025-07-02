@@ -205,10 +205,3 @@ func (s *GPIOSwitch) getOffLevel() gpio.Level {
 	}
 	return gpio.High
 }
-
-func init() {
-	// Initialize periph.io host
-	if _, err := host.Init(); err != nil {
-		log.Fatal("Failed to initialize periph.io:", err)
-	}
-}
