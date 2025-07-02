@@ -63,7 +63,7 @@ func NewConfig() *Config {
 	return &Config{
 		ListenAddress: "",
 		ListenPort:    8080,
-		Driver:        "piface",
+		Driver:        "dummy",
 		PiFaceConfig: PiFaceConfig{
 			SPIDev: "/dev/spidev0.0",
 		},
@@ -95,7 +95,7 @@ func (c *Config) LoadConfig() error {
 	loader.SetDefaults(map[string]any{
 		"listen_address":     "",
 		"listen_port":        8080,
-		"driver":             "piface",
+		"driver":             "dummy",
 		"piface.spidev":      "/dev/spidev0.0",
 		"gpio.pins":          []string{},
 		"dummy.switch_count": 4,
@@ -163,6 +163,8 @@ func newServerWithSwitches(switches switchcollection.SwitchCollection, listenAdd
 
 // setupRoutes configures the HTTP routes and middleware for the server.
 func (s *Server) setupRoutes() {
+	s.router.Get("/", s.listRoutesHandler)
+
 	// Set up routes with validation middleware
 	s.router.Route("/switch", func(r chi.Router) {
 		// GET endpoints for status queries - only need basic ID validation for status
@@ -222,4 +224,15 @@ func (s *Server) Start() error {
 
 func (s *Server) Close() error {
 	return s.switches.Close()
+}
+
+func (s *Server) ListRoutes() [][]string {
+	routes := [][]string{}
+
+	chi.Walk(s.router, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+		routes = append(routes, []string{method, route})
+		return nil
+	})
+
+	return routes
 }

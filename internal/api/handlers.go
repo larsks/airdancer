@@ -226,3 +226,8 @@ func (s *Server) handleSingleSwitchStatus(w http.ResponseWriter, id uint, idStr 
 
 	s.sendSuccess(w, data)
 }
+
+func (s *Server) listRoutesHandler(w http.ResponseWriter, r *http.Request) {
+	data := map[string]any{"routes": s.ListRoutes()}
+	s.sendSuccess(w, data)
+}
