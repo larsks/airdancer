@@ -1,0 +1,3 @@
+- Always run `go fmt` after making changes to a Go source file.
+- Prefer using the `embed` package over large blocks of literal text in test files.
+- Prefer `for i := range LIMIT` style loops over `for i := 0; i < LIMIT; i++`
