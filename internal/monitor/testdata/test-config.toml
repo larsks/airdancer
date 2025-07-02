@@ -1,0 +1,12 @@
+[imap]
+server = "test.example.com"
+port = 143
+username = "testuser"
+password = "testpass"
+use_ssl = false
+mailbox = "INBOX"
+
+[monitor]
+regex_pattern = "urgent.*alert"
+command = "notify-send 'Email Alert'"
+check_interval_seconds = 60 

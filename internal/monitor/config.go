@@ -110,7 +110,7 @@ func (c *Config) Validate() error {
 	if c.IMAP.Server == "" {
 		return ErrMissingIMAPServer
 	}
-	if c.IMAP.Port == 0 {
+	if c.IMAP.Port <= 0 {
 		return ErrInvalidIMAPPort
 	}
 	if c.Monitor.RegexPattern == "" {
