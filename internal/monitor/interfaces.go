@@ -94,7 +94,7 @@ func (r *RealCommandExecutor) Execute(command string, env []string, stdin io.Rea
 	cmd.Stderr = &stderr
 
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to execute command: %w", err)
+		return fmt.Errorf("%w \"%s\": %v", ErrCommandExecution, command, err)
 	}
 
 	go func() {

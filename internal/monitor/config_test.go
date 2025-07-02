@@ -2,6 +2,7 @@ package monitor
 
 import (
 	_ "embed"
+	"errors"
 	"os"
 	"testing"
 
@@ -180,7 +181,7 @@ func TestConfigValidate(t *testing.T) {
 			} else {
 				if err == nil {
 					t.Errorf("Expected error %v, got nil", tt.expectedError)
-				} else if err != tt.expectedError {
+				} else if !errors.Is(err, tt.expectedError) {
 					t.Errorf("Expected error %v, got %v", tt.expectedError, err)
 				}
 			}

@@ -1,6 +1,8 @@
 package monitor
 
 import (
+	"fmt"
+
 	"github.com/larsks/airdancer/internal/config"
 	"github.com/spf13/pflag"
 )
@@ -108,13 +110,13 @@ func (c *Config) LoadConfigFromStruct() error {
 // Validate checks that required configuration values are set
 func (c *Config) Validate() error {
 	if c.IMAP.Server == "" {
-		return ErrMissingIMAPServer
+		return fmt.Errorf("%w: server is empty", ErrMissingIMAPServer)
 	}
 	if c.IMAP.Port <= 0 {
-		return ErrInvalidIMAPPort
+		return fmt.Errorf("%w: port is %d", ErrInvalidIMAPPort, c.IMAP.Port)
 	}
 	if c.Monitor.RegexPattern == "" {
-		return ErrMissingRegexPattern
+		return fmt.Errorf("%w: pattern is empty", ErrMissingRegexPattern)
 	}
 	return nil
 }

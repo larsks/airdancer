@@ -38,7 +38,7 @@ func NewEmailMonitor(config Config, dialer IMAPDialer, executor CommandExecutor,
 
 	regex, err := regexp.Compile(config.Monitor.RegexPattern)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidRegexPattern, err)
+		return nil, fmt.Errorf("%w \"%s\": %v", ErrInvalidRegexPattern, config.Monitor.RegexPattern, err)
 	}
 
 	monitor := &EmailMonitor{
@@ -137,12 +137,12 @@ func (em *EmailMonitor) connect() error {
 	}
 
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrConnectionFailed, err)
+		return fmt.Errorf("%w to %s: %v", ErrConnectionFailed, address, err)
 	}
 
 	if err := c.Login(em.config.IMAP.Username, em.config.IMAP.Password); err != nil {
 		c.Close() //nolint:errcheck
-		return fmt.Errorf("%w: %v", ErrAuthenticationFailed, err)
+		return fmt.Errorf("%w for user %s: %v", ErrAuthenticationFailed, em.config.IMAP.Username, err)
 	}
 
 	em.client = c
@@ -166,7 +166,7 @@ func (em *EmailMonitor) initializeLastUID() error {
 
 	mbox, err := em.client.Select(mailbox, false)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrMailboxNotFound, err)
+		return fmt.Errorf("%w \"%s\": %v", ErrMailboxNotFound, mailbox, err)
 	}
 
 	// If the mailbox is empty, there's no UID

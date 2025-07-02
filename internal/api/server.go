@@ -114,12 +114,12 @@ func NewServer(cfg *Config) (*Server, error) {
 	case "piface":
 		switches, err = piface.NewPiFace(true, cfg.PiFaceConfig.SPIDev)
 		if err != nil {
-			return nil, fmt.Errorf("%w: %v", ErrPiFaceInitFailed, err)
+			return nil, fmt.Errorf("%w on %s: %v", ErrPiFaceInitFailed, cfg.PiFaceConfig.SPIDev, err)
 		}
 	case "gpio":
 		switches, err = gpio.NewGPIOSwitchCollection(true, cfg.GPIOConfig.Pins)
 		if err != nil {
-			return nil, fmt.Errorf("%w: %v", ErrGPIOInitFailed, err)
+			return nil, fmt.Errorf("%w with pins %v: %v", ErrGPIOInitFailed, cfg.GPIOConfig.Pins, err)
 		}
 	case "dummy":
 		switches = switchcollection.NewDummySwitchCollection(cfg.DummyConfig.SwitchCount)
