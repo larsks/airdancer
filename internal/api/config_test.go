@@ -26,8 +26,8 @@ func TestNewConfig(t *testing.T) {
 		t.Errorf("NewConfig() ListenPort = %v, want 8080", config.ListenPort)
 	}
 
-	if config.Driver != "piface" {
-		t.Errorf("NewConfig() Driver = %v, want piface", config.Driver)
+	if config.Driver != "dummy" {
+		t.Errorf("NewConfig() Driver = %v, want dummy", config.Driver)
 	}
 
 	if config.PiFaceConfig.SPIDev != "/dev/spidev0.0" {
