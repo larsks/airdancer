@@ -29,128 +29,64 @@ func createTestServer(t *testing.T, switchCount uint) *Server {
 	return server
 }
 
-func TestSendJSONResponse(t *testing.T) {
+func TestSendResponse(t *testing.T) {
 	server := createTestServer(t, 1)
 
 	tests := []struct {
 		name       string
-		status     string
-		message    string
+		resp       APIResponse
 		httpCode   int
 		wantStatus string
 		wantMsg    string
 	}{
 		{
 			name:       "success response",
-			status:     "ok",
-			message:    "",
+			resp:       APIResponse{Status: "ok"},
 			httpCode:   http.StatusOK,
 			wantStatus: "ok",
 			wantMsg:    "",
 		},
 		{
 			name:       "error response",
-			status:     "error",
-			message:    "Something went wrong",
+			resp:       APIResponse{Status: "error", Message: "Something went wrong"},
 			httpCode:   http.StatusBadRequest,
 			wantStatus: "error",
 			wantMsg:    "Something went wrong",
+		},
+		{
+			name:       "success with data",
+			resp:       APIResponse{Status: "ok", Data: map[string]string{"test": "value"}},
+			httpCode:   http.StatusOK,
+			wantStatus: "ok",
+			wantMsg:    "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			server.sendJSONResponse(w, tt.status, tt.message, tt.httpCode)
+			server.sendResponse(w, tt.resp, tt.httpCode)
 
 			if w.Code != tt.httpCode {
-				t.Errorf("sendJSONResponse() status = %v, want %v", w.Code, tt.httpCode)
+				t.Errorf("sendResponse() status = %v, want %v", w.Code, tt.httpCode)
 			}
 
 			contentType := w.Header().Get("Content-Type")
 			if contentType != "application/json" {
-				t.Errorf("sendJSONResponse() Content-Type = %v, want application/json", contentType)
+				t.Errorf("sendResponse() Content-Type = %v, want application/json", contentType)
 			}
 
-			var response jsonResponse
+			var response APIResponse
 			if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 				t.Fatalf("Failed to parse JSON response: %v", err)
 			}
 
 			if response.Status != tt.wantStatus {
-				t.Errorf("sendJSONResponse() response status = %v, want %v", response.Status, tt.wantStatus)
+				t.Errorf("sendResponse() response status = %v, want %v", response.Status, tt.wantStatus)
 			}
 
 			if response.Message != tt.wantMsg {
-				t.Errorf("sendJSONResponse() response message = %v, want %v", response.Message, tt.wantMsg)
-			}
-		})
-	}
-}
-
-func TestGetSwitchesFromRequest(t *testing.T) {
-	server := createTestServer(t, 3)
-
-	tests := []struct {
-		name          string
-		switchID      string
-		wantCount     int
-		wantError     bool
-		errorContains string
-	}{
-		{
-			name:      "get all switches",
-			switchID:  "all",
-			wantCount: 1, // Returns the collection itself
-			wantError: false,
-		},
-		{
-			name:      "get valid switch",
-			switchID:  "1",
-			wantCount: 1,
-			wantError: false,
-		},
-		{
-			name:          "get invalid switch ID",
-			switchID:      "99",
-			wantCount:     0,
-			wantError:     true,
-			errorContains: "invalid switch id",
-		},
-		{
-			name:          "get non-numeric switch ID",
-			switchID:      "invalid",
-			wantCount:     0,
-			wantError:     true,
-			errorContains: "invalid syntax",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create a request with the switch ID parameter
-			req := httptest.NewRequest("GET", "/switch/"+tt.switchID, nil)
-
-			// Create a chi context with the URL parameter
-			rctx := chi.NewRouteContext()
-			rctx.URLParams.Add("id", tt.switchID)
-			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-			switches, err := server.getSwitchesFromRequest(req)
-
-			if tt.wantError {
-				if err == nil {
-					t.Errorf("getSwitchesFromRequest() expected error but got none")
-				} else if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
-					t.Errorf("getSwitchesFromRequest() error = %v, want to contain %v", err, tt.errorContains)
-				}
-			} else {
-				if err != nil {
-					t.Errorf("getSwitchesFromRequest() unexpected error = %v", err)
-				}
-				if len(switches) != tt.wantCount {
-					t.Errorf("getSwitchesFromRequest() returned %d switches, want %d", len(switches), tt.wantCount)
-				}
+				t.Errorf("sendResponse() response message = %v, want %v", response.Message, tt.wantMsg)
 			}
 		})
 	}
@@ -176,9 +112,12 @@ func TestSwitchStatusHandler(t *testing.T) {
 			wantStatus:   http.StatusOK,
 			wantDataType: "single",
 			checkResponse: func(t *testing.T, body []byte) {
-				var response switchStatusResponse
+				var response APIResponse
 				if err := json.Unmarshal(body, &response); err != nil {
 					t.Fatalf("Failed to parse response: %v", err)
+				}
+				if response.Status != "ok" {
+					t.Errorf("Expected status ok, got %v", response.Status)
 				}
 				data := response.Data.(map[string]interface{})
 				if data["id"] != "1" {
@@ -195,9 +134,12 @@ func TestSwitchStatusHandler(t *testing.T) {
 			wantStatus:   http.StatusOK,
 			wantDataType: "all",
 			checkResponse: func(t *testing.T, body []byte) {
-				var response switchStatusResponse
+				var response APIResponse
 				if err := json.Unmarshal(body, &response); err != nil {
 					t.Fatalf("Failed to parse response: %v", err)
+				}
+				if response.Status != "ok" {
+					t.Errorf("Expected status ok, got %v", response.Status)
 				}
 				data := response.Data.(map[string]interface{})
 				if data["count"] != float64(3) {
@@ -215,6 +157,16 @@ func TestSwitchStatusHandler(t *testing.T) {
 					t.Errorf("Expected switches 0 and 2 to be off")
 				}
 			},
+		},
+		{
+			name:       "invalid switch ID",
+			switchID:   "invalid",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "non-existent switch",
+			switchID:   "99",
+			wantStatus: http.StatusNotFound,
 		},
 	}
 
@@ -332,7 +284,7 @@ func TestSwitchHandler(t *testing.T) {
 			}
 
 			// Verify response is valid JSON
-			var response jsonResponse
+			var response APIResponse
 			if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 				t.Errorf("switchHandler() returned invalid JSON: %v", err)
 			}
