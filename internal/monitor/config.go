@@ -47,7 +47,7 @@ func NewConfig() *Config {
 func (c *Config) AddFlags(fs *pflag.FlagSet) {
 	// Config file flag
 	fs.StringVar(&c.ConfigFile, "config", c.ConfigFile, "Config file to use")
-	
+
 	// IMAP flags
 	fs.StringVar(&c.IMAP.Server, "imap.server", c.IMAP.Server, "IMAP server address")
 	fs.IntVar(&c.IMAP.Port, "imap.port", c.IMAP.Port, "IMAP server port")
@@ -66,20 +66,20 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 func (c *Config) LoadConfig(configFile string) error {
 	loader := config.NewConfigLoader()
 	loader.SetConfigFile(configFile)
-	
+
 	// Set default values
 	loader.SetDefaults(map[string]interface{}{
-		"imap.server":                     c.IMAP.Server,
-		"imap.port":                       c.IMAP.Port,
-		"imap.username":                   c.IMAP.Username,
-		"imap.password":                   c.IMAP.Password,
-		"imap.use_ssl":                    c.IMAP.UseSSL,
-		"imap.mailbox":                    c.IMAP.Mailbox,
-		"monitor.regex_pattern":           c.Monitor.RegexPattern,
-		"monitor.command":                 c.Monitor.Command,
-		"monitor.check_interval_seconds":  c.Monitor.CheckInterval,
+		"imap.server":                    c.IMAP.Server,
+		"imap.port":                      c.IMAP.Port,
+		"imap.username":                  c.IMAP.Username,
+		"imap.password":                  c.IMAP.Password,
+		"imap.use_ssl":                   c.IMAP.UseSSL,
+		"imap.mailbox":                   c.IMAP.Mailbox,
+		"monitor.regex_pattern":          c.Monitor.RegexPattern,
+		"monitor.command":                c.Monitor.Command,
+		"monitor.check_interval_seconds": c.Monitor.CheckInterval,
 	})
-	
+
 	return loader.LoadConfig(c)
 }
 
@@ -88,20 +88,20 @@ func (c *Config) LoadConfig(configFile string) error {
 func (c *Config) LoadConfigFromStruct() error {
 	loader := config.NewConfigLoader()
 	loader.SetConfigFile(c.ConfigFile)
-	
+
 	// Set default values using the struct defaults
 	loader.SetDefaults(map[string]interface{}{
-		"imap.server":                     "",
-		"imap.port":                       993,
-		"imap.username":                   "",
-		"imap.password":                   "",
-		"imap.use_ssl":                    true,
-		"imap.mailbox":                    "INBOX",
-		"monitor.regex_pattern":           "",
-		"monitor.command":                 "",
-		"monitor.check_interval_seconds":  30,
+		"imap.server":                    "",
+		"imap.port":                      993,
+		"imap.username":                  "",
+		"imap.password":                  "",
+		"imap.use_ssl":                   true,
+		"imap.mailbox":                   "INBOX",
+		"monitor.regex_pattern":          "",
+		"monitor.command":                "",
+		"monitor.check_interval_seconds": 30,
 	})
-	
+
 	return loader.LoadConfig(c)
 }
 

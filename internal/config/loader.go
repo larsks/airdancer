@@ -78,7 +78,7 @@ func (cl *ConfigLoader) LoadConfig(config any) error {
 		// Convert flag names to viper keys: hyphens become underscores, but keep dots
 		// This handles cases like --dummy.switch-count -> dummy.switch_count
 		viperKey := strings.ReplaceAll(flag.Name, "-", "_")
-		
+
 		// Get the actual value rather than string representation
 		// This handles different flag types properly (int, uint, bool, etc.)
 		if flagValue := flag.Value; flagValue != nil {
@@ -208,4 +208,3 @@ func StandardConfigPattern(config Configurable, configFile string, defaults map[
 func LoadConfigWithFile(config Configurable, configFile string, defaults map[string]any) error {
 	return StandardConfigPattern(config, configFile, defaults)
 }
-

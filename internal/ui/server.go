@@ -51,14 +51,14 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 func (c *Config) LoadConfig() error {
 	loader := config.NewConfigLoader()
 	loader.SetConfigFile(c.ConfigFile)
-	
+
 	// Set default values
 	loader.SetDefaults(map[string]any{
 		"listen_address": "",
 		"listen_port":    8081,
 		"api_base_url":   "http://localhost:8080",
 	})
-	
+
 	return loader.LoadConfig(c)
 }
 

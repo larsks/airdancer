@@ -12,8 +12,6 @@ import (
 	"github.com/larsks/airdancer/internal/switchcollection"
 )
 
-
-
 // MCP23017 register addresses
 const (
 	NUMBER_OF_OUTPUTS = 8
@@ -92,7 +90,7 @@ func NewPiFace(offOnClose bool, spiPortName string) (*PiFace, error) {
 
 func (pf *PiFace) Init() error {
 	log.Printf("initializing piface %s", pf)
-	
+
 	initSequence := []struct {
 		reg   uint8
 		value uint8
@@ -103,13 +101,13 @@ func (pf *PiFace) Init() error {
 		{IODIRB, 0xFF, "set port B as inputs"},
 		{GPPUB, 0xFF, "enable port B pullups"},
 	}
-	
+
 	for _, step := range initSequence {
 		if err := pf.writeRegister(step.reg, step.value); err != nil {
 			return fmt.Errorf("failed to %s: %w", step.desc, err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -181,7 +179,7 @@ func (pf *PiFace) WriteOutput(pin uint8, val uint8) error {
 	if val > 1 {
 		return fmt.Errorf("invalid output value %d: must be 0 or 1", val)
 	}
-	
+
 	outputs, err := pf.ReadOutputs()
 	if err != nil {
 		return fmt.Errorf("failed to write output pin %d: %w", pin, err)
@@ -191,7 +189,7 @@ func (pf *PiFace) WriteOutput(pin uint8, val uint8) error {
 	if err := pf.WriteOutputs(newOutputs); err != nil {
 		return fmt.Errorf("failed to write output pin %d: %w", pin, err)
 	}
-	
+
 	return nil
 }
 
@@ -292,7 +290,7 @@ func (pfo *PiFaceOutput) setState(state bool) error {
 		action = "on"
 		value = 1
 	}
-	
+
 	log.Printf("turn %s output %s", action, pfo)
 	if err := pfo.pf.WriteOutput(pfo.pin, value); err != nil {
 		return fmt.Errorf("failed to turn %s output %d: %w", action, pfo.pin, err)
