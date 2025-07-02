@@ -167,23 +167,13 @@ func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, id u
 func (s *Server) switchStatusHandler(w http.ResponseWriter, r *http.Request) {
 	switchIDStr := chi.URLParam(r, "id")
 
-	// Validate switch ID
-	if switchIDStr == "" {
-		s.sendError(w, "Switch ID is required", http.StatusBadRequest)
-		return
-	}
-
 	s.mutex.Lock()
 	defer s.mutex.Unlock() //nolint:errcheck
 
 	if switchIDStr == "all" {
 		s.handleAllSwitchesStatus(w)
 	} else {
-		id, err := strconv.Atoi(switchIDStr)
-		if err != nil {
-			s.sendError(w, "Invalid switch ID - must be an integer or 'all'", http.StatusBadRequest)
-			return
-		}
+		id, _ := strconv.Atoi(switchIDStr) // No error check needed, already validated
 		s.handleSingleSwitchStatus(w, uint(id), switchIDStr)
 	}
 }
