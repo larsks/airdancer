@@ -65,7 +65,7 @@ func TestValidateSwitchID(t *testing.T) {
 		{
 			name:              "negative ID",
 			switchID:          "-1",
-			wantStatus:        http.StatusOK, // Negative numbers are valid integers
+			wantStatus:        http.StatusBadRequest,
 			wantHandlerCalled: true,
 		},
 	}

@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/larsks/airdancer/internal/switchcollection"
@@ -20,13 +19,8 @@ func createTestServer(t *testing.T, switchCount uint) *Server {
 		t.Fatalf("Failed to initialize test switches: %v", err)
 	}
 
-	server := &Server{
-		switches: switches,
-		timers:   make(map[string]*time.Timer),
-		router:   chi.NewRouter(),
-	}
-
-	return server
+	// Use the shared constructor without production middleware and no listen address for tests
+	return newServerWithSwitches(switches, "", false)
 }
 
 func TestSendResponse(t *testing.T) {
@@ -173,14 +167,8 @@ func TestSwitchStatusHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest("GET", "/switch/"+tt.switchID, nil)
-
-			// Add chi route context
-			rctx := chi.NewRouteContext()
-			rctx.URLParams.Add("id", tt.switchID)
-			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
 			w := httptest.NewRecorder()
-			server.switchStatusHandler(w, req)
+			server.router.ServeHTTP(w, req)
 
 			if w.Code != tt.wantStatus {
 				t.Errorf("switchStatusHandler() status = %v, want %v", w.Code, tt.wantStatus)
