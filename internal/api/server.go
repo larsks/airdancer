@@ -114,21 +114,21 @@ func NewServer(cfg *Config) (*Server, error) {
 	case "piface":
 		switches, err = piface.NewPiFace(true, cfg.PiFaceConfig.SPIDev)
 		if err != nil {
-			return nil, fmt.Errorf("failed to open PiFace: %w", err)
+			return nil, fmt.Errorf("%w: %v", ErrPiFaceInitFailed, err)
 		}
 	case "gpio":
 		switches, err = gpio.NewGPIOSwitchCollection(true, cfg.GPIOConfig.Pins)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create gpio driver: %w", err)
+			return nil, fmt.Errorf("%w: %v", ErrGPIOInitFailed, err)
 		}
 	case "dummy":
 		switches = switchcollection.NewDummySwitchCollection(cfg.DummyConfig.SwitchCount)
 	default:
-		return nil, fmt.Errorf("unknown driver: %s", cfg.Driver)
+		return nil, fmt.Errorf("%w: %s", ErrUnknownDriver, cfg.Driver)
 	}
 
 	if err := switches.Init(); err != nil {
-		return nil, fmt.Errorf("failed to initialize driver: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrDriverInitFailed, err)
 	}
 
 	s := &Server{
@@ -170,7 +170,7 @@ func NewServer(cfg *Config) (*Server, error) {
 func (s *Server) Start() error {
 	// Initialize all switches to off
 	if err := s.switches.TurnOff(); err != nil {
-		return fmt.Errorf("failed to initialize switches: %w", err)
+		return fmt.Errorf("%w: %v", ErrSwitchInitFailed, err)
 	}
 
 	srv := &http.Server{
@@ -195,7 +195,7 @@ func (s *Server) Start() error {
 	defer cancel() //nolint:errcheck
 
 	if err := srv.Shutdown(ctx); err != nil {
-		return fmt.Errorf("server shutdown failed: %w", err)
+		return fmt.Errorf("%w: %v", ErrServerShutdownFailed, err)
 	}
 
 	log.Println("Server gracefully stopped")
