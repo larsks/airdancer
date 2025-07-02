@@ -22,10 +22,16 @@ func (s *Server) validateSwitchID(next http.Handler) http.Handler {
 		}
 
 		if switchIDStr != "all" {
-			if _, err := strconv.Atoi(switchIDStr); err != nil {
+			val, err := strconv.Atoi(switchIDStr)
+			if err != nil {
 				s.sendError(w, "Invalid switch ID - must be an integer or 'all'", http.StatusBadRequest)
 				return
 			}
+
+			if val < 0 {
+				s.sendError(w, "Invalid switch ID -- must be >= 0", http.StatusBadRequest)
+			}
+
 		}
 
 		next.ServeHTTP(w, r)
