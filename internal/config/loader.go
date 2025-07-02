@@ -68,7 +68,7 @@ func (cl *ConfigLoader) LoadConfig(config any) error {
 	if cl.configFile != "" {
 		v.SetConfigFile(cl.configFile)
 		if err := v.ReadInConfig(); err != nil {
-			return fmt.Errorf("%w: %v", ErrConfigFileRead, err)
+			return fmt.Errorf("%w %s: %v", ErrConfigFileRead, cl.configFile, err)
 		}
 	}
 
@@ -165,12 +165,12 @@ func (cl *ConfigLoader) LoadConfig(config any) error {
 func (cl *ConfigLoader) setConfigFileField(config any, configFile string) error {
 	v := reflect.ValueOf(config)
 	if v.Kind() != reflect.Ptr || v.IsNil() {
-		return ErrConfigNotPointer
+		return fmt.Errorf("%w: got %T", ErrConfigNotPointer, config)
 	}
 
 	v = v.Elem()
 	if v.Kind() != reflect.Struct {
-		return ErrConfigNotStruct
+		return fmt.Errorf("%w: got %s", ErrConfigNotStruct, v.Kind())
 	}
 
 	// Look for a field named "ConfigFile"
@@ -181,11 +181,11 @@ func (cl *ConfigLoader) setConfigFileField(config any, configFile string) error 
 	}
 
 	if !field.CanSet() {
-		return ErrConfigFieldNotSet
+		return fmt.Errorf("%w: ConfigFile", ErrConfigFieldNotSet)
 	}
 
 	if field.Kind() != reflect.String {
-		return ErrConfigFieldNotString
+		return fmt.Errorf("%w: ConfigFile is %s", ErrConfigFieldNotString, field.Kind())
 	}
 
 	field.SetString(configFile)

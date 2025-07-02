@@ -104,7 +104,7 @@ func (pf *PiFace) Init() error {
 
 	for _, step := range initSequence {
 		if err := pf.writeRegister(step.reg, step.value); err != nil {
-			return fmt.Errorf("failed to %s: %w", step.desc, err)
+			return fmt.Errorf("%w (%s): %v", ErrRegisterWrite, step.desc, err)
 		}
 	}
 
@@ -154,12 +154,12 @@ func (pf *PiFace) ReadInputs() (uint8, error) {
 
 func (pf *PiFace) ReadInput(pin uint8) (uint8, error) {
 	if err := validatePin(pin); err != nil {
-		return 0, fmt.Errorf("failed to read input: %w", err)
+		return 0, fmt.Errorf("%w: %v", ErrReadInput, err)
 	}
 
 	vec, err := pf.ReadInputs()
 	if err != nil {
-		return 0, fmt.Errorf("failed to read input pin %d: %w", pin, err)
+		return 0, fmt.Errorf("%w pin %d: %v", ErrReadInput, pin, err)
 	}
 
 	return (vec >> pin) & 0x1, nil
@@ -167,14 +167,14 @@ func (pf *PiFace) ReadInput(pin uint8) (uint8, error) {
 
 func (pf *PiFace) WriteOutputs(val uint8) error {
 	if err := pf.writeRegister(GPIOA, val); err != nil {
-		return fmt.Errorf("failed to write outputs: %w", err)
+		return fmt.Errorf("%w: %v", ErrWriteOutputs, err)
 	}
 	return nil
 }
 
 func (pf *PiFace) WriteOutput(pin uint8, val uint8) error {
 	if err := validatePin(pin); err != nil {
-		return fmt.Errorf("failed to write output: %w", err)
+		return fmt.Errorf("%w: %v", ErrWriteOutput, err)
 	}
 	if val > 1 {
 		return fmt.Errorf("%w: %d (must be 0 or 1)", ErrInvalidOutputValue, val)
@@ -182,12 +182,12 @@ func (pf *PiFace) WriteOutput(pin uint8, val uint8) error {
 
 	outputs, err := pf.ReadOutputs()
 	if err != nil {
-		return fmt.Errorf("failed to write output pin %d: %w", pin, err)
+		return fmt.Errorf("%w pin %d: %v", ErrWriteOutput, pin, err)
 	}
 
 	newOutputs := setBit(outputs, pin, val == 1)
 	if err := pf.WriteOutputs(newOutputs); err != nil {
-		return fmt.Errorf("failed to write output pin %d: %w", pin, err)
+		return fmt.Errorf("%w pin %d: %v", ErrWriteOutput, pin, err)
 	}
 
 	return nil
@@ -196,19 +196,19 @@ func (pf *PiFace) WriteOutput(pin uint8, val uint8) error {
 func (pf *PiFace) ReadOutputs() (uint8, error) {
 	val, err := pf.readRegister(GPIOA)
 	if err != nil {
-		return 0, fmt.Errorf("failed to read outputs: %w", err)
+		return 0, fmt.Errorf("%w: %v", ErrReadOutputs, err)
 	}
 	return val, nil
 }
 
 func (pf *PiFace) ReadOutput(pin uint8) (uint8, error) {
 	if err := validatePin(pin); err != nil {
-		return 0, fmt.Errorf("failed to read output: %w", err)
+		return 0, fmt.Errorf("%w: %v", ErrReadOutput, err)
 	}
 
 	val, err := pf.ReadOutputs()
 	if err != nil {
-		return 0, fmt.Errorf("failed to read output pin %d: %w", pin, err)
+		return 0, fmt.Errorf("%w pin %d: %v", ErrReadOutput, pin, err)
 	}
 
 	return (val >> pin) & 1, nil
@@ -248,7 +248,7 @@ func (pf *PiFace) GetSwitch(id uint) (switchcollection.Switch, error) {
 func (pf *PiFace) TurnOn() error {
 	log.Printf("turn on all switches on %s", pf)
 	if err := pf.WriteOutputs(0xff); err != nil {
-		return fmt.Errorf("failed to turn on all switches: %w", err)
+		return fmt.Errorf("%w: %v", ErrSwitchTurnOn, err)
 	}
 	return nil
 }
@@ -256,7 +256,7 @@ func (pf *PiFace) TurnOn() error {
 func (pf *PiFace) TurnOff() error {
 	log.Printf("turn off all switches on %s", pf)
 	if err := pf.WriteOutputs(0x0); err != nil {
-		return fmt.Errorf("failed to turn off all switches: %w", err)
+		return fmt.Errorf("%w: %v", ErrSwitchTurnOff, err)
 	}
 	return nil
 }
@@ -264,7 +264,7 @@ func (pf *PiFace) TurnOff() error {
 func (pf *PiFace) GetState() (bool, error) {
 	outputs, err := pf.ReadOutputs()
 	if err != nil {
-		return false, fmt.Errorf("failed to get state: %w", err)
+		return false, fmt.Errorf("%w: %v", ErrGetState, err)
 	}
 	return outputs == 0xFF, nil
 }
@@ -272,7 +272,7 @@ func (pf *PiFace) GetState() (bool, error) {
 func (pf *PiFace) GetDetailedState() ([]bool, error) {
 	outputs, err := pf.ReadOutputs()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get detailed state: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrGetDetailedState, err)
 	}
 
 	states := make([]bool, NUMBER_OF_OUTPUTS)
@@ -293,7 +293,11 @@ func (pfo *PiFaceOutput) setState(state bool) error {
 
 	log.Printf("turn %s output %s", action, pfo)
 	if err := pfo.pf.WriteOutput(pfo.pin, value); err != nil {
-		return fmt.Errorf("failed to turn %s output %d: %w", action, pfo.pin, err)
+		if action == "on" {
+			return fmt.Errorf("%w output %d: %v", ErrOutputTurnOn, pfo.pin, err)
+		} else {
+			return fmt.Errorf("%w output %d: %v", ErrOutputTurnOff, pfo.pin, err)
+		}
 	}
 	return nil
 }
@@ -313,7 +317,7 @@ func (pfo *PiFaceOutput) GetID() uint {
 func (pfo *PiFaceOutput) GetState() (bool, error) {
 	val, err := pfo.pf.ReadOutput(pfo.pin)
 	if err != nil {
-		return false, fmt.Errorf("failed to get state for output %d: %w", pfo.pin, err)
+		return false, fmt.Errorf("%w for output %d: %v", ErrOutputGetState, pfo.pin, err)
 	}
 
 	return val != 0, nil
