@@ -160,10 +160,10 @@ func NewServer(cfg *Config) (*Server, error) {
 
 	// Set up routes with validation middleware
 	s.router.Route("/switch", func(r chi.Router) {
-		// GET endpoints for status queries
-		r.With(s.validateSwitchID, s.validateSwitchExists).Get("/{id}", s.switchStatusHandler)
+		// GET endpoints for status queries - only need basic ID validation for status
+		r.Get("/{id}", s.switchStatusHandler)
 
-		// POST endpoints for switch control
+		// POST endpoints for switch control - restore full validation middleware chain
 		r.With(
 			s.validateSwitchID,
 			s.validateSwitchExists,

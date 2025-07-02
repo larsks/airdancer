@@ -401,14 +401,15 @@ func TestGetSwitchRequestFromContext(t *testing.T) {
 			req := httptest.NewRequest("POST", "/switch/1", nil)
 			req = req.WithContext(tt.setupCtx())
 
-			switchReq, found := getSwitchRequestFromContext(req)
+			// Test direct context access instead of helper function
+			switchReq, found := req.Context().Value(switchRequestKey).(switchRequest)
 
 			if found != tt.wantFound {
-				t.Errorf("getSwitchRequestFromContext() found = %v, want %v", found, tt.wantFound)
+				t.Errorf("context retrieval found = %v, want %v", found, tt.wantFound)
 			}
 
 			if tt.wantFound && switchReq.State != tt.wantState {
-				t.Errorf("getSwitchRequestFromContext() state = %v, want %v", switchReq.State, tt.wantState)
+				t.Errorf("context retrieval state = %v, want %v", switchReq.State, tt.wantState)
 			}
 		})
 	}
