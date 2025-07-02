@@ -12,13 +12,13 @@ import (
 
 // MCP23017 register addresses
 const (
-	GPIOA    = 0x12 // GPIO port A register
-	GPIOB    = 0x13 // GPIO port B register
-	IODIRA   = 0x00 // I/O direction register A
-	IODIRB   = 0x01 // I/O direction register B
-	IOCON    = 10   // I/O config
-	GPPUA    = 12   // Port A pullups
-	GPPUB    = 13   // Port B pullups
+	GPIOA  = 0x12 // GPIO port A register
+	GPIOB  = 0x13 // GPIO port B register
+	IODIRA = 0x00 // I/O direction register A
+	IODIRB = 0x01 // I/O direction register B
+	IOCON  = 10   // I/O config
+	GPPUA  = 12   // Port A pullups
+	GPPUB  = 13   // Port B pullups
 )
 
 // MCP23017 SPI opcodes
