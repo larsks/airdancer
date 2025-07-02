@@ -205,7 +205,7 @@ func TestConfigLoader_FlagNameMapping(t *testing.T) {
 	type DummyTestConfig struct {
 		DummySwitchCount uint `mapstructure:"switch_count"`
 	}
-	
+
 	type TestConfig struct {
 		Dummy DummyTestConfig `mapstructure:"dummy"`
 	}
@@ -242,4 +242,4 @@ func TestConfigLoader_FlagNameMapping(t *testing.T) {
 	if config.Dummy.DummySwitchCount != 8 {
 		t.Errorf("Expected DummySwitchCount to be 8 from explicit flag, got %d", config.Dummy.DummySwitchCount)
 	}
-} 
+}

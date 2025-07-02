@@ -168,7 +168,7 @@ func TestEmbeddedConfigContent(t *testing.T) {
 	// Create a clean flag set for testing and add flags (but don't set them explicitly)
 	pflag.CommandLine = pflag.NewFlagSet("test", pflag.ContinueOnError)
 	config.AddFlags(pflag.CommandLine)
-	
+
 	// Set ConfigFile AFTER AddFlags to prevent it from being overwritten by flag defaults
 	config.ConfigFile = tmpFile.Name()
 
@@ -177,8 +177,6 @@ func TestEmbeddedConfigContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to load embedded test config: %v", err)
 	}
-	
-
 
 	// Verify specific configuration values from the test-config.toml file
 	if config.ListenAddress != "127.0.0.1" {
@@ -221,7 +219,3 @@ func TestEmbeddedConfigContent(t *testing.T) {
 	t.Logf("Embedded test TOML config size: %d bytes", len(testConfigTOML))
 	t.Logf("Embedded invalid TOML config size: %d bytes", len(invalidConfigTOML))
 }
-
-
-
-

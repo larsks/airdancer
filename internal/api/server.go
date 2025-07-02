@@ -47,11 +47,11 @@ type (
 	}
 
 	Config struct {
-		ListenAddress string `mapstructure:"listen-address"`
-		ListenPort    int    `mapstructure:"listen-port"`
-		ConfigFile    string `mapstructure:"config-file"`
-		Driver        string `mapstructure:"driver"`
-		GPIOConfig    GPIOConfig  `mapstructure:"gpio"`
+		ListenAddress string       `mapstructure:"listen-address"`
+		ListenPort    int          `mapstructure:"listen-port"`
+		ConfigFile    string       `mapstructure:"config-file"`
+		Driver        string       `mapstructure:"driver"`
+		GPIOConfig    GPIOConfig   `mapstructure:"gpio"`
 		PiFaceConfig  PiFaceConfig `mapstructure:"piface"`
 		DummyConfig   DummyConfig  `mapstructure:"dummy"`
 	}
@@ -90,17 +90,17 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 func (c *Config) LoadConfig() error {
 	loader := config.NewConfigLoader()
 	loader.SetConfigFile(c.ConfigFile)
-	
+
 	// Set default values
 	loader.SetDefaults(map[string]any{
-		"listen_address":      "",
-		"listen_port":         8080,
-		"driver":              "piface",
-		"piface.spidev":       "/dev/spidev0.0",
-		"gpio.pins":           []string{},
-		"dummy.switch_count":  4,
+		"listen_address":     "",
+		"listen_port":        8080,
+		"driver":             "piface",
+		"piface.spidev":      "/dev/spidev0.0",
+		"gpio.pins":          []string{},
+		"dummy.switch_count": 4,
 	})
-	
+
 	return loader.LoadConfig(c)
 }
 
