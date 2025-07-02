@@ -314,11 +314,22 @@
                     }
 
                     this.updateConnectionStatus('Connected');
+                    const newCount = data.data.count;
                     const newSwitches = data.data.states;
-                    for (let i = 0; i < newSwitches.length; i++) {
-                        if (this.switches[i] !== newSwitches[i]) {
-                            this.switches[i] = newSwitches[i];
-                            this.updateSwitchUI(i, newSwitches[i]);
+                    
+                    // Check if the number of switches has changed
+                    if (newCount !== switchCount) {
+                        switchCount = newCount;
+                        this.switches = newSwitches;
+                        this.renderSwitches();
+                        this.showMessage(`Switch configuration changed: now ${switchCount} switches available`, 'success');
+                    } else {
+                        // Update individual switch states
+                        for (let i = 0; i < newSwitches.length; i++) {
+                            if (this.switches[i] !== newSwitches[i]) {
+                                this.switches[i] = newSwitches[i];
+                                this.updateSwitchUI(i, newSwitches[i]);
+                            }
                         }
                     }
                     this.updateLastUpdated();
@@ -424,7 +435,7 @@
                         throw new Error(data.message || 'Failed to control all switches');
                     }
 
-                    for (let i = 0; i < switchCount; i++) {
+                    for (let i = 0; i < this.switches.length; i++) {
                         this.switches[i] = state;
                         this.updateSwitchUI(i, state);
                     }
