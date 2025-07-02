@@ -1,33 +1,37 @@
 package monitor
 
 import (
-	"bytes"
-	"crypto/tls"
 	"fmt"
 	"io"
-	"log"
 	"os"
-	"os/exec"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/emersion/go-imap"
-	"github.com/emersion/go-imap/client"
 	"github.com/emersion/go-message/mail"
 )
 
 // EmailMonitor handles monitoring an IMAP mailbox for new emails
 type EmailMonitor struct {
 	config      Config
-	client      *client.Client
+	client      IMAPClient
 	regex       *regexp.Regexp
 	lastUID     uint32
 	reconnectCh chan bool
+
+	// Injected dependencies for testability
+	dialer   IMAPDialer
+	executor CommandExecutor
+	logger   Logger
+	timer    Timer
+
+	// Control channels for testing
+	stopCh chan struct{}
 }
 
-// NewEmailMonitor creates a new EmailMonitor with the given configuration
-func NewEmailMonitor(config Config) (*EmailMonitor, error) {
+// NewEmailMonitor creates a new EmailMonitor with the given configuration and dependencies
+func NewEmailMonitor(config Config, dialer IMAPDialer, executor CommandExecutor, logger Logger, timer Timer) (*EmailMonitor, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -41,29 +45,57 @@ func NewEmailMonitor(config Config) (*EmailMonitor, error) {
 		config:      config,
 		regex:       regex,
 		reconnectCh: make(chan bool, 1),
+		dialer:      dialer,
+		executor:    executor,
+		logger:      logger,
+		timer:       timer,
+		stopCh:      make(chan struct{}),
 	}
 
 	return monitor, nil
 }
 
+// NewEmailMonitorWithDefaults creates a new EmailMonitor with default (real) implementations
+func NewEmailMonitorWithDefaults(config Config) (*EmailMonitor, error) {
+	return NewEmailMonitor(
+		config,
+		&RealIMAPDialer{},
+		&RealCommandExecutor{},
+		&RealLogger{},
+		&RealTimer{},
+	)
+}
+
 // Start begins monitoring the IMAP mailbox for new emails
 func (em *EmailMonitor) Start() {
-	log.Println("starting email monitor...")
+	em.logger.Println("starting email monitor...")
 
 	for {
+		select {
+		case <-em.stopCh:
+			em.logger.Println("email monitor stopped")
+			return
+		default:
+		}
+
 		err := em.connect()
 		if err != nil {
-			log.Printf("connection failed: %v. Retrying in 30 seconds...", err)
-			time.Sleep(30 * time.Second)
+			em.logger.Printf("connection failed: %v. Retrying in 30 seconds...", err)
+			select {
+			case <-em.stopCh:
+				em.logger.Println("email monitor stopped during reconnect wait")
+				return
+			case <-time.After(30 * time.Second):
+			}
 			continue
 		}
 
-		log.Println("connected to IMAP server")
+		em.logger.Println("connected to IMAP server")
 
 		// Get initial state
 		err = em.initializeLastUID()
 		if err != nil {
-			log.Printf("failed to initialize: %v", err)
+			em.logger.Printf("failed to initialize: %v", err)
 			em.disconnect()
 			continue
 		}
@@ -71,31 +103,37 @@ func (em *EmailMonitor) Start() {
 		// Start monitoring
 		err = em.monitor()
 		if err != nil {
-			log.Printf("monitor error: %v. Reconnecting...", err)
+			em.logger.Printf("monitor error: %v. Reconnecting...", err)
 		}
 
 		em.disconnect()
-		time.Sleep(5 * time.Second)
+		select {
+		case <-em.stopCh:
+			em.logger.Println("email monitor stopped")
+			return
+		case <-time.After(5 * time.Second):
+		}
 	}
 }
 
 // Stop stops the email monitor
 func (em *EmailMonitor) Stop() {
+	close(em.stopCh)
 	em.disconnect()
 }
 
 // connect establishes a connection to the IMAP server
 func (em *EmailMonitor) connect() error {
-	var c *client.Client
+	var c IMAPClient
 	var err error
 
 	address := fmt.Sprintf("%s:%d", em.config.IMAP.Server, em.config.IMAP.Port)
-	log.Printf("connecting to %s", address)
+	em.logger.Printf("connecting to %s", address)
 
 	if em.config.IMAP.UseSSL {
-		c, err = client.DialTLS(address, &tls.Config{})
+		c, err = em.dialer.DialTLS(address)
 	} else {
-		c, err = client.Dial(address)
+		c, err = em.dialer.Dial(address)
 	}
 
 	if err != nil {
@@ -134,7 +172,7 @@ func (em *EmailMonitor) initializeLastUID() error {
 	// If the mailbox is empty, there's no UID
 	if mbox.Messages == 0 {
 		em.lastUID = 0
-		log.Printf("mailbox is empty, starting with UID: 0")
+		em.logger.Printf("mailbox is empty, starting with UID: 0")
 		return nil
 	}
 
@@ -149,7 +187,7 @@ func (em *EmailMonitor) initializeLastUID() error {
 
 	if len(uids) == 0 {
 		em.lastUID = 0
-		log.Printf("mailbox is empty, starting with UID: 0")
+		em.logger.Printf("mailbox is empty, starting with UID: 0")
 		return nil
 	}
 
@@ -170,7 +208,7 @@ func (em *EmailMonitor) initializeLastUID() error {
 		return err
 	}
 
-	log.Printf("initialized with last UID: %d (UidNext: %d)", em.lastUID, mbox.UidNext)
+	em.logger.Printf("initialized with last UID: %d (UidNext: %d)", em.lastUID, mbox.UidNext)
 	return nil
 }
 
@@ -181,17 +219,20 @@ func (em *EmailMonitor) monitor() error {
 		checkInterval = 30 * time.Second
 	}
 
-	ticker := time.NewTicker(checkInterval)
-	defer ticker.Stop() //nolint:errcheck
+	ticker := em.timer.NewTicker(checkInterval)
+	defer ticker.Stop()
 
-	for range ticker.C {
-		err := em.checkForNewMessages()
-		if err != nil {
-			return err
+	for {
+		select {
+		case <-em.stopCh:
+			return nil
+		case <-ticker.C():
+			err := em.checkForNewMessages()
+			if err != nil {
+				return err
+			}
 		}
 	}
-
-	return nil
 }
 
 // checkForNewMessages looks for new messages and processes them
@@ -201,7 +242,7 @@ func (em *EmailMonitor) checkForNewMessages() error {
 		mailbox = "INBOX"
 	}
 
-	log.Printf("checking for new messages in %s", mailbox)
+	em.logger.Printf("checking for new messages in %s", mailbox)
 
 	mbox, err := em.client.Select(mailbox, false)
 	if err != nil {
@@ -210,7 +251,7 @@ func (em *EmailMonitor) checkForNewMessages() error {
 
 	// If no messages in mailbox, nothing to do
 	if mbox.Messages == 0 {
-		log.Println("no messages")
+		em.logger.Println("no messages")
 		return nil
 	}
 
@@ -240,11 +281,11 @@ func (em *EmailMonitor) checkForNewMessages() error {
 	}
 
 	if len(newUIDs) == 0 {
-		log.Println("no new messages")
+		em.logger.Println("no new messages")
 		return nil
 	}
 
-	log.Printf("found %d new messages (UIDs: %v)", len(newUIDs), newUIDs)
+	em.logger.Printf("found %d new messages (UIDs: %v)", len(newUIDs), newUIDs)
 
 	// Fetch new messages
 	seqset := new(imap.SeqSet)
@@ -263,7 +304,7 @@ func (em *EmailMonitor) checkForNewMessages() error {
 	for msg := range messages {
 		err := em.processMessage(msg)
 		if err != nil {
-			log.Printf("error processing message UID %d: %v", msg.Uid, err)
+			em.logger.Printf("error processing message UID %d: %v", msg.Uid, err)
 		}
 
 		processedUIDs = append(processedUIDs, msg.Uid)
@@ -276,14 +317,14 @@ func (em *EmailMonitor) checkForNewMessages() error {
 		return err
 	}
 
-	log.Printf("processed messages with UIDs: %v, new lastUID: %d", processedUIDs, em.lastUID)
+	em.logger.Printf("processed messages with UIDs: %v, new lastUID: %d", processedUIDs, em.lastUID)
 	return nil
 }
 
 // processMessage processes a single email message
 func (em *EmailMonitor) processMessage(msg *imap.Message) error {
 	if msg == nil || msg.Envelope == nil {
-		log.Println("skipping message with nil envelope")
+		em.logger.Println("skipping message with nil envelope")
 		return nil
 	}
 
@@ -292,13 +333,13 @@ func (em *EmailMonitor) processMessage(msg *imap.Message) error {
 		from = msg.Envelope.From[0].Address()
 	}
 
-	log.Printf("processing message from: %s, Subject: %s", from, msg.Envelope.Subject)
+	em.logger.Printf("processing message from: %s, Subject: %s", from, msg.Envelope.Subject)
 
 	// Get message body
 	for _, part := range msg.Body {
 		body, err := em.extractTextFromPart(part)
 		if err != nil {
-			log.Printf("error extracting text: %v", err)
+			em.logger.Printf("error extracting text: %v", err)
 			continue
 		}
 
@@ -308,7 +349,7 @@ func (em *EmailMonitor) processMessage(msg *imap.Message) error {
 
 		// Check if body matches regex
 		if em.regex.MatchString(body) {
-			log.Printf("regex match found in message from: %s", from)
+			em.logger.Printf("regex match found in message from: %s", from)
 
 			err := em.executeCommand(msg, body)
 			if err != nil {
@@ -358,7 +399,7 @@ func (em *EmailMonitor) extractTextFromPart(part io.Reader) (string, error) {
 // executeCommand runs the configured command when a regex match is found
 func (em *EmailMonitor) executeCommand(msg *imap.Message, body string) error {
 	if em.config.Monitor.Command == "" {
-		log.Println("no command configured")
+		em.logger.Println("no command configured")
 		return nil
 	}
 
@@ -374,25 +415,5 @@ func (em *EmailMonitor) executeCommand(msg *imap.Message, body string) error {
 	env = append(env, fmt.Sprintf("EMAIL_DATE=%s", msg.Envelope.Date.Format(time.RFC3339)))
 	env = append(env, fmt.Sprintf("EMAIL_UID=%d", msg.Uid))
 
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd := exec.Command("sh", "-c", em.config.Monitor.Command)
-	cmd.Env = env
-	cmd.Stdin = strings.NewReader(body)
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to execute command: %w", err)
-	}
-
-	go func() {
-		if err := cmd.Wait(); err != nil {
-			log.Printf("command execution failed: %v, stdout: %s, stderr: %s", err, stdout.String(), stderr.String())
-		} else {
-			log.Printf("command executed successfully. stdout: %s, stderr: %s", stdout.String(), stderr.String())
-		}
-	}()
-
-	return nil
+	return em.executor.Execute(em.config.Monitor.Command, env, strings.NewReader(body))
 }

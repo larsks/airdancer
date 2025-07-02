@@ -39,7 +39,7 @@ func main() {
 	}
 
 	// Create and start monitor
-	emailMonitor, err := monitor.NewEmailMonitor(*config)
+	emailMonitor, err := monitor.NewEmailMonitorWithDefaults(*config)
 	if err != nil {
 		log.Fatalf("failed to create monitor: %v", err)
 	}
