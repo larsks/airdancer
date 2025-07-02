@@ -64,6 +64,11 @@ func getBit(value uint8, pin uint8) bool {
 }
 
 func NewPiFace(offOnClose bool, spiPortName string) (*PiFace, error) {
+	// Initialize periph.io host
+	if _, err := host.Init(); err != nil {
+		return nil, fmt.Errorf("failed to initialize periph.io: %w", err)
+	}
+
 	// Open SPI port
 	spiPort, err := spireg.Open(spiPortName)
 	if err != nil {
@@ -318,11 +323,4 @@ func (pfo *PiFaceOutput) GetState() (bool, error) {
 
 func (pfo *PiFaceOutput) String() string {
 	return fmt.Sprintf("%s:%d", pfo.pf, pfo.pin)
-}
-
-func init() {
-	// Initialize periph.io host
-	if _, err := host.Init(); err != nil {
-		log.Fatal("Failed to initialize periph.io:", err)
-	}
 }
