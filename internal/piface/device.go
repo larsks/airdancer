@@ -67,7 +67,7 @@ func NewPiFace(offOnClose bool, spiPortName string) (*PiFace, error) {
 	// Configure SPI connection with proper frequency units
 	spiConn, err := spiPort.Connect(1*physic.MegaHertz, spi.Mode0, 8) // 1MHz, Mode 0, 8 bits
 	if err != nil {
-		spiPort.Close() // Clean up on error
+		spiPort.Close() //nolint:errcheck
 		return nil, fmt.Errorf("%w: %v", ErrSPIConnect, err)
 	}
 	log.Printf("opened piface device at %s", spiPortName)

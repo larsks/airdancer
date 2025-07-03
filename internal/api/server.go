@@ -229,7 +229,7 @@ func (s *Server) Close() error {
 func (s *Server) ListRoutes() [][]string {
 	routes := [][]string{}
 
-	chi.Walk(s.router, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+	chi.Walk(s.router, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error { //nolint:errcheck
 		routes = append(routes, []string{method, route})
 		return nil
 	})
