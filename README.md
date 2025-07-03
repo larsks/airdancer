@@ -9,6 +9,7 @@ The project consists of several interconnected components:
 - **API Server** (`airdancer-api`) - REST API for programmatic switch control
 - **Web UI** (`airdancer-ui`) - Modern web interface for manual switch control  
 - **Email Monitor** (`airdancer-monitor`) - Email-triggered automation service
+- **WiFi Fallback** (`airdancer-wifi-fallback`) - Automatic WiFi hotspot fallback service
 - **Command Line Tools** - Direct hardware control utilities
 
 This architecture enables remote-controlled physical displays, event-triggered automation, interactive installations, and hardware testing scenarios.
@@ -148,6 +149,80 @@ When a command is executed, the following environment variables are available:
 - `EMAIL_UID` - Email UID from IMAP server
 
 The email body is provided via stdin to the executed command.
+
+### airdancer-wifi-fallback
+
+A WiFi hotspot fallback service that automatically enables hotspot mode when NetworkManager cannot establish a connection to known networks. This is essential for Raspberry Pi devices that may be moved to different locations without WiFi credentials.
+
+**Configuration File** (`/etc/airdancer/wifi-fallback.conf`):
+```bash
+# WiFi interface to use for both connectivity and hotspot mode
+WIFI_INTERFACE=wlan0
+
+# Hotspot network settings
+HOTSPOT_SSID=AirdancerSetup
+HOTSPOT_PASSWORD=airdancer123
+
+# Monitoring configuration (in seconds)
+CONNECTION_TIMEOUT=120       # How long to wait for NetworkManager to establish connection
+CHECK_INTERVAL=5            # How often to check connection status during timeout period
+
+# Logging level: DEBUG, INFO, WARN, ERROR
+LOG_LEVEL=INFO
+```
+
+**Command Line Options**:
+- `-c, --config FILE` - Configuration file (default: `/etc/airdancer/wifi-fallback.conf`)
+- `-i, --interface IFACE` - WiFi interface (default: `wlan0`)
+- `-s, --ssid SSID` - Hotspot SSID (default: `AirdancerSetup`)
+- `-p, --password PASS` - Hotspot password (default: `airdancer123`)
+- `-t, --timeout SECONDS` - Connection timeout (default: `120`)
+- `-v, --verbose` - Enable debug logging
+- `--help` - Show help message
+
+**Example Usage**:
+```bash
+# Run with default settings
+airdancer-wifi-fallback.sh
+
+# Run with custom interface
+airdancer-wifi-fallback.sh -i wlan1
+
+# Run with custom hotspot settings
+airdancer-wifi-fallback.sh -s "MyRaspberryPi" -p "mypassword123"
+
+# Run with shorter timeout
+airdancer-wifi-fallback.sh -t 60
+
+# Run with debug logging
+airdancer-wifi-fallback.sh -v
+```
+
+**Hardware Requirements**:
+- One WiFi interface that supports AP mode (most modern adapters do)
+- NetworkManager installed and running
+- Root privileges or membership in the `netdev` group
+
+**How It Works**:
+1. Checks if WiFi is already connected, exits if so
+2. Waits for NetworkManager to automatically connect to known networks
+3. If no connection is established within the timeout period, enables hotspot mode
+4. Hotspot remains active as a fallback for manual network configuration
+5. Script exits after enabling hotspot (one-time operation)
+
+**Systemd Service**:
+The service is managed by systemd and can be controlled using:
+```bash
+# Enable and start the service
+sudo systemctl enable airdancer-wifi-fallback.service
+sudo systemctl start airdancer-wifi-fallback.service
+
+# Check service status
+sudo systemctl status airdancer-wifi-fallback.service
+
+# View service logs
+sudo journalctl -u airdancer-wifi-fallback.service -f
+```
 
 ### airdancer-ui
 
@@ -316,6 +391,54 @@ make clean
 make install
 ```
 
+## Installation
+
+### System Installation
+
+The `system/` directory contains systemd service files and configuration for system-wide installation:
+
+```bash
+# Install system files
+cd system/
+sudo make install
+
+# Enable and start services
+sudo systemctl enable airdancer.target
+sudo systemctl start airdancer.target
+
+# Enable WiFi fallback service
+sudo systemctl enable airdancer-wifi-fallback.service
+sudo systemctl start airdancer-wifi-fallback.service
+```
+
+### WiFi Fallback Setup
+
+For the WiFi fallback service to work properly, you need:
+
+1. **WiFi interface with AP mode support**: Most modern adapters support this
+2. **NetworkManager**: Should be installed and running
+3. **Configuration**: Copy and edit `/etc/airdancer/wifi-fallback.conf`
+
+**Quick Setup**:
+```bash
+# Verify WiFi interface exists and supports AP mode
+ip link show | grep wlan
+WIFI_INTERFACE=wlan0
+PHY_NAME=$(iw dev "$WIFI_INTERFACE" info | grep wiphy | awk '{print $2}')
+iw phy "phy${PHY_NAME}" info | grep -A 10 "Supported interface modes" | grep AP
+
+# Configure WiFi fallback
+sudo cp examples/airdancer-wifi-fallback.conf /etc/airdancer/
+sudo nano /etc/airdancer/wifi-fallback.conf
+
+# Enable the service
+sudo systemctl enable airdancer-wifi-fallback.service
+sudo systemctl start airdancer-wifi-fallback.service
+
+# Monitor the service
+sudo journalctl -u airdancer-wifi-fallback.service -f
+```
+
 ## Hardware Support
 
 ### PiFace Digital I/O
@@ -338,6 +461,27 @@ driver = "gpio"
 
 [gpio]
 pins = ["GPIO17", "GPIO18", "GPIO19", "GPIO20", "GPIO21", "GPIO22", "GPIO23", "GPIO24"]
+```
+
+### WiFi Interface
+
+For WiFi fallback functionality, you need a WiFi interface that supports AP mode:
+
+- **WiFi Interface** (`wlan0`): Built-in or USB WiFi adapter that supports both client and AP modes
+
+**Checking AP Mode Support**:
+```bash
+# Check if your interface supports AP mode
+WIFI_INTERFACE=wlan0
+PHY_NAME=$(iw dev "$WIFI_INTERFACE" info | grep wiphy | awk '{print $2}')
+iw phy "phy${PHY_NAME}" info | grep -A 10 "Supported interface modes" | grep AP
+
+# Alternative: Check all available phys
+iw list | grep -A 10 "Supported interface modes"
+
+# Most modern WiFi adapters support AP mode, including:
+# - Raspberry Pi built-in WiFi (BCM43xxx series)  
+# - Many USB adapters with RTL8188EU, RTL8192EU, MT7601U chipsets
 ```
 
 ### Dummy Driver
