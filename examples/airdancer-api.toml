@@ -1,0 +1,20 @@
+# Example configuration for airdancer-api
+
+# HTTP server configuration
+listen-address = ""  # Leave empty to listen on all interfaces
+listen-port = 8080
+
+# Switch driver configuration
+driver = "dummy"  # Options: "dummy", "piface", "gpio"
+
+# Dummy driver configuration (for testing without hardware)
+[dummy]
+switch_count = 8
+
+# PiFace driver configuration (for PiFace Digital I/O boards)
+[piface]
+spidev = "/dev/spidev0.0"
+
+# GPIO driver configuration (for individual GPIO pins)
+[gpio]
+pins = ["GPIO17", "GPIO18", "GPIO19", "GPIO20", "GPIO21", "GPIO22", "GPIO23", "GPIO24"] 
