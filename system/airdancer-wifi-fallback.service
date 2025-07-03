@@ -6,11 +6,9 @@ Wants=NetworkManager.service
 PartOf=airdancer.target
 
 [Service]
-Type=oneshot
+Type=exec
 User=root
 ExecStart=/usr/local/libexec/airdancer-wifi-fallback.sh
-RemainAfterExit=yes
-TimeoutStartSec=300
 
 # Environment
 Environment=AIRDANCER_LOG_LEVEL=INFO

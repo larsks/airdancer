@@ -32,11 +32,11 @@ log() {
 }
 
 log_info() {
-  [[ "$AIRDANCER_LOG_LEVEL" =~ ^(DEBUG|INFO)$ ]] && log "INFO" "$@"
+  [[ "$AIRDANCER_LOG_LEVEL" =~ ^(DEBUG|INFO)$ ]] && log "INFO" "$@" || :
 }
 
 log_warn() {
-  [[ "$AIRDANCER_LOG_LEVEL" =~ ^(DEBUG|INFO|WARN)$ ]] && log "WARN" "$@"
+  [[ "$AIRDANCER_LOG_LEVEL" =~ ^(DEBUG|INFO|WARN)$ ]] && log "WARN" "$@" || :
 }
 
 log_error() {
@@ -44,7 +44,7 @@ log_error() {
 }
 
 log_debug() {
-  [[ "$AIRDANCER_LOG_LEVEL" == "DEBUG" ]] && log "DEBUG" "$@"
+  [[ "$AIRDANCER_LOG_LEVEL" == "DEBUG" ]] && log "DEBUG" "$@" || :
 }
 
 # Check if we're running as root or with appropriate privileges
@@ -64,14 +64,16 @@ check_networkmanager() {
 }
 
 # Check if required interface exists
-check_interface() {
+check_interface_exists() {
   if ! ip link show "$AIRDANCER_WIFI_INTERFACE" &>/dev/null; then
     log_error "WiFi interface $AIRDANCER_WIFI_INTERFACE not found"
     log_info "Available WiFi interfaces:"
     iw dev 2>/dev/null | awk '/Interface/ {print "  " $2}' | sort
-    exit 1
+    return 1
   fi
+}
 
+check_interface_ap() {
   # Check if interface supports AP mode
   local phy_name
   if phy_name=$(iw dev "$AIRDANCER_WIFI_INTERFACE" info 2>/dev/null | grep wiphy | awk '{print $2}'); then
@@ -290,7 +292,10 @@ main() {
 
   check_privileges
   check_networkmanager
-  check_interface
+  while ! check_interface_exists; do
+    sleep 5
+  done
+  check_interface_ap
 
   # Run the fallback logic (one-time operation)
   run_wifi_fallback
@@ -299,3 +304,4 @@ main() {
 # Run main function
 main "$@"
 
+exit 0
