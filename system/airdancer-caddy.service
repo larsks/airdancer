@@ -1,0 +1,10 @@
+[Unit]
+Description=Airdancer Frontend
+PartOf=airdancer.target
+
+[Service]
+User=dancer
+ExecStart=/usr/bin/caddy run --config /etc/airdancer/Caddyfile
+
+[Install]
+WantedBy=airdancer.target

@@ -1,0 +1,5 @@
+[Unit]
+Description=Airdancer
+
+[Install]
+WantedBy=default.target
