@@ -1,0 +1,8 @@
+# Example configuration for airdancer-ui
+
+# HTTP server configuration
+listen-address = ""  # Leave empty to listen on all interfaces
+listen-port = 8081
+
+# API server configuration
+api-base-url = "http://localhost:8080" 
