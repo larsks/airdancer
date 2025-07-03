@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/larsks/airdancer/internal/piface"
 	"github.com/larsks/airdancer/internal/version"
@@ -25,7 +26,8 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "Commands:\n")
 	fmt.Fprintf(os.Stderr, "  read inputs     Read current input pin states\n")
 	fmt.Fprintf(os.Stderr, "  read outputs    Read current output pin states\n")
-	fmt.Fprintf(os.Stderr, "  write pin:value Set output pins to specified values\n\n")
+	fmt.Fprintf(os.Stderr, "  write pin:value Set output pins to specified values\n")
+	fmt.Fprintf(os.Stderr, "  reflect         Continuously mirror input pins to output pins\n\n")
 
 	fmt.Fprintf(os.Stderr, "Options:\n")
 	pflag.PrintDefaults()
@@ -35,6 +37,7 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "  %s read outputs             # Read all output pins\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "  %s write 0:1 1:0 2:1        # Set pin 0 on, pin 1 off, pin 2 on\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "  %s write 0:on 1:off         # Alternative syntax with on/off\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "  %s reflect                  # Mirror inputs to outputs continuously\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "  %s --spi-device /dev/spidev0.1 read inputs  # Use alternative SPI device\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "\nPin values for write command:\n")
 	fmt.Fprintf(os.Stderr, "  on, 1, true     Turn pin on\n")
@@ -82,6 +85,10 @@ func main() {
 	case "write":
 		if err := handleWriteCommand(pf, args[1:]); err != nil {
 			log.Fatalf("Write command failed: %v", err)
+		}
+	case "reflect":
+		if err := handleReflectCommand(pf, args[1:]); err != nil {
+			log.Fatalf("Reflect command failed: %v", err)
 		}
 	default:
 		fmt.Fprintf(os.Stderr, "Error: Unknown command '%s'\n\n", command)
@@ -142,6 +149,39 @@ func handleWriteCommand(pf *piface.PiFace, args []string) error {
 	}
 
 	return nil
+}
+
+func handleReflectCommand(pf *piface.PiFace, args []string) error {
+	if len(args) > 0 {
+		return fmt.Errorf("reflect command does not accept arguments")
+	}
+
+	fmt.Println("Starting input-to-output reflection. Press Ctrl+C to stop.")
+	fmt.Println("Input changes will be displayed and mirrored to outputs.")
+
+	// Reflect inputs to outputs
+	var oldval uint8
+	for {
+		val, err := pf.ReadInputs()
+		if err != nil {
+			return fmt.Errorf("failed to read inputs: %v", err)
+		}
+
+		if val != oldval {
+			fmt.Printf("INPUTS: ")
+			for i := range 8 {
+				fmt.Printf("%d ", (val>>(7-i))&0x1)
+			}
+			fmt.Println("")
+			oldval = val
+		}
+
+		if err := pf.WriteOutputs(val); err != nil {
+			return fmt.Errorf("failed to write outputs: %v", err)
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func readInputs(pf *piface.PiFace) error {
