@@ -1,0 +1,10 @@
+[Unit]
+Description=Airdancer UI
+PartOf=airdancer.target
+
+[Service]
+User=dancer
+ExecStart=/home/dancer/airdancer-ui --config /etc/airdancer/airdancer-ui.toml
+
+[Install]
+WantedBy=airdancer.target

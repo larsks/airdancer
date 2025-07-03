@@ -1,0 +1,10 @@
+[Unit]
+Description=Airdancer Monitor
+PartOf=airdancer.target
+
+[Service]
+User=dancer
+ExecStart=/home/dancer/airdancer-monitor --config /etc/airdancer/airdancer-monitor.toml
+
+[Install]
+WantedBy=airdancer.target
