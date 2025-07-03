@@ -1,0 +1,16 @@
+# Example configuration for airdancer-monitor
+
+# IMAP server configuration
+[imap]
+server = "imap.gmail.com"
+port = 993
+username = "your-email@gmail.com"
+password = "your-app-password"
+use_ssl = true
+mailbox = "INBOX"
+
+# Monitor configuration
+[monitor]
+regex_pattern = "activate switch (\\d+)"
+command = "echo 'Switch activation request: $1'"
+check_interval_seconds = 30 

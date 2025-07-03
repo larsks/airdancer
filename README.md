@@ -21,21 +21,24 @@ A REST API server that provides programmatic control of switches through HTTP en
 
 **Configuration File** (`airdancer-api.toml`):
 ```toml
-[server]
-listen = ":8080"
-cors_enabled = true
+# HTTP server configuration
+listen-address = ""  # Leave empty to listen on all interfaces
+listen-port = 8080
 
-[switch_collection]
-driver = "dummy"
+# Switch driver configuration
+driver = "dummy"  # Options: "dummy", "piface", "gpio"
 
-[switch_collection.dummy]
-count = 8
+# Dummy driver configuration (for testing without hardware)
+[dummy]
+switch_count = 8
 
-[switch_collection.piface]
-spi_device = "/dev/spidev0.0"
+# PiFace driver configuration (for PiFace Digital I/O boards)
+[piface]
+spidev = "/dev/spidev0.0"
 
-[switch_collection.gpio]
-pins = [17, 18, 19, 20, 21, 22, 23, 24]
+# GPIO driver configuration (for individual GPIO pins)
+[gpio]
+pins = ["GPIO17", "GPIO18", "GPIO19", "GPIO20", "GPIO21", "GPIO22", "GPIO23", "GPIO24"]
 ```
 
 **Command Line Options**:
@@ -66,32 +69,20 @@ An email monitoring service that triggers switch actions based on email patterns
 
 **Configuration File** (`airdancer-monitor.toml`):
 ```toml
+# IMAP server configuration
 [imap]
-host = "imap.gmail.com"
+server = "imap.gmail.com"
 port = 993
 username = "your-email@gmail.com"
 password = "your-app-password"
-use_tls = true
-folder = "INBOX"
+use_ssl = true
+mailbox = "INBOX"
 
+# Monitor configuration
 [monitor]
-check_interval = "30s"
-
-[[patterns]]
-name = "activation"
-regex = "activate switch (\\d+)"
-action = "on"
-
-[[patterns]]
-name = "deactivation"  
-regex = "deactivate switch (\\d+)"
-action = "off"
-
-[switch_collection]
-driver = "dummy"
-
-[switch_collection.dummy]
-count = 8
+regex_pattern = "activate switch (\\d+)"
+command = "echo 'Switch activation request: $1'"
+check_interval_seconds = 30
 ```
 
 **Command Line Options**:
@@ -113,15 +104,12 @@ A web-based user interface for manual switch control.
 
 **Configuration File** (`airdancer-ui.toml`):
 ```toml
-[server]
-listen = ":8081"
-static_dir = "./internal/ui/static"
+# HTTP server configuration
+listen-address = ""  # Leave empty to listen on all interfaces
+listen-port = 8081
 
-[switch_collection]
-driver = "dummy"
-
-[switch_collection.dummy]
-count = 8
+# API server configuration
+api-base-url = "http://localhost:8080"
 ```
 
 **Command Line Options**:
@@ -227,11 +215,10 @@ make install
 The PiFace Digital I/O board connects via SPI and provides 8 input pins and 8 output pins. Configure using:
 
 ```toml
-[switch_collection]
 driver = "piface"
 
-[switch_collection.piface]
-spi_device = "/dev/spidev0.0"
+[piface]
+spidev = "/dev/spidev0.0"
 ```
 
 ### GPIO Pins
@@ -239,11 +226,10 @@ spi_device = "/dev/spidev0.0"
 Individual GPIO pins can be controlled using the modern character device interface:
 
 ```toml
-[switch_collection]
 driver = "gpio"
 
-[switch_collection.gpio]  
-pins = [17, 18, 19, 20, 21, 22, 23, 24]
+[gpio]
+pins = ["GPIO17", "GPIO18", "GPIO19", "GPIO20", "GPIO21", "GPIO22", "GPIO23", "GPIO24"]
 ```
 
 ### Dummy Driver
@@ -251,11 +237,10 @@ pins = [17, 18, 19, 20, 21, 22, 23, 24]
 For testing without hardware:
 
 ```toml
-[switch_collection]
 driver = "dummy"
 
-[switch_collection.dummy]
-count = 8
+[dummy]
+switch_count = 8
 ```
 
 ## Integration Testing

@@ -9,7 +9,7 @@ GO_SOURCES = $(shell find . -name '*.go' -not -path './bin/*')
 GO_MOD_FILES = go.mod go.sum
 
 # Main targets
-BINS = $(BIN_DIR)/airdancer-api $(BIN_DIR)/airdancer-monitor $(BIN_DIR)/airdancer-ui $(BIN_DIR)/gpiotest $(BIN_DIR)/pfctl
+BINS = $(BIN_DIR)/airdancer-api $(BIN_DIR)/airdancer-monitor $(BIN_DIR)/airdancer-ui $(BIN_DIR)/gpiotest $(BIN_DIR)/pfctl $(BIN_DIR)/configvalidate
 
 .PHONY: all clean test test-unit test-integration help
 
@@ -39,6 +39,7 @@ help:
 	@echo "  airdancer-ui     - Build airdancer-ui binary"
 	@echo "  gpiotest         - Build gpiotest binary"
 	@echo "  pfctl            - Build pfctl binary"
+	@echo "  configvalidate   - Build configvalidate binary"
 
 # Binary targets
 $(BIN_DIR):
@@ -59,13 +60,17 @@ $(BIN_DIR)/gpiotest: $(GO_SOURCES) $(GO_MOD_FILES) | $(BIN_DIR)
 $(BIN_DIR)/pfctl: $(GO_SOURCES) $(GO_MOD_FILES) | $(BIN_DIR)
 	$(GO) build $(GOFLAGS) -o $@ ./cmd/pfctl
 
+$(BIN_DIR)/configvalidate: $(GO_SOURCES) $(GO_MOD_FILES) | $(BIN_DIR)
+	$(GO) build $(GOFLAGS) -o $@ ./cmd/configvalidate
+
 # Convenience targets for individual binaries
-.PHONY: airdancer-api airdancer-monitor airdancer-ui gpiotest pfctl
+.PHONY: airdancer-api airdancer-monitor airdancer-ui gpiotest pfctl configvalidate
 airdancer-api: $(BIN_DIR)/airdancer-api
 airdancer-monitor: $(BIN_DIR)/airdancer-monitor
 airdancer-ui: $(BIN_DIR)/airdancer-ui
 gpiotest: $(BIN_DIR)/gpiotest
 pfctl: $(BIN_DIR)/pfctl
+configvalidate: $(BIN_DIR)/configvalidate
 
 # Install target - build and install binaries to GOPATH/bin
 .PHONY: install
@@ -74,4 +79,5 @@ install:
 	$(GO) install $(GOFLAGS) ./cmd/airdancer-monitor
 	$(GO) install $(GOFLAGS) ./cmd/airdancer-ui
 	$(GO) install $(GOFLAGS) ./cmd/gpiotest
-	$(GO) install $(GOFLAGS) ./cmd/pfctl 
+	$(GO) install $(GOFLAGS) ./cmd/pfctl
+	$(GO) install $(GOFLAGS) ./cmd/configvalidate 
