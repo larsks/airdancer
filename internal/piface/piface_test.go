@@ -212,7 +212,7 @@ func TestSwitchCollectionInterface(t *testing.T) {
 
 	t.Run("TurnOn/TurnOff/GetState", func(t *testing.T) {
 		// Test initial state
-		state, err := mock.GetState()
+		_, err := mock.GetState()
 		if err != nil {
 			t.Fatalf("GetState() error: %v", err)
 		}
@@ -222,7 +222,7 @@ func TestSwitchCollectionInterface(t *testing.T) {
 			t.Fatalf("TurnOn() error: %v", err)
 		}
 
-		state, err = mock.GetState()
+		state, err := mock.GetState()
 		if err != nil {
 			t.Fatalf("GetState() after TurnOn() error: %v", err)
 		}

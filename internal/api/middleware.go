@@ -9,7 +9,11 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-const switchRequestKey = "switchRequest"
+type (
+	contextKey string
+)
+
+const switchRequestKey contextKey = "switchRequest"
 
 // validateSwitchID validates that the switch ID parameter is either "all" or a valid integer
 func (s *Server) validateSwitchID(next http.Handler) http.Handler {
