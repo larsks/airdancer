@@ -153,7 +153,7 @@ func (cl *ConfigLoader) LoadConfig(config any) error {
 	// Restore configFile after unmarshal if it was set (prevents viper from clearing it)
 	if cl.preserveFile && originalConfigFile != "" {
 		// Use reflection to set ConfigFile field if it exists
-		if err := cl.setConfigFileField(config, originalConfigFile); err != nil {
+		if err := cl.setConfigFileField(config, originalConfigFile); err != nil { //nolint:staticcheck
 			// If we can't set it via reflection, that's okay - not all configs have this field
 		}
 	}
