@@ -114,6 +114,27 @@ run_driver_tests() {
 
   echo "=== Running $driver integration tests ==="
   echo "Build tags: $build_tags"
+
+  # Check if hardware is available for this driver
+  case $driver in
+  piface)
+    if [[ "$PIFACE_HW_AVAILABLE" != "true" ]]; then
+      echo "⚠ PiFace hardware not available - tests will be skipped"
+      echo "   (This is expected behavior when /dev/spidev0.0 is not present)"
+      echo
+      # Still run tests - they will skip gracefully
+    fi
+    ;;
+  gpio)
+    if [[ "$GPIO_HW_AVAILABLE" != "true" ]]; then
+      echo "⚠ GPIO hardware not available - tests will be skipped"
+      echo "   (This is expected behavior when /dev/gpiochip* devices are not present)"
+      echo
+      # Still run tests - they will skip gracefully
+    fi
+    ;;
+  esac
+
   echo
 
   # Set driver-specific build tags and run tests
@@ -130,28 +151,43 @@ run_driver_tests() {
 check_prerequisites() {
   echo "=== Checking Prerequisites ==="
 
+  # Initialize hardware availability flags
+  PIFACE_HW_AVAILABLE=false
+  GPIO_HW_AVAILABLE=false
+
   # Check if running as root or with appropriate permissions
   if [[ $EUID -eq 0 ]]; then
     echo "✓ Running as root - should have hardware access"
+    HW_PERMISSIONS_OK=true
   elif groups | grep -q "\bgpio\b"; then
     echo "✓ User is in gpio group - should have GPIO access"
+    HW_PERMISSIONS_OK=true
   else
     echo "⚠ WARNING: Not running as root and not in gpio group"
     echo "  Hardware tests may fail due to permission issues"
     echo "  Consider running: sudo usermod -a -G gpio \$USER"
+    HW_PERMISSIONS_OK=false
   fi
 
-  # Check for common hardware interfaces
-  if [[ -e "/dev/spidev0.0" ]]; then
-    echo "✓ SPI device /dev/spidev0.0 detected"
+  # Check if this is a raspberry pi
+  if grep -qi 'raspberry pi' /proc/cpuinfo; then
+
+    # Check for common hardware interfaces
+    if [[ -e "/dev/spidev0.0" ]]; then
+      echo "✓ SPI device /dev/spidev0.0 detected"
+      PIFACE_HW_AVAILABLE=true
+    else
+      echo "⚠ SPI device /dev/spidev0.0 not found - PiFace tests will be skipped"
+    fi
   else
-    echo "⚠ SPI device /dev/spidev0.0 not found - PiFace tests may fail"
+    echo "⚠ This is not a raspberry pi - disabling piface tests"
   fi
 
-  if [[ -d "/sys/class/gpio" ]]; then
-    echo "✓ GPIO sysfs interface detected"
+  if [[ -e "/dev/gpiochip0" ]] || [[ -e "/dev/gpiochip1" ]] || [[ -e "/dev/gpiochip2" ]] || [[ -e "/dev/gpiochip3" ]]; then
+    echo "✓ GPIO character devices detected"
+    GPIO_HW_AVAILABLE=true
   else
-    echo "⚠ GPIO sysfs interface not found - GPIO tests may fail"
+    echo "⚠ GPIO character devices not found - GPIO tests will be skipped"
   fi
 
   echo
@@ -180,4 +216,3 @@ all)
 esac
 
 echo "All integration tests completed successfully!"
-
