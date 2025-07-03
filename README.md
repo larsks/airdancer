@@ -42,8 +42,14 @@ pins = ["GPIO17", "GPIO18", "GPIO19", "GPIO20", "GPIO21", "GPIO22", "GPIO23", "G
 ```
 
 **Command Line Options**:
-- `--config` - Configuration file path (default: `airdancer-api.toml`)
-- `--version` - Show version information
+- `--config string` - Configuration file to use
+- `--driver string` - Driver to use (piface, gpio, or dummy) (default: "dummy")
+- `--dummy.switch-count uint` - Number of switches for dummy driver (default: 4)
+- `--gpio.pins strings` - GPIO pins to use (for gpio driver)
+- `--listen-address string` - Listen address for HTTP server (default: all interfaces)
+- `--listen-port int` - Listen port for HTTP server (default: 8080)
+- `--piface.spidev string` - SPI device to use (default: "/dev/spidev0.0")
+- `--version` - Show version and exit
 
 **Example Usage**:
 ```bash
@@ -52,6 +58,18 @@ airdancer-api
 
 # Use custom configuration file
 airdancer-api --config /etc/airdancer/api.toml
+
+# Start with dummy driver for testing
+airdancer-api --driver dummy --dummy.switch-count 8
+
+# Start with PiFace driver
+airdancer-api --driver piface --piface.spidev /dev/spidev0.0
+
+# Start with GPIO driver
+airdancer-api --driver gpio --gpio.pins GPIO18,GPIO19,GPIO20
+
+# Start on specific address and port
+airdancer-api --listen-address 127.0.0.1 --listen-port 9000
 
 # Show version
 airdancer-api --version
@@ -86,8 +104,17 @@ check_interval_seconds = 30
 ```
 
 **Command Line Options**:
-- `--config` - Configuration file path (default: `airdancer-monitor.toml`)
-- `--version` - Show version information
+- `--config string` - Configuration file to use
+- `--imap.mailbox string` - IMAP mailbox to monitor (default: "INBOX")
+- `--imap.password string` - IMAP password
+- `--imap.port int` - IMAP server port (default: 993)
+- `--imap.server string` - IMAP server address
+- `--imap.use-ssl` - Use SSL for IMAP connection (default: true)
+- `--imap.username string` - IMAP username
+- `--monitor.check-interval int` - Interval in seconds to check for new emails (default: 30)
+- `--monitor.command string` - Command to execute on regex match
+- `--monitor.regex-pattern string` - Regex pattern to match in email bodies
+- `--version` - Show version and exit
 
 **Example Usage**:
 ```bash
@@ -96,7 +123,31 @@ airdancer-monitor
 
 # Use custom configuration
 airdancer-monitor --config /etc/airdancer/monitor.toml
+
+# Start with command line options
+airdancer-monitor \
+  --imap.server imap.gmail.com \
+  --imap.username alerts@company.com \
+  --imap.password app-password \
+  --monitor.regex-pattern "CRITICAL.*ERROR" \
+  --monitor.command "echo 'Alert received'"
+
+# Monitor different mailbox
+airdancer-monitor \
+  --config /etc/airdancer/monitor.toml \
+  --imap.mailbox "Alerts"
 ```
+
+**Environment Variables**:
+
+When a command is executed, the following environment variables are available:
+
+- `EMAIL_FROM` - Sender's email address
+- `EMAIL_SUBJECT` - Email subject line
+- `EMAIL_DATE` - Email date in RFC3339 format
+- `EMAIL_UID` - Email UID from IMAP server
+
+The email body is provided via stdin to the executed command.
 
 ### airdancer-ui
 
@@ -113,8 +164,11 @@ api-base-url = "http://localhost:8080"
 ```
 
 **Command Line Options**:
-- `--config` - Configuration file path (default: `airdancer-ui.toml`)
-- `--version` - Show version information
+- `--api-base-url string` - Base URL for the API server (default: "http://localhost:8080")
+- `--config string` - Configuration file to use
+- `--listen-address string` - Listen address for UI server (default: all interfaces)
+- `--listen-port int` - Listen port for UI server (default: 8081)
+- `--version` - Show version and exit
 
 **Example Usage**:
 ```bash
@@ -124,6 +178,15 @@ airdancer-ui
 # Use custom configuration
 airdancer-ui --config /etc/airdancer/ui.toml
 
+# Start on all interfaces
+airdancer-ui --listen-address 0.0.0.0
+
+# Connect to remote API server
+airdancer-ui --api-base-url http://192.168.1.100:8080
+
+# Start on specific port
+airdancer-ui --listen-port 9080
+
 # Access web interface at http://localhost:8081
 ```
 
@@ -132,9 +195,9 @@ airdancer-ui --config /etc/airdancer/ui.toml
 A command line tool for direct PiFace Digital I/O control.
 
 **Command Line Options**:
-- `--spi-device` - SPI device path (default: `/dev/spidev0.0`)
-- `--version` - Show version information
-- `--help` - Show usage information
+- `--spi-device string` - SPI device path (default: "/dev/spidev0.0")
+- `--version` - Show version and exit
+- `-h, --help` - Show help
 
 **Subcommands**:
 - `read inputs` - Read current input pin states
@@ -172,18 +235,62 @@ pfctl --version
 
 ### gpiotest
 
-A simple GPIO pin testing utility for debugging hardware connections.
+A command-line tool for testing and controlling GPIO pins.
 
 **Command Line Options**:
-- `--version` - Show version information
+- `--polarity string` - GPIO polarity: ActiveHigh or ActiveLow (default: "ActiveHigh")
+
+**Usage Pattern**:
+```
+gpiotest [--polarity ActiveHigh|ActiveLow] gpio_name:value [gpio_name:value...]
+```
 
 **Example Usage**:
 ```bash
-# Test GPIO functionality
-gpiotest
+# Control GPIO pins with default ActiveHigh polarity
+gpiotest GPIO23:on GPIO24:off
+
+# Use ActiveLow polarity
+gpiotest --polarity ActiveLow GPIO23:on GPIO24:off
+
+# Control multiple pins
+gpiotest GPIO18:on GPIO19:off GPIO20:on GPIO21:off
+
+# Different value formats
+gpiotest GPIO23:1 GPIO24:0
+gpiotest GPIO23:true GPIO24:false
+```
+
+**Pin Values**:
+- `1`, `on`, `true` - Turn pin on
+- `0`, `off`, `false` - Turn pin off
+
+### configvalidate
+
+A configuration validation tool that validates configuration files for the airdancer programs.
+
+**Command Line Options**:
+- `--config string` - Configuration file to validate
+- `--type string` - Configuration type: api, ui, or monitor
+- `-h, --help` - Show help
+- `--version` - Show version and exit
+
+**Example Usage**:
+```bash
+# Validate API configuration
+configvalidate --type api --config airdancer-api.toml
+
+# Validate UI configuration
+configvalidate --type ui --config airdancer-ui.toml
+
+# Validate monitor configuration
+configvalidate --type monitor --config airdancer-monitor.toml
+
+# Show help
+configvalidate --help
 
 # Show version
-gpiotest --version
+configvalidate --version
 ```
 
 ## Building
@@ -200,6 +307,7 @@ make airdancer-monitor
 make airdancer-ui
 make pfctl
 make gpiotest
+make configvalidate
 
 # Clean build artifacts
 make clean
