@@ -88,7 +88,7 @@ func (pf *PiFace) Init() error {
 		value uint8
 		desc  string
 	}{
-		{IOCON, 0x08, "configure IOCON"},
+		{IOCON, 0x08, "enable hardware addressing"},
 		{IODIRA, 0x00, "set port A as outputs"},
 		{IODIRB, 0xFF, "set port B as inputs"},
 		{GPPUB, 0xFF, "enable port B pullups"},
