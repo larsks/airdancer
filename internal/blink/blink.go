@@ -8,35 +8,34 @@ import (
 	"github.com/larsks/airdancer/internal/switchcollection"
 )
 
-// Blink represents a blinking output that toggles a Switch at a given frequency
+// Blink represents a blinking output that toggles a Switch at a given period
 type Blink struct {
-	sw        switchcollection.Switch
-	frequency float64
-	period    time.Duration
-	stopCh    chan struct{}
-	doneCh    chan struct{}
-	mutex     sync.RWMutex
-	running   bool
+	sw       switchcollection.Switch
+	period   float64
+	duration time.Duration
+	stopCh   chan struct{}
+	doneCh   chan struct{}
+	mutex    sync.RWMutex
+	running  bool
 }
 
-// NewBlink creates a new Blink instance with the given switch and frequency in hertz
-func NewBlink(sw switchcollection.Switch, frequency float64) (*Blink, error) {
+// NewBlink creates a new Blink instance with the given switch and period in seconds
+func NewBlink(sw switchcollection.Switch, period float64) (*Blink, error) {
 	if sw == nil {
 		return nil, ErrSwitchRequired
 	}
-	if frequency <= 0 {
-		return nil, ErrInvalidFrequency
+	if period <= 0 {
+		return nil, ErrInvalidPeriod
 	}
 
-	// Calculate period from frequency (frequency = 1/period)
-	period := time.Duration(float64(time.Second) / frequency)
+	duration := time.Duration(period * float64(time.Second))
 
 	return &Blink{
-		sw:        sw,
-		frequency: frequency,
-		period:    period,
-		stopCh:    make(chan struct{}),
-		doneCh:    make(chan struct{}),
+		sw:       sw,
+		period:   period,
+		duration: duration,
+		stopCh:   make(chan struct{}),
+		doneCh:   make(chan struct{}),
 	}, nil
 }
 
@@ -89,11 +88,11 @@ func (b *Blink) IsRunning() bool {
 	return b.running
 }
 
-// GetFrequency returns the current frequency in hertz
-func (b *Blink) GetFrequency() float64 {
+// GetPeriod returns the current period in seconds
+func (b *Blink) GetPeriod() float64 {
 	b.mutex.RLock()
 	defer b.mutex.RUnlock()
-	return b.frequency
+	return b.period
 }
 
 // GetSwitch returns the underlying switch
@@ -107,7 +106,7 @@ func (b *Blink) GetSwitch() switchcollection.Switch {
 func (b *Blink) blinkLoop() {
 	defer close(b.doneCh)
 
-	ticker := time.NewTicker(b.period / 2) // Half period for on/off cycle
+	ticker := time.NewTicker(b.duration / 2) // Half period for on/off cycle
 	defer ticker.Stop()
 
 	state := false // Start with off state

@@ -10,15 +10,15 @@ import (
 func TestNewBlink(t *testing.T) {
 	// Test creating a blink with valid parameters
 	sw := &switchcollection.DummySwitch{}
-	frequency := 2.0
+	period := 0.5 // 0.5 seconds, equivalent to 2Hz
 
-	blink, err := NewBlink(sw, frequency)
+	blink, err := NewBlink(sw, period)
 	if err != nil {
 		t.Fatalf("NewBlink() failed: %v", err)
 	}
 
-	if blink.GetFrequency() != frequency {
-		t.Errorf("GetFrequency() = %f, want %f", blink.GetFrequency(), frequency)
+	if blink.GetPeriod() != period {
+		t.Errorf("GetPeriod() = %f, want %f", blink.GetPeriod(), period)
 	}
 
 	if blink.GetSwitch() != sw {
@@ -32,34 +32,34 @@ func TestNewBlink(t *testing.T) {
 
 func TestNewBlinkErrors(t *testing.T) {
 	tests := []struct {
-		name      string
-		sw        switchcollection.Switch
-		frequency float64
-		wantErr   error
+		name    string
+		sw      switchcollection.Switch
+		period  float64
+		wantErr error
 	}{
 		{
-			name:      "nil switch",
-			sw:        nil,
-			frequency: 2.0,
-			wantErr:   ErrSwitchRequired,
+			name:    "nil switch",
+			sw:      nil,
+			period:  1.0,
+			wantErr: ErrSwitchRequired,
 		},
 		{
-			name:      "zero frequency",
-			sw:        &switchcollection.DummySwitch{},
-			frequency: 0.0,
-			wantErr:   ErrInvalidFrequency,
+			name:    "zero period",
+			sw:      &switchcollection.DummySwitch{},
+			period:  0.0,
+			wantErr: ErrInvalidPeriod,
 		},
 		{
-			name:      "negative frequency",
-			sw:        &switchcollection.DummySwitch{},
-			frequency: -1.0,
-			wantErr:   ErrInvalidFrequency,
+			name:    "negative period",
+			sw:      &switchcollection.DummySwitch{},
+			period:  -1.0,
+			wantErr: ErrInvalidPeriod,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewBlink(tt.sw, tt.frequency)
+			_, err := NewBlink(tt.sw, tt.period)
 			if err != tt.wantErr {
 				t.Errorf("NewBlink() error = %v, want %v", err, tt.wantErr)
 			}
@@ -69,7 +69,7 @@ func TestNewBlinkErrors(t *testing.T) {
 
 func TestBlinkStartStop(t *testing.T) {
 	sw := &switchcollection.DummySwitch{}
-	blink, err := NewBlink(sw, 10.0) // 10 Hz for faster testing
+	blink, err := NewBlink(sw, 0.1) // 0.1s period for faster testing
 	if err != nil {
 		t.Fatalf("NewBlink() failed: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestBlinkStartStop(t *testing.T) {
 
 func TestBlinkRestartability(t *testing.T) {
 	sw := &switchcollection.DummySwitch{}
-	blink, err := NewBlink(sw, 10.0)
+	blink, err := NewBlink(sw, 0.1)
 	if err != nil {
 		t.Fatalf("NewBlink() failed: %v", err)
 	}
@@ -147,11 +147,11 @@ func TestBlinkRestartability(t *testing.T) {
 	}
 }
 
-func TestBlinkFrequency(t *testing.T) {
+func TestBlinkPeriod(t *testing.T) {
 	sw := &switchcollection.DummySwitch{}
 
-	// Test with 5 Hz (should toggle every 100ms)
-	blink, err := NewBlink(sw, 5.0)
+	// Test with 0.2s period (should toggle every 100ms)
+	blink, err := NewBlink(sw, 0.2)
 	if err != nil {
 		t.Fatalf("NewBlink() failed: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestBlinkFrequency(t *testing.T) {
 
 func TestBlinkConcurrency(t *testing.T) {
 	sw := &switchcollection.DummySwitch{}
-	blink, err := NewBlink(sw, 20.0) // High frequency for more concurrent operations
+	blink, err := NewBlink(sw, 0.05) // High frequency for more concurrent operations
 	if err != nil {
 		t.Fatalf("NewBlink() failed: %v", err)
 	}
@@ -212,7 +212,7 @@ func TestBlinkConcurrency(t *testing.T) {
 	go func() {
 		for range 100 {
 			_ = blink.IsRunning()
-			_ = blink.GetFrequency()
+			_ = blink.GetPeriod()
 			_ = blink.GetSwitch()
 			time.Sleep(time.Millisecond)
 		}
