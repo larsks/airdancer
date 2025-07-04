@@ -177,6 +177,13 @@ func (s *Server) setupRoutes() {
 			s.validateSwitchExists,
 		).Get("/{id}", s.switchStatusHandler)
 
+		// GET endpoint for blink status - only need basic ID validation for status
+		r.With(
+			s.validateJSONRequest,
+			s.validateSwitchID,
+			s.validateSwitchExists,
+		).Get("/{id}/blink", s.blinkStatusHandler)
+
 		// POST endpoints for switch control - restore full validation middleware chain
 		r.With(
 			s.validateJSONRequest,

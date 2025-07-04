@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/larsks/airdancer/internal/blink"
 	"github.com/larsks/airdancer/internal/switchcollection"
 )
 
@@ -277,5 +278,107 @@ func TestSwitchHandler(t *testing.T) {
 				t.Errorf("switchHandler() returned invalid JSON: %v", err)
 			}
 		})
+	}
+}
+
+func TestBlinkStatusHandler(t *testing.T) {
+	server := createTestServer(t, 3)
+
+	// Set up a blinker on switch 1
+	sw1, _ := server.switches.GetSwitch(1)
+	blinker, err := blink.NewBlink(sw1, 0.5)
+	if err != nil {
+		t.Fatalf("Failed to create blinker: %v", err)
+	}
+	server.blinkers[sw1.String()] = blinker
+	if err := blinker.Start(); err != nil {
+		t.Fatalf("Failed to start blinker: %v", err)
+	}
+
+	tests := []struct {
+		name          string
+		switchID      string
+		wantStatus    int
+		checkResponse func(t *testing.T, body []byte)
+	}{
+		{
+			name:       "switch not blinking",
+			switchID:   "0",
+			wantStatus: http.StatusOK,
+			checkResponse: func(t *testing.T, body []byte) {
+				var response APIResponse
+				if err := json.Unmarshal(body, &response); err != nil {
+					t.Fatalf("Failed to parse response: %v", err)
+				}
+				if response.Status != "ok" {
+					t.Errorf("Expected status ok, got %v", response.Status)
+				}
+				data := response.Data.(map[string]interface{})
+				if data["id"] != "0" {
+					t.Errorf("Expected switch ID 0, got %v", data["id"])
+				}
+				if data["blinking"] != false {
+					t.Errorf("Expected blinking false, got %v", data["blinking"])
+				}
+				if _, exists := data["period"]; exists {
+					t.Error("Expected no period field when not blinking")
+				}
+			},
+		},
+		{
+			name:       "switch blinking",
+			switchID:   "1",
+			wantStatus: http.StatusOK,
+			checkResponse: func(t *testing.T, body []byte) {
+				var response APIResponse
+				if err := json.Unmarshal(body, &response); err != nil {
+					t.Fatalf("Failed to parse response: %v", err)
+				}
+				if response.Status != "ok" {
+					t.Errorf("Expected status ok, got %v", response.Status)
+				}
+				data := response.Data.(map[string]interface{})
+				if data["id"] != "1" {
+					t.Errorf("Expected switch ID 1, got %v", data["id"])
+				}
+				if data["blinking"] != true {
+					t.Errorf("Expected blinking true, got %v", data["blinking"])
+				}
+				if data["period"] != 0.5 {
+					t.Errorf("Expected period 0.5, got %v", data["period"])
+				}
+			},
+		},
+		{
+			name:       "invalid switch ID",
+			switchID:   "invalid",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "non-existent switch",
+			switchID:   "99",
+			wantStatus: http.StatusNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/switch/"+tt.switchID+"/blink", nil)
+			w := httptest.NewRecorder()
+			server.router.ServeHTTP(w, req)
+
+			if w.Code != tt.wantStatus {
+				t.Errorf("blinkStatusHandler() status = %v, want %v", w.Code, tt.wantStatus)
+			}
+
+			if tt.checkResponse != nil {
+				tt.checkResponse(t, w.Body.Bytes())
+			}
+		})
+	}
+
+	// Clean up
+	if err := blinker.Stop(); err != nil {
+		t.Errorf("Failed to stop blinker: %v", err)
 	}
 }
