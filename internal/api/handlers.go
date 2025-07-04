@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -132,6 +133,18 @@ func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, id u
 		log.Printf("Cancelling timer on %s", swid)
 		timer.Stop()
 		delete(s.timers, swid)
+	}
+
+	// Stop any running blinker for this switch
+	if blinker, ok := s.blinkers[swid]; ok {
+		if blinker.IsRunning() {
+			log.Printf("Stopping blinker on %s", swid)
+			if err := blinker.Stop(); err != nil {
+				s.sendError(w, fmt.Sprintf("Failed to stop blinker: %v", err), http.StatusInternalServerError)
+				return
+			}
+		}
+		delete(s.blinkers, swid)
 	}
 
 	// Execute switch operation

@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/larsks/airdancer/internal/blink"
 	"github.com/larsks/airdancer/internal/config"
 	"github.com/larsks/airdancer/internal/gpio"
 	"github.com/larsks/airdancer/internal/piface"
@@ -28,6 +29,7 @@ type Server struct {
 	switches   switchcollection.SwitchCollection
 	mutex      sync.Mutex
 	timers     map[string]*time.Timer
+	blinkers   map[string]*blink.Blink
 	router     *chi.Mux
 }
 
@@ -142,6 +144,7 @@ func newServerWithSwitches(switches switchcollection.SwitchCollection, listenAdd
 		listenAddr: listenAddr,
 		switches:   switches,
 		timers:     make(map[string]*time.Timer),
+		blinkers:   make(map[string]*blink.Blink),
 		router:     chi.NewRouter(),
 	}
 
@@ -180,6 +183,13 @@ func (s *Server) setupRoutes() {
 			s.validateJSONRequest,
 			s.validateSwitchRequest,
 		).Post("/{id}", s.switchHandler)
+
+		// POST endpoints for blink control
+		r.With(
+			s.validateSwitchID,
+			s.validateSwitchExists,
+			s.validateBlinkRequest,
+		).Post("/{id}/blink", s.blinkHandler)
 	})
 }
 
