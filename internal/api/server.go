@@ -172,20 +172,22 @@ func (s *Server) setupRoutes() {
 	s.router.Route("/switch", func(r chi.Router) {
 		// GET endpoints for status queries - only need basic ID validation for status
 		r.With(
+			s.validateJSONRequest,
 			s.validateSwitchID,
 			s.validateSwitchExists,
 		).Get("/{id}", s.switchStatusHandler)
 
 		// POST endpoints for switch control - restore full validation middleware chain
 		r.With(
+			s.validateJSONRequest,
 			s.validateSwitchID,
 			s.validateSwitchExists,
-			s.validateJSONRequest,
 			s.validateSwitchRequest,
 		).Post("/{id}", s.switchHandler)
 
 		// POST endpoints for blink control
 		r.With(
+			s.validateJSONRequest,
 			s.validateSwitchID,
 			s.validateSwitchExists,
 			s.validateBlinkRequest,
