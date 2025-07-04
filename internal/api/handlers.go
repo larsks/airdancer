@@ -233,7 +233,6 @@ func (s *Server) handleSingleSwitchStatus(w http.ResponseWriter, id uint, idStr 
 	}
 
 	data := map[string]interface{}{
-		"id":    idStr,
 		"state": state,
 	}
 
@@ -258,7 +257,6 @@ func (s *Server) blinkStatusHandler(w http.ResponseWriter, r *http.Request) {
 	blinker, exists := s.blinkers[swid]
 
 	data := map[string]any{
-		"id":       switchIDStr,
 		"blinking": false,
 	}
 
