@@ -244,3 +244,28 @@ func (s *Server) listRoutesHandler(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{"routes": s.ListRoutes()}
 	s.sendSuccess(w, data)
 }
+
+func (s *Server) blinkStatusHandler(w http.ResponseWriter, r *http.Request) {
+	switchIDStr := chi.URLParam(r, "id")
+	id, _ := strconv.Atoi(switchIDStr) // No error check needed, already validated
+
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// Get switch - no error check needed, already validated by middleware
+	sw, _ := s.switches.GetSwitch(uint(id))
+	swid := sw.String()
+	blinker, exists := s.blinkers[swid]
+
+	data := map[string]any{
+		"id":       switchIDStr,
+		"blinking": false,
+	}
+
+	if exists && blinker.IsRunning() {
+		data["blinking"] = true
+		data["period"] = blinker.GetPeriod()
+	}
+
+	s.sendSuccess(w, data)
+}
