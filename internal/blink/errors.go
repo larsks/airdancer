@@ -5,7 +5,7 @@ import "errors"
 // Blink configuration errors
 var (
 	ErrSwitchRequired   = errors.New("switch is required")
-	ErrInvalidFrequency = errors.New("frequency must be greater than 0")
+	ErrInvalidPeriod    = errors.New("period must be greater than 0")
 )
 
 // Blink operation errors

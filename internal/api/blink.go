@@ -13,8 +13,8 @@ import (
 )
 
 type blinkRequest struct {
-	State     string   `json:"state"`
-	Frequency *float64 `json:"frequency,omitempty"`
+	State  string   `json:"state"`
+	Period *float64 `json:"period,omitempty"`
 }
 
 type blinkRequestKeyType int
@@ -34,13 +34,13 @@ func (s *Server) validateBlinkRequest(next http.Handler) http.Handler {
 			return
 		}
 
-		if req.State == "on" && req.Frequency == nil {
-			s.sendError(w, "Frequency is required when turning blink on", http.StatusBadRequest)
+		if req.State == "on" && req.Period == nil {
+			s.sendError(w, "Period is required when turning blink on", http.StatusBadRequest)
 			return
 		}
 
-		if req.Frequency != nil && *req.Frequency <= 0 {
-			s.sendError(w, "Frequency must be a positive value", http.StatusBadRequest)
+		if req.Period != nil && *req.Period <= 0 {
+			s.sendError(w, "Period must be a positive value", http.StatusBadRequest)
 			return
 		}
 
@@ -86,7 +86,7 @@ func (s *Server) blinkHandler(w http.ResponseWriter, r *http.Request) {
 	switch req.State {
 	case "on":
 		if blinkerExists && blinker.IsRunning() {
-			if req.Frequency != nil && blinker.GetFrequency() != *req.Frequency {
+			if req.Period != nil && blinker.GetPeriod() != *req.Period {
 				if err := blinker.Stop(); err != nil {
 					s.sendError(w, fmt.Sprintf("Failed to stop existing blinker: %v", err), http.StatusInternalServerError)
 					return
@@ -95,7 +95,7 @@ func (s *Server) blinkHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		newBlinker, err := blink.NewBlink(sw, *req.Frequency)
+		newBlinker, err := blink.NewBlink(sw, *req.Period)
 		if err != nil {
 			s.sendError(w, fmt.Sprintf("Failed to create blinker: %v", err), http.StatusInternalServerError)
 			return
