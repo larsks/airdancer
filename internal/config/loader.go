@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
@@ -21,6 +22,7 @@ type ConfigLoader struct {
 	configFile   string
 	defaults     map[string]any
 	preserveFile bool
+	strictMode   bool
 }
 
 // NewConfigLoader creates a new ConfigLoader instance.
@@ -28,6 +30,7 @@ func NewConfigLoader() *ConfigLoader {
 	return &ConfigLoader{
 		defaults:     make(map[string]any),
 		preserveFile: true,
+		strictMode:   false,
 	}
 }
 
@@ -46,6 +49,12 @@ func (cl *ConfigLoader) SetDefaults(defaults map[string]any) {
 	for key, value := range defaults {
 		cl.defaults[key] = value
 	}
+}
+
+// SetStrictMode enables or disables strict mode for configuration validation.
+// In strict mode, unknown configuration fields will cause an error.
+func (cl *ConfigLoader) SetStrictMode(strict bool) {
+	cl.strictMode = strict
 }
 
 // LoadConfig loads configuration with proper precedence: defaults < config file < explicit flags.
@@ -146,8 +155,38 @@ func (cl *ConfigLoader) LoadConfig(config any) error {
 		}
 	})
 
-	if err := v.Unmarshal(config); err != nil {
-		return fmt.Errorf("%w: %v", ErrConfigUnmarshal, err)
+	// Use strict mode if enabled to detect unknown configuration fields
+	if cl.strictMode {
+		// Create a custom decoder config that errors on unused fields
+		var unmarshalConfig mapstructure.DecoderConfig
+		unmarshalConfig.Result = config
+		unmarshalConfig.ErrorUnused = true
+		unmarshalConfig.TagName = "mapstructure"
+		unmarshalConfig.WeaklyTypedInput = true
+
+		decoder, err := mapstructure.NewDecoder(&unmarshalConfig)
+		if err != nil {
+			return fmt.Errorf("%w: failed to create decoder: %v", ErrConfigUnmarshal, err)
+		}
+
+		if err := decoder.Decode(v.AllSettings()); err != nil {
+			// Enhance the error message to include the config file name for better context
+			if cl.configFile != "" {
+				// Check if this is an "unused keys" error and enhance it with file context
+				errStr := err.Error()
+				if strings.Contains(errStr, "has invalid keys:") {
+					// Replace the empty quotes with the config file name
+					enhancedErr := strings.Replace(errStr, "* ''", fmt.Sprintf("* '%s'", cl.configFile), 1)
+					return fmt.Errorf("%w: %s", ErrConfigUnmarshal, enhancedErr)
+				}
+			}
+			return fmt.Errorf("%w: %v", ErrConfigUnmarshal, err)
+		}
+	} else {
+		// Use regular unmarshaling which ignores unknown fields
+		if err := v.Unmarshal(config); err != nil {
+			return fmt.Errorf("%w: %v", ErrConfigUnmarshal, err)
+		}
 	}
 
 	// Restore configFile after unmarshal if it was set (prevents viper from clearing it)
