@@ -7,6 +7,7 @@ require (
 	github.com/emersion/go-message v0.18.2
 	github.com/go-chi/chi/v5 v5.2.2
 	github.com/go-chi/cors v1.2.1
+	github.com/mitchellh/mapstructure v1.5.0
 	github.com/spf13/pflag v1.0.6
 	github.com/spf13/viper v1.20.1
 	periph.io/x/conn/v3 v3.7.2
