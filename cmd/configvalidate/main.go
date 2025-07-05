@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/larsks/airdancer/internal/api"
+	"github.com/larsks/airdancer/internal/config"
 	"github.com/larsks/airdancer/internal/monitor"
 	"github.com/larsks/airdancer/internal/ui"
 	"github.com/larsks/airdancer/internal/version"
@@ -84,13 +85,41 @@ func usage() {
 }
 
 func validateAPIConfig(configFile string) error {
+	// Save the original command line flags
+	originalFlags := pflag.CommandLine
+	defer func() { pflag.CommandLine = originalFlags }()
+
+	// Create a clean flag set for this validation
+	pflag.CommandLine = pflag.NewFlagSet("api-validation", pflag.ContinueOnError)
+
 	cfg := api.NewConfig()
 	cfg.ConfigFile = configFile
 
-	// Add flags but don't parse them - we just need them for the config loader
-	cfg.AddFlags(pflag.NewFlagSet("api", pflag.ContinueOnError))
+	// Add flags using the same method as the application
+	cfg.AddFlags(pflag.CommandLine)
 
-	if err := cfg.LoadConfig(); err != nil {
+	// Parse with empty arguments (no command line flags set)
+	if err := pflag.CommandLine.Parse([]string{}); err != nil {
+		return fmt.Errorf("failed to parse flags: %v", err)
+	}
+
+	// Create a config loader with strict mode enabled
+	loader := config.NewConfigLoader()
+	loader.SetConfigFile(configFile)
+	loader.SetStrictMode(true) // Enable strict validation to detect unknown fields
+
+	// Set the same defaults as the API config
+	loader.SetDefaults(map[string]any{
+		"listen-address":     "",
+		"listen-port":        8080,
+		"driver":             "dummy",
+		"piface.spidev":      "/dev/spidev0.0",
+		"gpio.pins":          []string{},
+		"dummy.switch_count": 4,
+	})
+
+	// Use the config loader directly to get strict validation
+	if err := loader.LoadConfig(cfg); err != nil {
 		return fmt.Errorf("failed to load API configuration: %v", err)
 	}
 
@@ -127,13 +156,38 @@ func validateAPIConfig(configFile string) error {
 }
 
 func validateUIConfig(configFile string) error {
+	// Save the original command line flags
+	originalFlags := pflag.CommandLine
+	defer func() { pflag.CommandLine = originalFlags }()
+
+	// Create a clean flag set for this validation
+	pflag.CommandLine = pflag.NewFlagSet("ui-validation", pflag.ContinueOnError)
+
 	cfg := ui.NewConfig()
 	cfg.ConfigFile = configFile
 
-	// Add flags but don't parse them - we just need them for the config loader
-	cfg.AddFlags(pflag.NewFlagSet("ui", pflag.ContinueOnError))
+	// Add flags using the same method as the application
+	cfg.AddFlags(pflag.CommandLine)
 
-	if err := cfg.LoadConfig(); err != nil {
+	// Parse with empty arguments (no command line flags set)
+	if err := pflag.CommandLine.Parse([]string{}); err != nil {
+		return fmt.Errorf("failed to parse flags: %v", err)
+	}
+
+	// Create a config loader with strict mode enabled
+	loader := config.NewConfigLoader()
+	loader.SetConfigFile(configFile)
+	loader.SetStrictMode(true) // Enable strict validation to detect unknown fields
+
+	// Set the same defaults as the UI config
+	loader.SetDefaults(map[string]any{
+		"listen-address": "",
+		"listen-port":    8081,
+		"api-base-url":   "http://localhost:8080",
+	})
+
+	// Use the config loader directly to get strict validation
+	if err := loader.LoadConfig(cfg); err != nil {
 		return fmt.Errorf("failed to load UI configuration: %v", err)
 	}
 
@@ -150,13 +204,44 @@ func validateUIConfig(configFile string) error {
 }
 
 func validateMonitorConfig(configFile string) error {
+	// Save the original command line flags
+	originalFlags := pflag.CommandLine
+	defer func() { pflag.CommandLine = originalFlags }()
+
+	// Create a clean flag set for this validation
+	pflag.CommandLine = pflag.NewFlagSet("monitor-validation", pflag.ContinueOnError)
+
 	cfg := monitor.NewConfig()
 	cfg.ConfigFile = configFile
 
-	// Add flags but don't parse them - we just need them for the config loader
-	cfg.AddFlags(pflag.NewFlagSet("monitor", pflag.ContinueOnError))
+	// Add flags using the same method as the application
+	cfg.AddFlags(pflag.CommandLine)
 
-	if err := cfg.LoadConfigFromStruct(); err != nil {
+	// Parse with empty arguments (no command line flags set)
+	if err := pflag.CommandLine.Parse([]string{}); err != nil {
+		return fmt.Errorf("failed to parse flags: %v", err)
+	}
+
+	// Create a config loader with strict mode enabled
+	loader := config.NewConfigLoader()
+	loader.SetConfigFile(configFile)
+	loader.SetStrictMode(true) // Enable strict validation to detect unknown fields
+
+	// Set the same defaults as the monitor config
+	loader.SetDefaults(map[string]any{
+		"imap.server":                    "",
+		"imap.port":                      993,
+		"imap.username":                  "",
+		"imap.password":                  "",
+		"imap.use_ssl":                   true,
+		"imap.mailbox":                   "INBOX",
+		"monitor.regex_pattern":          "",
+		"monitor.command":                "",
+		"monitor.check_interval_seconds": 30,
+	})
+
+	// Use the config loader directly to get strict validation
+	if err := loader.LoadConfig(cfg); err != nil {
 		return fmt.Errorf("failed to load monitor configuration: %v", err)
 	}
 
