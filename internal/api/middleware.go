@@ -65,8 +65,8 @@ func (s *Server) validateSwitchRequest(next http.Handler) http.Handler {
 		}
 
 		// Validate state field
-		if req.State != "on" && req.State != "off" {
-			s.sendError(w, "State must be 'on' or 'off'", http.StatusBadRequest)
+		if req.State != "on" && req.State != "off" && req.State != "blink" {
+			s.sendError(w, "State must be 'on', 'off', or 'blink'", http.StatusBadRequest)
 			return
 		}
 
@@ -74,6 +74,28 @@ func (s *Server) validateSwitchRequest(next http.Handler) http.Handler {
 		if req.Duration != nil && *req.Duration <= 0 {
 			s.sendError(w, "Duration must be positive", http.StatusBadRequest)
 			return
+		}
+
+		if req.State == "blink" {
+			if req.Period == nil {
+				s.sendError(w, "Period is required for blink state", http.StatusBadRequest)
+				return
+			}
+			if *req.Period <= 0 {
+				s.sendError(w, "Period must be positive", http.StatusBadRequest)
+				return
+			}
+		}
+
+		if req.DutyCycle != nil {
+			if req.State != "blink" {
+				s.sendError(w, "DutyCycle is only valid for blink state", http.StatusBadRequest)
+				return
+			}
+			if *req.DutyCycle < 0 || *req.DutyCycle > 1 {
+				s.sendError(w, "DutyCycle must be between 0 and 1", http.StatusBadRequest)
+				return
+			}
 		}
 
 		// Store validated request in context for handler to use
