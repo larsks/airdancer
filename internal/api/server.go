@@ -24,11 +24,16 @@ import (
 
 // Server represents the API server.
 
+type timerData struct {
+	timer     *time.Timer
+	expiresAt time.Time
+}
+
 type Server struct {
 	listenAddr string
 	switches   switchcollection.SwitchCollection
 	mutex      sync.Mutex
-	timers     map[string]*time.Timer
+	timers     map[string]*timerData
 	blinkers   map[string]*blink.Blink
 	router     *chi.Mux
 }
@@ -143,7 +148,7 @@ func newServerWithSwitches(switches switchcollection.SwitchCollection, listenAdd
 	s := &Server{
 		listenAddr: listenAddr,
 		switches:   switches,
-		timers:     make(map[string]*time.Timer),
+		timers:     make(map[string]*timerData),
 		blinkers:   make(map[string]*blink.Blink),
 		router:     chi.NewRouter(),
 	}
@@ -191,14 +196,6 @@ func (s *Server) setupRoutes() {
 			s.validateSwitchExists,
 			s.validateSwitchRequest,
 		).Post("/{id}", s.switchHandler)
-
-		// POST endpoints for blink control
-		r.With(
-			s.validateJSONRequest,
-			s.validateSwitchID,
-			s.validateSwitchExists,
-			s.validateBlinkRequest,
-		).Post("/{id}/blink", s.blinkHandler)
 	})
 }
 
