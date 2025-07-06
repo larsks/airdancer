@@ -216,9 +216,9 @@ func (s *Server) Start() error {
 	}
 
 	go func() {
-		log.Printf("Starting server on %s", s.listenAddr)
+		log.Printf("starting server on %s", s.listenAddr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server failed: %v", err)
+			log.Fatalf("server failed: %v", err)
 		}
 	}()
 
@@ -226,7 +226,7 @@ func (s *Server) Start() error {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 
-	log.Println("Shutting down server...")
+	log.Println("shutting down server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel() //nolint:errcheck
@@ -235,7 +235,7 @@ func (s *Server) Start() error {
 		return fmt.Errorf("%w: %v", ErrServerShutdownFailed, err)
 	}
 
-	log.Println("Server gracefully stopped")
+	log.Println("server gracefully stopped")
 	return nil
 }
 
