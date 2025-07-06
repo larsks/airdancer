@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -15,7 +16,7 @@ type (
 
 const switchRequestKey contextKey = "switchRequest"
 
-// validateSwitchID validates that the switch ID parameter is either "all" or a valid integer
+// validateSwitchID validates that the switch ID parameter is either "all" or a valid switch id
 func (s *Server) validateSwitchID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switchIDStr := chi.URLParam(r, "id")
@@ -34,8 +35,13 @@ func (s *Server) validateSwitchID(next http.Handler) http.Handler {
 
 			if val < 0 {
 				s.sendError(w, "Invalid switch ID -- must be >= 0", http.StatusBadRequest)
+				return
 			}
 
+			if val >= int(s.switches.CountSwitches()) {
+				s.sendError(w, fmt.Sprintf("Invalid switch ID -- must be < %d", s.switches.CountSwitches()), http.StatusBadRequest)
+				return
+			}
 		}
 
 		next.ServeHTTP(w, r)
@@ -65,7 +71,7 @@ func (s *Server) validateSwitchRequest(next http.Handler) http.Handler {
 		}
 
 		// Validate state field
-		if req.State != "on" && req.State != "off" && req.State != "blink" {
+		if req.State != switchStateOn && req.State != switchStateOff && req.State != switchStateBlink {
 			s.sendError(w, "State must be 'on', 'off', or 'blink'", http.StatusBadRequest)
 			return
 		}
@@ -85,14 +91,8 @@ func (s *Server) validateSwitchRequest(next http.Handler) http.Handler {
 				s.sendError(w, "Period must be positive", http.StatusBadRequest)
 				return
 			}
-		}
 
-		if req.DutyCycle != nil {
-			if req.State != "blink" {
-				s.sendError(w, "DutyCycle is only valid for blink state", http.StatusBadRequest)
-				return
-			}
-			if *req.DutyCycle < 0 || *req.DutyCycle > 1 {
+			if req.DutyCycle != nil && (*req.DutyCycle < 0 || *req.DutyCycle > 1) {
 				s.sendError(w, "DutyCycle must be between 0 and 1", http.StatusBadRequest)
 				return
 			}
