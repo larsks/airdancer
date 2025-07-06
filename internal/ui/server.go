@@ -130,9 +130,9 @@ func (ui *UIServer) Start() error {
 	}
 
 	go func() {
-		log.Printf("Starting UI server on %s", ui.listenAddr)
+		log.Printf("starting UI server on %s", ui.listenAddr)
 		log.Printf("API URL: %s", ui.apiBaseURL)
-		log.Printf("Open http://localhost%s in your browser", ui.listenAddr)
+		log.Printf("open http://localhost%s in your browser", ui.listenAddr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("UI server failed: %v", err)
 		}
