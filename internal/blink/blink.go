@@ -10,32 +10,38 @@ import (
 
 // Blink represents a blinking output that toggles a Switch at a given period
 type Blink struct {
-	sw       switchcollection.Switch
-	period   float64
-	duration time.Duration
-	stopCh   chan struct{}
-	doneCh   chan struct{}
-	mutex    sync.RWMutex
-	running  bool
+	sw        switchcollection.Switch
+	period    float64
+	dutyCycle float64
+	stopCh    chan struct{}
+	doneCh    chan struct{}
+	mutex     sync.RWMutex
+	running   bool
 }
 
 // NewBlink creates a new Blink instance with the given switch and period in seconds
-func NewBlink(sw switchcollection.Switch, period float64) (*Blink, error) {
+func NewBlink(sw switchcollection.Switch, period float64, dutyCycle float64) (*Blink, error) {
 	if sw == nil {
 		return nil, ErrSwitchRequired
 	}
 	if period <= 0 {
 		return nil, ErrInvalidPeriod
 	}
+	if dutyCycle < 0 || dutyCycle > 1 {
+		return nil, ErrInvalidDutyCycle
+	}
 
-	duration := time.Duration(period * float64(time.Second))
+	// Default duty cycle is 0.5 if not specified
+	if dutyCycle == 0 {
+		dutyCycle = 0.5
+	}
 
 	return &Blink{
-		sw:       sw,
-		period:   period,
-		duration: duration,
-		stopCh:   make(chan struct{}),
-		doneCh:   make(chan struct{}),
+		sw:        sw,
+		period:    period,
+		dutyCycle: dutyCycle,
+		stopCh:    make(chan struct{}),
+		doneCh:    make(chan struct{}),
 	}, nil
 }
 
@@ -95,6 +101,13 @@ func (b *Blink) GetPeriod() float64 {
 	return b.period
 }
 
+// GetDutyCycle returns the current duty cycle
+func (b *Blink) GetDutyCycle() float64 {
+	b.mutex.RLock()
+	defer b.mutex.RUnlock()
+	return b.dutyCycle
+}
+
 // GetSwitch returns the underlying switch
 func (b *Blink) GetSwitch() switchcollection.Switch {
 	b.mutex.RLock()
@@ -106,8 +119,10 @@ func (b *Blink) GetSwitch() switchcollection.Switch {
 func (b *Blink) blinkLoop() {
 	defer close(b.doneCh)
 
-	ticker := time.NewTicker(b.duration / 2) // Half period for on/off cycle
-	defer ticker.Stop()
+	onTime := time.Duration(b.period * b.dutyCycle * float64(time.Second))
+	offTime := time.Duration(b.period * (1 - b.dutyCycle) * float64(time.Second))
+	clock := time.NewTimer(offTime)
+	defer clock.Stop()
 
 	state := false // Start with off state
 
@@ -115,18 +130,20 @@ func (b *Blink) blinkLoop() {
 		select {
 		case <-b.stopCh:
 			return
-		case <-ticker.C:
+		case <-clock.C:
 			state = !state
 			if state {
 				if err := b.sw.TurnOn(); err != nil {
 					log.Printf("blinker failed to turn on switch %s", b.sw)
 					break
 				}
+				clock = time.NewTimer(onTime)
 			} else {
 				if err := b.sw.TurnOff(); err != nil {
 					log.Printf("blinker failed to turn off switch %s", b.sw)
 					break
 				}
+				clock = time.NewTimer(offTime)
 			}
 		}
 	}

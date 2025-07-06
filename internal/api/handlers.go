@@ -77,6 +77,15 @@ func (s *Server) handleAllSwitches(w http.ResponseWriter, r *http.Request) {
 		delete(s.timers, swid)
 	}
 
+	// Cancel any existing blinker for all switches
+	for swid, blinker := range s.blinkers {
+		log.Printf("Cancelling blinker on %s", swid)
+		if err := blinker.Stop(); err != nil {
+			log.Printf("failed to stop blinker on %s: %v", swid, err)
+		}
+		delete(s.blinkers, swid)
+	}
+
 	// Execute switch operation on all switches
 	switch req.State {
 	case "on":
@@ -263,6 +272,7 @@ func (s *Server) blinkStatusHandler(w http.ResponseWriter, r *http.Request) {
 	if exists && blinker.IsRunning() {
 		data["blinking"] = true
 		data["period"] = blinker.GetPeriod()
+		data["dutyCycle"] = blinker.GetDutyCycle()
 	}
 
 	s.sendSuccess(w, data)

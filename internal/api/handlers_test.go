@@ -283,7 +283,7 @@ func TestBlinkStatusHandler(t *testing.T) {
 
 	// Set up a blinker on switch 1
 	sw1, _ := server.switches.GetSwitch(1)
-	blinker, err := blink.NewBlink(sw1, 0.5)
+	blinker, err := blink.NewBlink(sw1, 0.5, 0)
 	if err != nil {
 		t.Fatalf("Failed to create blinker: %v", err)
 	}
