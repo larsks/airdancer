@@ -25,8 +25,8 @@ import (
 // Server represents the API server.
 
 type timerData struct {
-	timer     *time.Timer
-	expiresAt time.Time
+	timer    *time.Timer
+	duration time.Duration
 }
 
 type Server struct {
