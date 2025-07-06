@@ -97,6 +97,7 @@ func (s *Server) handleAllSwitches(w http.ResponseWriter, r *http.Request) {
 		if req.Duration != nil {
 			duration := time.Duration(*req.Duration) * time.Second
 			swid := s.switches.String()
+			log.Printf("start timer on all switches for %v", duration)
 			s.timers[swid] = time.AfterFunc(duration, func() {
 				s.mutex.Lock()
 				defer s.mutex.Unlock() //nolint:errcheck
@@ -166,14 +167,15 @@ func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, id u
 		// Set up auto-off timer if duration specified
 		if req.Duration != nil {
 			duration := time.Duration(*req.Duration) * time.Second
+			log.Printf("start timer on %s for %v", swid, duration)
 			s.timers[swid] = time.AfterFunc(duration, func() {
 				s.mutex.Lock()
 				defer s.mutex.Unlock() //nolint:errcheck
 				delete(s.timers, swid)
 				if err := sw.TurnOff(); err != nil {
-					log.Printf("failed to automatically turn off switch %s: %v", swid, err)
+					log.Printf("timer failed to turn off switch %s: %v", swid, err)
 				}
-				log.Printf("automatically turned off switch %s after %s", swid, duration)
+				log.Printf("timer expired for switch %s after %s", swid, duration)
 			})
 		}
 	case "off":

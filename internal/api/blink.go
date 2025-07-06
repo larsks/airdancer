@@ -91,6 +91,7 @@ func (s *Server) blinkHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.blinkers[swid] = newBlinker
+		log.Printf("start blinker on %s", swid)
 		if err := newBlinker.Start(); err != nil {
 			s.sendError(w, fmt.Sprintf("Failed to start blinker: %v", err), http.StatusInternalServerError)
 			return
