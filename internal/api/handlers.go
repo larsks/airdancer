@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/larsks/airdancer/internal/blink"
+	"github.com/larsks/airdancer/internal/switchcollection"
 )
 
 type switchState string
@@ -28,11 +29,21 @@ type (
 		DutyCycle *float64    `json:"dutyCycle,omitempty"`
 	}
 
+	switchResponse struct {
+		switchRequest
+		CurrentState switchState `json:"currentState"`
+	}
+
 	// Single response type that handles all cases
 	APIResponse struct {
 		Status  string `json:"status"`
 		Message string `json:"message,omitempty"`
 		Data    any    `json:"data,omitempty"`
+	}
+
+	multiSwitchResponse struct {
+		Summary  bool `json:"summary"`
+		Switches []switchResponse
 	}
 )
 
@@ -54,31 +65,84 @@ func (s *Server) sendResponse(w http.ResponseWriter, resp APIResponse, code int)
 func (s *Server) switchHandler(w http.ResponseWriter, r *http.Request) {
 	switchID := chi.URLParam(r, "id")
 
-	// Verify validated request exists in context
-	if _, ok := r.Context().Value(switchRequestKey).(switchRequest); !ok {
-		s.sendError(w, "Internal error: missing request data", http.StatusInternalServerError)
-		return
-	}
-
 	if switchID == "all" {
 		s.handleAllSwitches(w, r)
 	} else {
-		id, err := strconv.Atoi(switchID)
-		if err != nil {
-			s.sendError(w, "Invalid switch ID - must be an integer or 'all'", http.StatusBadRequest)
-			return
-		}
+		id, _ := strconv.Atoi(switchID)
 		s.handleSingleSwitch(w, r, uint(id))
 	}
 }
 
-func (s *Server) handleAllSwitches(w http.ResponseWriter, r *http.Request) {
-	// Get validated request directly from context
-	req, ok := r.Context().Value(switchRequestKey).(switchRequest)
-	if !ok {
-		s.sendError(w, "Internal error: missing request data", http.StatusInternalServerError)
-		return
+func (s *Server) handleSwitchHelper(w http.ResponseWriter, req *switchRequest, swid string, sw switchcollection.Switch) error {
+	// Cancel any existing timer for this switch
+	if timer, ok := s.timers[swid]; ok {
+		log.Printf("cancelling timer on %s", swid)
+		timer.timer.Stop()
+		delete(s.timers, swid)
 	}
+
+	// Stop any running blinker for this switch
+	if blinker, ok := s.blinkers[swid]; ok {
+		if blinker.IsRunning() {
+			log.Printf("cancelling blinker on %s", swid)
+			if err := blinker.Stop(); err != nil {
+				return fmt.Errorf("failed to cancel blinker on %s: %w", swid, err)
+			}
+		}
+		delete(s.blinkers, swid)
+	}
+
+	// Execute switch operation
+	switch req.State {
+	case switchStateOn:
+		if err := sw.TurnOn(); err != nil {
+			return fmt.Errorf("failed to turn on switch %s: %w", swid, err)
+		}
+	case switchStateOff:
+		if err := sw.TurnOff(); err != nil {
+			return fmt.Errorf("failed to turn off switch %s: %w", err)
+		}
+	case switchStateBlink:
+		dutyCycle := 0.5
+		if req.DutyCycle != nil {
+			dutyCycle = *req.DutyCycle
+		}
+
+		newBlinker, err := blink.NewBlink(sw, *req.Period, dutyCycle)
+		if err != nil {
+			return fmt.Errorf("failed to create blinker for %s: %w", swid, err)
+		}
+		s.blinkers[swid] = newBlinker
+		log.Printf("start blinker on %s", swid)
+		if err := newBlinker.Start(); err != nil {
+			return fmt.Errorf("failed to start blinker for %s: %w", swid, err)
+		}
+	}
+
+	// Set up auto-off timer if duration specified
+	if req.Duration != nil {
+		duration := time.Duration(*req.Duration) * time.Second
+		log.Printf("start timer on %s for %v", swid, duration)
+		s.timers[swid] = &timerData{
+			duration: duration,
+			timer: time.AfterFunc(duration, func() {
+				s.mutex.Lock()
+				defer s.mutex.Unlock() //nolint:errcheck
+				delete(s.timers, swid)
+
+				if err := sw.TurnOff(); err != nil {
+					log.Printf("timer failed to turn off switch %s: %v", swid, err)
+				}
+				log.Printf("timer expired for switch %s after %s", swid, duration)
+			}),
+		}
+	}
+
+	return nil
+}
+
+func (s *Server) handleAllSwitches(w http.ResponseWriter, r *http.Request) {
+	req, _ := r.Context().Value(switchRequestKey).(switchRequest)
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock() //nolint:errcheck
@@ -99,146 +163,25 @@ func (s *Server) handleAllSwitches(w http.ResponseWriter, r *http.Request) {
 		delete(s.blinkers, swid)
 	}
 
-	// Execute switch operation on all switches
-	switch req.State {
-	case switchStateOn:
-		if err := s.switches.TurnOn(); err != nil {
-			s.sendError(w, "Failed to turn on switches", http.StatusInternalServerError)
-			return
-		}
-	case switchStateOff:
-		if err := s.switches.TurnOff(); err != nil {
-			s.sendError(w, "Failed to turn off switches", http.StatusInternalServerError)
-			return
-		}
-	case switchStateBlink:
-		s.sendError(w, "Blinking all switches is not supported", http.StatusBadRequest)
-		return
+	if err := s.handleSwitchHelper(w, &req, "all", s.switches); err != nil {
+		s.sendError(w, err.Error(), http.StatusBadRequest)
 	}
-
-	// Set up auto-off timer if duration specified
-	if req.Duration != nil {
-		duration := time.Duration(*req.Duration) * time.Second
-		swid := s.switches.String()
-		log.Printf("start timer on all switches for %v", duration)
-		s.timers[swid] = &timerData{
-			duration: duration,
-			timer: time.AfterFunc(duration, func() {
-				s.mutex.Lock()
-				defer s.mutex.Unlock() //nolint:errcheck
-				delete(s.timers, swid)
-				if err := s.switches.TurnOff(); err != nil {
-					log.Printf("failed to automatically turn off all switches: %v", err)
-				}
-				log.Printf("automatically turned off all switches after %s", duration)
-			}),
-		}
-	}
-
-	s.sendSuccess(w, nil)
+	s.sendSuccess(w, req)
 }
 
 func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, id uint) {
 	// Get validated request directly from context
-	req, ok := r.Context().Value(switchRequestKey).(switchRequest)
-	if !ok {
-		s.sendError(w, "Internal error: missing request data", http.StatusInternalServerError)
-		return
-	}
+	req, _ := r.Context().Value(switchRequestKey).(switchRequest)
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock() //nolint:errcheck
 
-	// Check if switch exists
-	sw, err := s.switches.GetSwitch(id)
-	if err != nil {
-		s.sendError(w, "Switch not found", http.StatusNotFound)
-		return
-	}
-
+	sw, _ := s.switches.GetSwitch(id)
 	swid := sw.String()
-
-	// Cancel any existing timer for this switch
-	if timer, ok := s.timers[swid]; ok {
-		log.Printf("cancelling timer on %s", swid)
-		timer.timer.Stop()
-		delete(s.timers, swid)
+	if err := s.handleSwitchHelper(w, &req, swid, sw); err != nil {
+		s.sendError(w, err.Error(), http.StatusBadRequest)
 	}
-
-	// Stop any running blinker for this switch
-	if blinker, ok := s.blinkers[swid]; ok {
-		if blinker.IsRunning() {
-			log.Printf("cancelling blinker on %s", swid)
-			if err := blinker.Stop(); err != nil {
-				s.sendError(w, fmt.Sprintf("Failed to stop blinker: %v", err), http.StatusInternalServerError)
-				return
-			}
-		}
-		delete(s.blinkers, swid)
-	}
-
-	// Execute switch operation
-	switch req.State {
-	case switchStateOn:
-		if err := sw.TurnOn(); err != nil {
-			s.sendError(w, "Failed to turn on switch", http.StatusInternalServerError)
-			return
-		}
-	case switchStateOff:
-		if err := sw.TurnOff(); err != nil {
-			s.sendError(w, "Failed to turn off switch", http.StatusInternalServerError)
-			return
-		}
-	case switchStateBlink:
-		dutyCycle := 0.5
-		if req.DutyCycle != nil {
-			dutyCycle = *req.DutyCycle
-		}
-
-		newBlinker, err := blink.NewBlink(sw, *req.Period, dutyCycle)
-		if err != nil {
-			s.sendError(w, fmt.Sprintf("Failed to create blinker: %v", err), http.StatusInternalServerError)
-			return
-		}
-		s.blinkers[swid] = newBlinker
-		log.Printf("start blinker on %s", swid)
-		if err := newBlinker.Start(); err != nil {
-			s.sendError(w, fmt.Sprintf("Failed to start blinker: %v", err), http.StatusInternalServerError)
-			return
-		}
-	}
-
-	// Set up auto-off timer if duration specified
-	if req.Duration != nil {
-		duration := time.Duration(*req.Duration) * time.Second
-		log.Printf("start timer on %s for %v", swid, duration)
-		s.timers[swid] = &timerData{
-			duration: duration,
-			timer: time.AfterFunc(duration, func() {
-				s.mutex.Lock()
-				defer s.mutex.Unlock() //nolint:errcheck
-				delete(s.timers, swid)
-
-				// Stop any running blinker for this switch
-				if blinker, ok := s.blinkers[swid]; ok {
-					if blinker.IsRunning() {
-						log.Printf("cancelling blinker on %s", swid)
-						if err := blinker.Stop(); err != nil {
-							log.Printf("timer failed to stop blinker for switch %s: %v", swid, err)
-						}
-					}
-					delete(s.blinkers, swid)
-				}
-
-				if err := sw.TurnOff(); err != nil {
-					log.Printf("timer failed to turn off switch %s: %v", swid, err)
-				}
-				log.Printf("timer expired for switch %s after %s", swid, duration)
-			}),
-		}
-	}
-
-	s.sendSuccess(w, nil)
+	s.sendSuccess(w, req)
 }
 
 func (s *Server) switchStatusHandler(w http.ResponseWriter, r *http.Request) {
