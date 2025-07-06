@@ -70,7 +70,7 @@ func (c *Config) LoadConfig(configFile string) error {
 	loader.SetConfigFile(configFile)
 
 	// Set default values
-	loader.SetDefaults(map[string]interface{}{
+	loader.SetDefaults(map[string]any{
 		"imap.server":                    c.IMAP.Server,
 		"imap.port":                      c.IMAP.Port,
 		"imap.username":                  c.IMAP.Username,
@@ -92,7 +92,7 @@ func (c *Config) LoadConfigFromStruct() error {
 	loader.SetConfigFile(c.ConfigFile)
 
 	// Set default values using the struct defaults
-	loader.SetDefaults(map[string]interface{}{
+	loader.SetDefaults(map[string]any{
 		"imap.server":                    "",
 		"imap.port":                      993,
 		"imap.username":                  "",

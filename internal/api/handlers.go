@@ -23,11 +23,11 @@ type switchRequest struct {
 type APIResponse struct {
 	Status  string      `json:"status"`
 	Message string      `json:"message,omitempty"`
-	Data    interface{} `json:"data,omitempty"`
+	Data    any `json:"data,omitempty"`
 }
 
 // Helper methods for responses
-func (s *Server) sendSuccess(w http.ResponseWriter, data interface{}) {
+func (s *Server) sendSuccess(w http.ResponseWriter, data any) {
 	s.sendResponse(w, APIResponse{Status: "ok", Data: data}, http.StatusOK)
 }
 
@@ -262,9 +262,9 @@ func (s *Server) handleAllSwitchesStatus(w http.ResponseWriter) {
 		return
 	}
 
-	states := []map[string]interface{}{}
+	states := []map[string]any{}
 	for i, bState := range boolStates {
-		state := map[string]interface{}{}
+		state := map[string]any{}
 		if bState {
 			state["state"] = "on"
 		} else {
@@ -283,7 +283,7 @@ func (s *Server) handleAllSwitchesStatus(w http.ResponseWriter) {
 		states = append(states, state)
 	}
 
-	data := map[string]interface{}{
+	data := map[string]any{
 		"count":   s.switches.CountSwitches(),
 		"states":  states,
 		"summary": summary,
@@ -309,7 +309,7 @@ func (s *Server) handleSingleSwitchStatus(w http.ResponseWriter, id uint, idStr 
 		return
 	}
 
-	data := map[string]interface{}{
+	data := map[string]any{
 		"state": state,
 	}
 
