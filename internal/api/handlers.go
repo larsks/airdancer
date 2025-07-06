@@ -72,14 +72,14 @@ func (s *Server) handleAllSwitches(w http.ResponseWriter, r *http.Request) {
 
 	// Cancel any existing timers for all switches
 	for swid, timer := range s.timers {
-		log.Printf("Cancelling timer on %s", swid)
+		log.Printf("cancelling timer on %s", swid)
 		timer.Stop()
 		delete(s.timers, swid)
 	}
 
 	// Cancel any existing blinker for all switches
 	for swid, blinker := range s.blinkers {
-		log.Printf("Cancelling blinker on %s", swid)
+		log.Printf("cancelling blinker on %s", swid)
 		if err := blinker.Stop(); err != nil {
 			log.Printf("failed to stop blinker on %s: %v", swid, err)
 		}
@@ -102,9 +102,9 @@ func (s *Server) handleAllSwitches(w http.ResponseWriter, r *http.Request) {
 				defer s.mutex.Unlock() //nolint:errcheck
 				delete(s.timers, swid)
 				if err := s.switches.TurnOff(); err != nil {
-					log.Printf("Failed to automatically turn off all switches: %v", err)
+					log.Printf("failed to automatically turn off all switches: %v", err)
 				}
-				log.Printf("Automatically turned off all switches after %s", duration)
+				log.Printf("automatically turned off all switches after %s", duration)
 			})
 		}
 	case "off":
@@ -139,7 +139,7 @@ func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, id u
 
 	// Cancel any existing timer for this switch
 	if timer, ok := s.timers[swid]; ok {
-		log.Printf("Cancelling timer on %s", swid)
+		log.Printf("cancelling timer on %s", swid)
 		timer.Stop()
 		delete(s.timers, swid)
 	}
@@ -147,7 +147,7 @@ func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, id u
 	// Stop any running blinker for this switch
 	if blinker, ok := s.blinkers[swid]; ok {
 		if blinker.IsRunning() {
-			log.Printf("Stopping blinker on %s", swid)
+			log.Printf("cancelling blinker on %s", swid)
 			if err := blinker.Stop(); err != nil {
 				s.sendError(w, fmt.Sprintf("Failed to stop blinker: %v", err), http.StatusInternalServerError)
 				return
@@ -171,9 +171,9 @@ func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, id u
 				defer s.mutex.Unlock() //nolint:errcheck
 				delete(s.timers, swid)
 				if err := sw.TurnOff(); err != nil {
-					log.Printf("Failed to automatically turn off switch %s: %v", swid, err)
+					log.Printf("failed to automatically turn off switch %s: %v", swid, err)
 				}
-				log.Printf("Automatically turned off switch %s after %s", swid, duration)
+				log.Printf("automatically turned off switch %s after %s", swid, duration)
 			})
 		}
 	case "off":
@@ -204,7 +204,7 @@ func (s *Server) handleAllSwitchesStatus(w http.ResponseWriter) {
 	// Get detailed state for all switches
 	states, err := s.switches.GetDetailedState()
 	if err != nil {
-		log.Printf("Failed to get detailed switch states: %v", err)
+		log.Printf("failed to get detailed switch states: %v", err)
 		s.sendError(w, "Failed to get switch states", http.StatusInternalServerError)
 		return
 	}
@@ -212,7 +212,7 @@ func (s *Server) handleAllSwitchesStatus(w http.ResponseWriter) {
 	// Get summary state (true if all switches are on)
 	summary, err := s.switches.GetState()
 	if err != nil {
-		log.Printf("Failed to get summary switch state: %v", err)
+		log.Printf("failed to get summary switch state: %v", err)
 		s.sendError(w, "Failed to get switch state", http.StatusInternalServerError)
 		return
 	}
@@ -236,7 +236,7 @@ func (s *Server) handleSingleSwitchStatus(w http.ResponseWriter, id uint, idStr 
 
 	state, err := sw.GetState()
 	if err != nil {
-		log.Printf("Failed to get state for switch %d: %v", id, err)
+		log.Printf("failed to get state for switch %d: %v", id, err)
 		s.sendError(w, "Failed to get switch state", http.StatusInternalServerError)
 		return
 	}

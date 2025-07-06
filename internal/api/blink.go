@@ -68,7 +68,7 @@ func (s *Server) blinkHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Stop any running timer for this switch
 	if timer, ok := s.timers[swid]; ok {
-		log.Printf("Cancelling timer on %s", swid)
+		log.Printf("cancelling timer on %s", swid)
 		timer.Stop()
 		delete(s.timers, swid)
 	}
