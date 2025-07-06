@@ -37,8 +37,8 @@ type CommandExecutor interface {
 
 // Logger interface abstracts logging for testing
 type Logger interface {
-	Printf(format string, v ...interface{})
-	Println(v ...interface{})
+	Printf(format string, v ...any)
+	Println(v ...any)
 }
 
 // Timer interface abstracts time operations for testing
@@ -111,11 +111,11 @@ func (r *RealCommandExecutor) Execute(command string, env []string, stdin io.Rea
 // RealLogger implements Logger using the standard log package
 type RealLogger struct{}
 
-func (r *RealLogger) Printf(format string, v ...interface{}) {
+func (r *RealLogger) Printf(format string, v ...any) {
 	log.Printf(format, v...)
 }
 
-func (r *RealLogger) Println(v ...interface{}) {
+func (r *RealLogger) Println(v ...any) {
 	log.Println(v...)
 }
 

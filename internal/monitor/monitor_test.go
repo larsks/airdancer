@@ -173,11 +173,11 @@ type MockLogger struct {
 	printlnCalls []string
 }
 
-func (m *MockLogger) Printf(format string, v ...interface{}) {
+func (m *MockLogger) Printf(format string, v ...any) {
 	m.printfCalls = append(m.printfCalls, fmt.Sprintf(format, v...))
 }
 
-func (m *MockLogger) Println(v ...interface{}) {
+func (m *MockLogger) Println(v ...any) {
 	m.printlnCalls = append(m.printlnCalls, fmt.Sprint(v...))
 }
 
