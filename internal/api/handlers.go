@@ -21,9 +21,9 @@ type switchRequest struct {
 
 // Single response type that handles all cases
 type APIResponse struct {
-	Status  string      `json:"status"`
-	Message string      `json:"message,omitempty"`
-	Data    any `json:"data,omitempty"`
+	Status  string `json:"status"`
+	Message string `json:"message,omitempty"`
+	Data    any    `json:"data,omitempty"`
 }
 
 // Helper methods for responses
@@ -112,7 +112,7 @@ func (s *Server) handleAllSwitches(w http.ResponseWriter, r *http.Request) {
 		swid := s.switches.String()
 		log.Printf("start timer on all switches for %v", duration)
 		s.timers[swid] = &timerData{
-			expiresAt: time.Now().Add(duration),
+			duration: duration,
 			timer: time.AfterFunc(duration, func() {
 				s.mutex.Lock()
 				defer s.mutex.Unlock() //nolint:errcheck
@@ -203,7 +203,7 @@ func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, id u
 		duration := time.Duration(*req.Duration) * time.Second
 		log.Printf("start timer on %s for %v", swid, duration)
 		s.timers[swid] = &timerData{
-			expiresAt: time.Now().Add(duration),
+			duration: duration,
 			timer: time.AfterFunc(duration, func() {
 				s.mutex.Lock()
 				defer s.mutex.Unlock() //nolint:errcheck
@@ -278,7 +278,7 @@ func (s *Server) handleAllSwitchesStatus(w http.ResponseWriter) {
 			state["dutyCycle"] = blinker.GetDutyCycle()
 		}
 		if timer, ok := s.timers[swid]; ok {
-			state["duration"] = int(time.Until(timer.expiresAt).Seconds())
+			state["duration"] = timer.duration
 		}
 		states = append(states, state)
 	}
@@ -320,7 +320,7 @@ func (s *Server) handleSingleSwitchStatus(w http.ResponseWriter, id uint, idStr 
 	}
 
 	if timer, ok := s.timers[swid]; ok {
-		data["duration"] = int(time.Until(timer.expiresAt).Seconds())
+		data["duration"] = timer.duration
 	}
 
 	s.sendSuccess(w, data)
