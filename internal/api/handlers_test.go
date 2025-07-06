@@ -114,7 +114,7 @@ func TestSwitchStatusHandler(t *testing.T) {
 				if response.Status != "ok" {
 					t.Errorf("Expected status ok, got %v", response.Status)
 				}
-				data := response.Data.(map[string]interface{})
+				data := response.Data.(map[string]any)
 				if data["state"] != true {
 					t.Errorf("Expected switch state true, got %v", data["state"])
 				}
@@ -133,11 +133,11 @@ func TestSwitchStatusHandler(t *testing.T) {
 				if response.Status != "ok" {
 					t.Errorf("Expected status ok, got %v", response.Status)
 				}
-				data := response.Data.(map[string]interface{})
+				data := response.Data.(map[string]any)
 				if data["count"] != float64(3) {
 					t.Errorf("Expected count 3, got %v", data["count"])
 				}
-				states := data["states"].([]interface{})
+				states := data["states"].([]any)
 				if len(states) != 3 {
 					t.Errorf("Expected 3 states, got %d", len(states))
 				}
@@ -310,7 +310,7 @@ func TestBlinkStatusHandler(t *testing.T) {
 				if response.Status != "ok" {
 					t.Errorf("Expected status ok, got %v", response.Status)
 				}
-				data := response.Data.(map[string]interface{})
+				data := response.Data.(map[string]any)
 				if data["blinking"] != false {
 					t.Errorf("Expected blinking false, got %v", data["blinking"])
 				}
@@ -331,7 +331,7 @@ func TestBlinkStatusHandler(t *testing.T) {
 				if response.Status != "ok" {
 					t.Errorf("Expected status ok, got %v", response.Status)
 				}
-				data := response.Data.(map[string]interface{})
+				data := response.Data.(map[string]any)
 				if data["blinking"] != true {
 					t.Errorf("Expected blinking true, got %v", data["blinking"])
 				}
