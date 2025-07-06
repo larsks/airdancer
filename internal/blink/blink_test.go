@@ -12,7 +12,7 @@ func TestNewBlink(t *testing.T) {
 	sw := &switchcollection.DummySwitch{}
 	period := 0.5 // 0.5 seconds, equivalent to 2Hz
 
-	blink, err := NewBlink(sw, period)
+	blink, err := NewBlink(sw, period, 0)
 	if err != nil {
 		t.Fatalf("NewBlink() failed: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestNewBlinkErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewBlink(tt.sw, tt.period)
+			_, err := NewBlink(tt.sw, tt.period, 0)
 			if err != tt.wantErr {
 				t.Errorf("NewBlink() error = %v, want %v", err, tt.wantErr)
 			}
@@ -69,7 +69,7 @@ func TestNewBlinkErrors(t *testing.T) {
 
 func TestBlinkStartStop(t *testing.T) {
 	sw := &switchcollection.DummySwitch{}
-	blink, err := NewBlink(sw, 0.1) // 0.1s period for faster testing
+	blink, err := NewBlink(sw, 0.1, 0) // 0.1s period for faster testing
 	if err != nil {
 		t.Fatalf("NewBlink() failed: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestBlinkStartStop(t *testing.T) {
 
 func TestBlinkRestartability(t *testing.T) {
 	sw := &switchcollection.DummySwitch{}
-	blink, err := NewBlink(sw, 0.1)
+	blink, err := NewBlink(sw, 0.1, 0)
 	if err != nil {
 		t.Fatalf("NewBlink() failed: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestBlinkPeriod(t *testing.T) {
 	sw := &switchcollection.DummySwitch{}
 
 	// Test with 0.2s period (should toggle every 100ms)
-	blink, err := NewBlink(sw, 0.2)
+	blink, err := NewBlink(sw, 0.2, 0)
 	if err != nil {
 		t.Fatalf("NewBlink() failed: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestBlinkPeriod(t *testing.T) {
 
 func TestBlinkConcurrency(t *testing.T) {
 	sw := &switchcollection.DummySwitch{}
-	blink, err := NewBlink(sw, 0.05) // High frequency for more concurrent operations
+	blink, err := NewBlink(sw, 0.05, 0) // High frequency for more concurrent operations
 	if err != nil {
 		t.Fatalf("NewBlink() failed: %v", err)
 	}

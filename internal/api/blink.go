@@ -13,8 +13,9 @@ import (
 )
 
 type blinkRequest struct {
-	State  string   `json:"state"`
-	Period *float64 `json:"period,omitempty"`
+	State     string   `json:"state"`
+	Period    *float64 `json:"period,omitempty"`
+	DutyCycle *float64 `json:"dutyCycle,omitempty"`
 }
 
 type blinkRequestKeyType int
@@ -44,6 +45,11 @@ func (s *Server) validateBlinkRequest(next http.Handler) http.Handler {
 			return
 		}
 
+		if req.DutyCycle != nil && (*req.DutyCycle < 0 || *req.DutyCycle > 1) {
+			s.sendError(w, "DutyCycle must be between 0 and 1", http.StatusBadRequest)
+			return
+		}
+
 		ctx := context.WithValue(r.Context(), blinkRequestKey, req)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -51,27 +57,13 @@ func (s *Server) validateBlinkRequest(next http.Handler) http.Handler {
 
 func (s *Server) blinkHandler(w http.ResponseWriter, r *http.Request) {
 	switchID := chi.URLParam(r, "id")
-	id, err := strconv.Atoi(switchID)
-	if err != nil {
-		s.sendError(w, "Invalid switch ID", http.StatusBadRequest)
-		return
-	}
-
-	req, ok := r.Context().Value(blinkRequestKey).(blinkRequest)
-	if !ok {
-		s.sendError(w, "Internal error: missing request data", http.StatusInternalServerError)
-		return
-	}
+	id, _ := strconv.Atoi(switchID)
+	req, _ := r.Context().Value(blinkRequestKey).(blinkRequest)
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	sw, err := s.switches.GetSwitch(uint(id))
-	if err != nil {
-		s.sendError(w, "Switch not found", http.StatusNotFound)
-		return
-	}
-
+	sw, _ := s.switches.GetSwitch(uint(id))
 	swid := sw.String()
 
 	// Stop any running timer for this switch
@@ -86,16 +78,14 @@ func (s *Server) blinkHandler(w http.ResponseWriter, r *http.Request) {
 	switch req.State {
 	case "on":
 		if blinkerExists && blinker.IsRunning() {
-			if req.Period != nil && blinker.GetPeriod() != *req.Period {
-				if err := blinker.Stop(); err != nil {
-					s.sendError(w, fmt.Sprintf("Failed to stop existing blinker: %v", err), http.StatusInternalServerError)
-					return
-				}
-				delete(s.blinkers, swid)
+			if err := blinker.Stop(); err != nil {
+				s.sendError(w, fmt.Sprintf("Failed to stop existing blinker: %v", err), http.StatusInternalServerError)
+				return
 			}
+			delete(s.blinkers, swid)
 		}
 
-		newBlinker, err := blink.NewBlink(sw, *req.Period)
+		newBlinker, err := blink.NewBlink(sw, *req.Period, *req.DutyCycle)
 		if err != nil {
 			s.sendError(w, fmt.Sprintf("Failed to create blinker: %v", err), http.StatusInternalServerError)
 			return
