@@ -31,7 +31,7 @@ type (
 
 	switchResponse struct {
 		switchRequest
-		CurrentState switchState `json:"currentState"`
+		CurrentState bool `json:"currentState"`
 	}
 
 	// Single response type that handles all cases
@@ -43,7 +43,8 @@ type (
 
 	multiSwitchResponse struct {
 		Summary  bool `json:"summary"`
-		Switches []switchResponse
+		State    switchState
+		Switches []*switchResponse
 	}
 )
 
@@ -184,6 +185,41 @@ func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, id u
 	s.sendSuccess(w, req)
 }
 
+func (s *Server) getStatusForSwitch(sw switchcollection.Switch) (*switchResponse, error) {
+	swid := sw.String()
+	currentState, err := sw.GetState()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get state for switch %s: %w", sw, err)
+	}
+
+	response := switchResponse{
+		CurrentState: currentState,
+	}
+
+	response.switchRequest.State = switchStateOn
+	if !currentState {
+		response.switchRequest.State = switchStateOff
+	}
+
+	if blinker, ok := s.blinkers[swid]; ok {
+		if blinker.IsRunning() {
+			period := blinker.GetPeriod()
+			duty := blinker.GetDutyCycle()
+
+			response.switchRequest.State = switchStateBlink
+			response.switchRequest.Period = &period
+			response.switchRequest.DutyCycle = &duty
+		}
+	}
+
+	if timer, ok := s.timers[swid]; ok {
+		duration := int(timer.duration / time.Second)
+		response.switchRequest.Duration = &duration
+	}
+
+	return &response, nil
+}
+
 func (s *Server) switchStatusHandler(w http.ResponseWriter, r *http.Request) {
 	switchIDStr := chi.URLParam(r, "id")
 
@@ -199,12 +235,8 @@ func (s *Server) switchStatusHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAllSwitchesStatus(w http.ResponseWriter) {
-	// Get detailed state for all switches
-	boolStates, err := s.switches.GetDetailedState()
-	if err != nil {
-		log.Printf("failed to get detailed switch states: %v", err)
-		s.sendError(w, "Failed to get switch states", http.StatusInternalServerError)
-		return
+	response := multiSwitchResponse{
+		Switches: make([]*switchResponse, s.switches.CountSwitches()),
 	}
 
 	// Get summary state (true if all switches are on)
@@ -214,35 +246,32 @@ func (s *Server) handleAllSwitchesStatus(w http.ResponseWriter) {
 		s.sendError(w, "Failed to get switch state", http.StatusInternalServerError)
 		return
 	}
-
-	states := []map[string]any{}
-	for i, bState := range boolStates {
-		state := map[string]any{}
-		if bState {
-			state["state"] = switchStateOn
-		} else {
-			state["state"] = switchStateOff
-		}
-
-		swid := fmt.Sprintf("switch-%d", i)
-		if blinker, ok := s.blinkers[swid]; ok && blinker.IsRunning() {
-			state["state"] = switchStateBlink
-			state["period"] = blinker.GetPeriod()
-			state["dutyCycle"] = blinker.GetDutyCycle()
-		}
-		if timer, ok := s.timers[swid]; ok {
-			state["duration"] = timer.duration
-		}
-		states = append(states, state)
+	response.Summary = summary
+	response.State = switchStateOff
+	if summary {
+		response.State = switchStateOn
 	}
 
-	data := map[string]any{
-		"count":   s.switches.CountSwitches(),
-		"states":  states,
-		"summary": summary,
+	if blinker, ok := s.blinkers["all"]; ok {
+		if blinker.IsRunning() {
+			response.State = switchStateBlink
+		}
 	}
 
-	s.sendSuccess(w, data)
+	for i := range s.switches.CountSwitches() {
+		sw, err := s.switches.GetSwitch(i)
+		if err != nil {
+			s.sendError(w, fmt.Sprintf("Failed to get lookup switch %d: %v", i, err), http.StatusInternalServerError)
+			return
+		}
+
+		response.Switches[i], err = s.getStatusForSwitch(sw)
+		if err != nil {
+			s.sendError(w, fmt.Sprintf("Failed to get status for switch %s: %v", sw, err), http.StatusBadRequest)
+		}
+	}
+
+	s.sendSuccess(w, response)
 }
 
 func (s *Server) handleSingleSwitchStatus(w http.ResponseWriter, id uint, idStr string) {
@@ -253,30 +282,12 @@ func (s *Server) handleSingleSwitchStatus(w http.ResponseWriter, id uint, idStr 
 		return
 	}
 
-	swid := sw.String()
-
-	state, err := sw.GetState()
+	response, err := s.getStatusForSwitch(sw)
 	if err != nil {
-		log.Printf("failed to get state for switch %d: %v", id, err)
-		s.sendError(w, "Failed to get switch state", http.StatusInternalServerError)
-		return
+		s.sendError(w, fmt.Sprintf("Failed to get status for switch: %v", err), http.StatusBadRequest)
 	}
 
-	data := map[string]any{
-		"state": state,
-	}
-
-	if blinker, ok := s.blinkers[swid]; ok && blinker.IsRunning() {
-		data["state"] = "blink"
-		data["period"] = blinker.GetPeriod()
-		data["dutyCycle"] = blinker.GetDutyCycle()
-	}
-
-	if timer, ok := s.timers[swid]; ok {
-		data["duration"] = timer.duration
-	}
-
-	s.sendSuccess(w, data)
+	s.sendSuccess(w, response)
 }
 
 func (s *Server) listRoutesHandler(w http.ResponseWriter, r *http.Request) {
