@@ -22,13 +22,12 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// Server represents the API server.
-
 type timerData struct {
 	timer    *time.Timer
 	duration time.Duration
 }
 
+// Server represents the API server.
 type Server struct {
 	listenAddr string
 	switches   switchcollection.SwitchCollection

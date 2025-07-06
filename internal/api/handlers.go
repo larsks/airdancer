@@ -12,19 +12,29 @@ import (
 	"github.com/larsks/airdancer/internal/blink"
 )
 
-type switchRequest struct {
-	State     string   `json:"state"`
-	Duration  *int     `json:"duration,omitempty"`
-	Period    *float64 `json:"period,omitempty"`
-	DutyCycle *float64 `json:"dutyCycle,omitempty"`
-}
+type switchState string
 
-// Single response type that handles all cases
-type APIResponse struct {
-	Status  string `json:"status"`
-	Message string `json:"message,omitempty"`
-	Data    any    `json:"data,omitempty"`
-}
+const (
+	switchStateOn    switchState = "on"
+	switchStateOff               = "off"
+	switchStateBlink             = "blink"
+)
+
+type (
+	switchRequest struct {
+		State     switchState `json:"state"`
+		Duration  *int        `json:"duration,omitempty"`
+		Period    *float64    `json:"period,omitempty"`
+		DutyCycle *float64    `json:"dutyCycle,omitempty"`
+	}
+
+	// Single response type that handles all cases
+	APIResponse struct {
+		Status  string `json:"status"`
+		Message string `json:"message,omitempty"`
+		Data    any    `json:"data,omitempty"`
+	}
+)
 
 // Helper methods for responses
 func (s *Server) sendSuccess(w http.ResponseWriter, data any) {
@@ -91,17 +101,17 @@ func (s *Server) handleAllSwitches(w http.ResponseWriter, r *http.Request) {
 
 	// Execute switch operation on all switches
 	switch req.State {
-	case "on":
+	case switchStateOn:
 		if err := s.switches.TurnOn(); err != nil {
 			s.sendError(w, "Failed to turn on switches", http.StatusInternalServerError)
 			return
 		}
-	case "off":
+	case switchStateOff:
 		if err := s.switches.TurnOff(); err != nil {
 			s.sendError(w, "Failed to turn off switches", http.StatusInternalServerError)
 			return
 		}
-	case "blink":
+	case switchStateBlink:
 		s.sendError(w, "Blinking all switches is not supported", http.StatusBadRequest)
 		return
 	}
@@ -169,17 +179,17 @@ func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, id u
 
 	// Execute switch operation
 	switch req.State {
-	case "on":
+	case switchStateOn:
 		if err := sw.TurnOn(); err != nil {
 			s.sendError(w, "Failed to turn on switch", http.StatusInternalServerError)
 			return
 		}
-	case "off":
+	case switchStateOff:
 		if err := sw.TurnOff(); err != nil {
 			s.sendError(w, "Failed to turn off switch", http.StatusInternalServerError)
 			return
 		}
-	case "blink":
+	case switchStateBlink:
 		dutyCycle := 0.5
 		if req.DutyCycle != nil {
 			dutyCycle = *req.DutyCycle
@@ -266,14 +276,14 @@ func (s *Server) handleAllSwitchesStatus(w http.ResponseWriter) {
 	for i, bState := range boolStates {
 		state := map[string]any{}
 		if bState {
-			state["state"] = "on"
+			state["state"] = switchStateOn
 		} else {
-			state["state"] = "off"
+			state["state"] = switchStateOff
 		}
 
 		swid := fmt.Sprintf("switch-%d", i)
 		if blinker, ok := s.blinkers[swid]; ok && blinker.IsRunning() {
-			state["state"] = "blink"
+			state["state"] = switchStateBlink
 			state["period"] = blinker.GetPeriod()
 			state["dutyCycle"] = blinker.GetDutyCycle()
 		}
