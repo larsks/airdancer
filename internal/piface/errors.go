@@ -13,6 +13,7 @@ var (
 	ErrPeriphInitFailed = errors.New("failed to initialize periph.io")
 	ErrSPIPortOpen      = errors.New("failed to open SPI port")
 	ErrSPIConnect       = errors.New("failed to connect to SPI")
+	ErrTooManySwitches  = errors.New("cannot more switches than available outputs")
 )
 
 // Register operation errors
