@@ -213,6 +213,13 @@ func (s *Server) Start() error {
 		}
 	}()
 
+	// XXX: This is a hack! There is a LED attached to output 7; we use this
+	// to provide a visual indication that things are running. Handling this exernally
+	// is tricky because piface initialization disables the outputs.
+	if pf, ok := s.switches.(*piface.PiFace); ok {
+		pf.WriteOutput(7, 1) //nolint:errcheck
+	}
+
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
