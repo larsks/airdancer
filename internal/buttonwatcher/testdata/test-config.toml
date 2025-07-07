@@ -1,0 +1,17 @@
+[[buttons]]
+name = "Button 1"
+device = "/dev/input/event0"
+event_type = "EV_KEY"
+event_code = 115
+click_action = "reboot"
+
+[[buttons]]
+name = "Button 2"
+device = "/dev/input/event1"
+event_type = "EV_KEY"
+event_code = 114
+short_press_action = "shutdown"
+long_press_action = "reboot"
+short_press_duration = "200ms"
+long_press_duration = "2s"
+timeout = "5s"
