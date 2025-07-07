@@ -41,7 +41,8 @@ type Server struct {
 
 type (
 	PiFaceConfig struct {
-		SPIDev string `mapstructure:"spidev"`
+		SPIDev      string `mapstructure:"spidev"`
+		MaxSwitches uint   `mapstructure:"max-switches"`
 	}
 
 	GPIOConfig struct {
@@ -87,6 +88,7 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&c.ListenPort, "listen-port", c.ListenPort, "Listen port for http server")
 	fs.StringVar(&c.Driver, "driver", c.Driver, "Driver to use (piface, gpio, or dummy)")
 	fs.StringVar(&c.PiFaceConfig.SPIDev, "piface.spidev", c.PiFaceConfig.SPIDev, "SPI device to use")
+	fs.UintVar(&c.PiFaceConfig.MaxSwitches, "piface.max-switches", c.PiFaceConfig.MaxSwitches, "Max number of switches to expose in the API")
 	fs.StringSliceVar(&c.GPIOConfig.Pins, "gpio.pins", c.GPIOConfig.Pins, "GPIO pins to use (for gpio driver)")
 	fs.UintVar(&c.DummyConfig.SwitchCount, "dummy.switch-count", c.DummyConfig.SwitchCount, "Number of switches for dummy driver")
 }
@@ -118,7 +120,7 @@ func NewServer(cfg *Config) (*Server, error) {
 
 	switch cfg.Driver {
 	case "piface":
-		switches, err = piface.NewPiFace(true, cfg.PiFaceConfig.SPIDev)
+		switches, err = piface.NewPiFace(true, cfg.PiFaceConfig.SPIDev, cfg.PiFaceConfig.MaxSwitches)
 		if err != nil {
 			return nil, fmt.Errorf("%w on %s: %v", ErrPiFaceInitFailed, cfg.PiFaceConfig.SPIDev, err)
 		}

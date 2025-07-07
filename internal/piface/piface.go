@@ -89,12 +89,12 @@ func (pf *PiFace) String() string {
 
 // SwitchCollection interface implementation
 func (pf *PiFace) CountSwitches() uint {
-	return NUMBER_OF_OUTPUTS
+	return pf.maxSwitches
 }
 
 func (pf *PiFace) ListSwitches() []switchcollection.Switch {
 	var switches []switchcollection.Switch
-	for i := range NUMBER_OF_OUTPUTS {
+	for i := range pf.maxSwitches {
 		if sw, err := pf.GetSwitch(uint(i)); err == nil {
 			switches = append(switches, sw)
 		}
@@ -143,8 +143,8 @@ func (pf *PiFace) GetDetailedState() ([]bool, error) {
 		return nil, fmt.Errorf("%w: %v", ErrGetDetailedState, err)
 	}
 
-	states := make([]bool, NUMBER_OF_OUTPUTS)
-	for i := 0; i < NUMBER_OF_OUTPUTS; i++ {
+	states := make([]bool, pf.maxSwitches)
+	for i := 0; i < int(pf.maxSwitches); i++ {
 		states[i] = getBit(outputs, uint8(i))
 	}
 	return states, nil

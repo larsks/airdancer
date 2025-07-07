@@ -32,6 +32,7 @@ type PiFace struct {
 	spiPort     spi.PortCloser
 	spiConn     spi.Conn
 	offOnClose  bool
+	maxSwitches uint
 }
 
 // Helper functions for bit operations and validation
@@ -53,7 +54,7 @@ func getBit(value uint8, pin uint8) bool {
 	return (value>>pin)&1 != 0
 }
 
-func NewPiFace(offOnClose bool, spiPortName string) (*PiFace, error) {
+func NewPiFace(offOnClose bool, spiPortName string, maxSwitches uint) (*PiFace, error) {
 	// Initialize periph.io host
 	if _, err := host.Init(); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrPeriphInitFailed, err)
@@ -72,11 +73,20 @@ func NewPiFace(offOnClose bool, spiPortName string) (*PiFace, error) {
 	}
 	log.Printf("opened piface device at %s", spiPortName)
 
+	if maxSwitches > NUMBER_OF_OUTPUTS {
+		return nil, ErrTooManySwitches
+	}
+
+	if maxSwitches == 0 {
+		maxSwitches = NUMBER_OF_OUTPUTS
+	}
+
 	return &PiFace{
 		spiPortName: spiPortName,
 		spiPort:     spiPort,
 		spiConn:     spiConn,
 		offOnClose:  offOnClose,
+		maxSwitches: maxSwitches,
 	}, nil
 }
 

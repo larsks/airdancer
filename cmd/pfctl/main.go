@@ -67,7 +67,7 @@ func main() {
 	command := args[0]
 
 	// Initialize PiFace
-	pf, err := piface.NewPiFace(false, *spiDevice)
+	pf, err := piface.NewPiFace(false, *spiDevice, 0)
 	if err != nil {
 		log.Fatalf("Failed to initialize PiFace on %s: %v", *spiDevice, err)
 	}
