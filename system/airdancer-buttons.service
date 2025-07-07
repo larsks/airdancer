@@ -1,0 +1,12 @@
+[Unit]
+Description=Airdancer Buttons
+PartOf=airdancer.target
+
+[Service]
+User=dancer
+ExecStart=/home/dancer/airdancer-buttons
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=airdancer.target
