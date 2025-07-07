@@ -10,6 +10,7 @@ UNITS = \
 	airdancer-monitor.service \
 	airdancer-ui.service \
 	airdancer-wifi-fallback.service \
+	airdancer-buttons.service \
 	airdancer.target
 
 CFGFILES = \
