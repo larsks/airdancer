@@ -1,0 +1,21 @@
+# Example configuration for airdancer-buttons
+
+[[buttons]]
+name = "Power"
+device = "/dev/input/by-id/usb-Microntek_USB_Joystick-event-joystick"
+event_type = "EV_KEY"
+event_code = 289
+click_action = "xh -I localhost:8080/switch/0 state=on duration:=10"
+short_press_duration = "2s"
+short_press_action = "sudo reboot"
+long_press_duration = "5s"
+long_press_action = "sudo poweroff"
+
+[[buttons]]
+name = "Wifi"
+device = "/dev/input/by-id/usb-Microntek_USB_Joystick-event-joystick"
+event_type = "EV_KEY"
+event_code = 288
+click_action = "xh -I localhost:8080/switch/1 state=on duration:=10"
+short_press_duration = "2s"
+short_press_action = "sudo systemctl start airdancer-wifi-fallback"
