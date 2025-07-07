@@ -42,9 +42,10 @@ type (
 	}
 
 	multiSwitchResponse struct {
-		Summary  bool `json:"summary"`
-		State    switchState
-		Switches []*switchResponse
+		Summary  bool              `json:"summary"`
+		State    switchState       `json:"state"`
+		Count    uint              `json:"count"`
+		Switches []*switchResponse `json:"switches"`
 	}
 )
 
@@ -177,6 +178,21 @@ func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, id u
 	s.mutex.Lock()
 	defer s.mutex.Unlock() //nolint:errcheck
 
+	if blinker, ok := s.blinkers["all"]; ok {
+		if blinker.IsRunning() {
+			log.Printf("cancelling blinker on all switches")
+			blinker.Stop()
+			delete(s.blinkers, "all")
+		}
+	}
+
+	if timer, ok := s.timers["all"]; ok {
+		log.Printf("cancelling timer on all switches")
+		timer.timer.Stop()
+		s.switches.TurnOff()
+		delete(s.timers, "all")
+	}
+
 	sw, _ := s.switches.GetSwitch(id)
 	swid := sw.String()
 	if err := s.handleSwitchHelper(w, &req, swid, sw); err != nil {
@@ -236,6 +252,7 @@ func (s *Server) switchStatusHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleAllSwitchesStatus(w http.ResponseWriter) {
 	response := multiSwitchResponse{
+		Count:    s.switches.CountSwitches(),
 		Switches: make([]*switchResponse, s.switches.CountSwitches()),
 	}
 
