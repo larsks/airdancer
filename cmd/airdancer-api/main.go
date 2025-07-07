@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/larsks/airdancer/internal/api"
+	_ "github.com/larsks/airdancer/internal/logsetup"
 	"github.com/larsks/airdancer/internal/version"
 	"github.com/spf13/pflag"
 )
