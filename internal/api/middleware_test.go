@@ -359,7 +359,7 @@ func TestGetSwitchRequestFromContext(t *testing.T) {
 		name      string
 		setupCtx  func() context.Context
 		wantFound bool
-		wantState string
+		wantState switchState
 	}{
 		{
 			name: "valid context with request",
