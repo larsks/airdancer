@@ -17,8 +17,8 @@ type switchState string
 
 const (
 	switchStateOn    switchState = "on"
-	switchStateOff               = "off"
-	switchStateBlink             = "blink"
+	switchStateOff   switchState = "off"
+	switchStateBlink switchState = "blink"
 )
 
 type (
@@ -102,7 +102,7 @@ func (s *Server) handleSwitchHelper(w http.ResponseWriter, req *switchRequest, s
 		}
 	case switchStateOff:
 		if err := sw.TurnOff(); err != nil {
-			return fmt.Errorf("failed to turn off switch %s: %w", err)
+			return fmt.Errorf("failed to turn off switch %s: %w", sw, err)
 		}
 	case switchStateBlink:
 		dutyCycle := 0.5
@@ -181,7 +181,10 @@ func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, id u
 	if blinker, ok := s.blinkers["all"]; ok {
 		if blinker.IsRunning() {
 			log.Printf("cancelling blinker on all switches")
-			blinker.Stop()
+			if err := blinker.Stop(); err != nil {
+				s.sendError(w, fmt.Sprintf("Failed to cancel blinker on all: %v", err), http.StatusInternalServerError)
+				return
+			}
 			delete(s.blinkers, "all")
 		}
 	}
@@ -189,7 +192,10 @@ func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, id u
 	if timer, ok := s.timers["all"]; ok {
 		log.Printf("cancelling timer on all switches")
 		timer.timer.Stop()
-		s.switches.TurnOff()
+		if err := s.switches.TurnOff(); err != nil {
+			s.sendError(w, fmt.Sprintf("Failed to cancel timer on all: %v", err), http.StatusInternalServerError)
+			return
+		}
 		delete(s.timers, "all")
 	}
 
@@ -197,6 +203,7 @@ func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, id u
 	swid := sw.String()
 	if err := s.handleSwitchHelper(w, &req, swid, sw); err != nil {
 		s.sendError(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 	s.sendSuccess(w, req)
 }
@@ -212,9 +219,9 @@ func (s *Server) getStatusForSwitch(sw switchcollection.Switch) (*switchResponse
 		CurrentState: currentState,
 	}
 
-	response.switchRequest.State = switchStateOn
+	response.State = switchStateOn
 	if !currentState {
-		response.switchRequest.State = switchStateOff
+		response.State = switchStateOff
 	}
 
 	if blinker, ok := s.blinkers[swid]; ok {
@@ -222,15 +229,15 @@ func (s *Server) getStatusForSwitch(sw switchcollection.Switch) (*switchResponse
 			period := blinker.GetPeriod()
 			duty := blinker.GetDutyCycle()
 
-			response.switchRequest.State = switchStateBlink
-			response.switchRequest.Period = &period
-			response.switchRequest.DutyCycle = &duty
+			response.State = switchStateBlink
+			response.Period = &period
+			response.DutyCycle = &duty
 		}
 	}
 
 	if timer, ok := s.timers[swid]; ok {
 		duration := int(timer.duration / time.Second)
-		response.switchRequest.Duration = &duration
+		response.Duration = &duration
 	}
 
 	return &response, nil
