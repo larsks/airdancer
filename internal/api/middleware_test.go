@@ -66,7 +66,7 @@ func TestValidateSwitchID(t *testing.T) {
 			name:              "negative ID",
 			switchID:          "-1",
 			wantStatus:        http.StatusBadRequest,
-			wantHandlerCalled: true,
+			wantHandlerCalled: false,
 		},
 	}
 
@@ -212,14 +212,14 @@ func TestValidateSwitchRequest(t *testing.T) {
 			requestBody:       `{}`,
 			wantStatus:        http.StatusBadRequest,
 			wantHandlerCalled: false,
-			wantErrorMsg:      "State must be 'on' or 'off'",
+			wantErrorMsg:      "State must be 'on', 'off', or 'blink'",
 		},
 		{
 			name:              "invalid state",
 			requestBody:       `{"state":"toggle"}`,
 			wantStatus:        http.StatusBadRequest,
 			wantHandlerCalled: false,
-			wantErrorMsg:      "State must be 'on' or 'off'",
+			wantErrorMsg:      "State must be 'on', 'off', or 'blink'",
 		},
 		{
 			name:              "zero duration",
@@ -240,7 +240,7 @@ func TestValidateSwitchRequest(t *testing.T) {
 			requestBody:       `{"duration":10}`,
 			wantStatus:        http.StatusBadRequest,
 			wantHandlerCalled: false,
-			wantErrorMsg:      "State must be 'on' or 'off'",
+			wantErrorMsg:      "State must be 'on', 'off', or 'blink'",
 		},
 	}
 
