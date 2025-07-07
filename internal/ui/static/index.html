@@ -289,7 +289,7 @@
                     }
 
                     switchCount = data.data.count;
-                    this.switches = data.data.states;
+                    this.switches = data.data.switches.map(sw => sw.currentState);
                     this.renderSwitches();
                     this.updateLastUpdated();
                     this.showMessage('Switches loaded successfully', 'success');
@@ -315,7 +315,7 @@
 
                     this.updateConnectionStatus('Connected');
                     const newCount = data.data.count;
-                    const newSwitches = data.data.states;
+                    const newSwitches = data.data.switches.map(sw => sw.currentState);
                     
                     // Check if the number of switches has changed
                     if (newCount !== switchCount) {
