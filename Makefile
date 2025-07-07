@@ -24,6 +24,7 @@ DATE = $(shell date -u +"%Y-%m-%dT%H:%M:%S")
 BINS = $(BIN_DIR)/airdancer-api \
 	$(BIN_DIR)/airdancer-monitor \
 	$(BIN_DIR)/airdancer-ui \
+	$(BIN_DIR)/airdancer-buttons \
 	$(BIN_DIR)/gpiotest \
 	$(BIN_DIR)/pfctl \
 	$(BIN_DIR)/configvalidate
@@ -94,6 +95,9 @@ $(BIN_DIR):
 
 $(BIN_DIR)/airdancer-api: $(GO_SOURCES) $(GO_MOD_FILES) | $(BIN_DIR)
 	$(GO) build $(GOFLAGS) -o $@ ./cmd/airdancer-api
+
+$(BIN_DIR)/airdancer-buttons: $(GO_SOURCES) $(GO_MOD_FILES) | $(BIN_DIR)
+	$(GO) build $(GOFLAGS) -o $@ ./cmd/airdancer-buttons
 
 $(BIN_DIR)/airdancer-monitor: $(GO_SOURCES) $(GO_MOD_FILES) | $(BIN_DIR)
 	$(GO) build $(GOFLAGS) -o $@ ./cmd/airdancer-monitor
