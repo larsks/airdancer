@@ -165,7 +165,7 @@ var AbsCodes = map[uint16]string{
 	61: "MT_TOOL_Y",
 }
 
-func GetEventTypeName(eventType EventType) string {
+func GetEventTypeCode(eventType EventType) string {
 	switch eventType {
 	case EV_SYN:
 		return "EV_SYN"
@@ -194,6 +194,38 @@ func GetEventTypeName(eventType EventType) string {
 	default:
 		return fmt.Sprintf("UNKNOWN_%d", eventType)
 	}
+}
+
+func GetEventTypeName(eventTypeName string) (EventType, bool) {
+	switch eventTypeName {
+	case "EV_SYN":
+		return EV_SYN, true
+	case "EV_KEY":
+		return EV_KEY, true
+	case "EV_REL":
+		return EV_REL, true
+	case "EV_ABS":
+		return EV_ABS, true
+	case "EV_MSC":
+		return EV_MSC, true
+	case "EV_SW":
+		return EV_SW, true
+	case "EV_LED":
+		return EV_LED, true
+	case "EV_SND":
+		return EV_SND, true
+	case "EV_REP":
+		return EV_REP, true
+	case "EV_FF":
+		return EV_FF, true
+	case "EV_PWR":
+		return EV_PWR, true
+	case "EV_FF_STATUS":
+		return EV_FF_STATUS, true
+	default:
+		return 0, false
+	}
+
 }
 
 func GetKeyName(code uint16) string {
