@@ -6,6 +6,7 @@ import (
 
 	flag "github.com/spf13/pflag"
 
+	_ "github.com/larsks/airdancer/internal/logsetup"
 	"github.com/larsks/airdancer/internal/monitor"
 	"github.com/larsks/airdancer/internal/version"
 )
