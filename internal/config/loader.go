@@ -157,7 +157,7 @@ func (cl *ConfigLoader) LoadConfig(config any) error {
 
 	// Use strict mode if enabled to detect unknown configuration fields
 	if cl.strictMode {
-		// Create a custom decoder config that errors on unused fields
+		// Use strict mode if enabled to detect unknown configuration fields
 		var unmarshalConfig mapstructure.DecoderConfig
 		unmarshalConfig.Result = config
 		unmarshalConfig.ErrorUnused = true
@@ -184,7 +184,24 @@ func (cl *ConfigLoader) LoadConfig(config any) error {
 		}
 	} else {
 		// Use regular unmarshaling which ignores unknown fields
-		if err := v.Unmarshal(config); err != nil {
+		decodeHook := func(f reflect.Type, t reflect.Type, data interface{}) (interface{}, error) {
+			if f.Kind() != reflect.Struct {
+				return data, nil
+			}
+
+			dataVal := reflect.ValueOf(data)
+			if dataVal.IsZero() {
+				return nil, nil
+			}
+
+			return data, nil
+		}
+
+		if err := v.Unmarshal(config, viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(
+			decodeHook,
+			mapstructure.StringToTimeDurationHookFunc(),
+			mapstructure.StringToSliceHookFunc(","),
+		))); err != nil {
 			return fmt.Errorf("%w: %v", ErrConfigUnmarshal, err)
 		}
 	}
