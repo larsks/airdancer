@@ -39,7 +39,7 @@ func (s *Server) validateSwitchID(next http.Handler) http.Handler {
 			}
 
 			if val >= int(s.switches.CountSwitches()) {
-				s.sendError(w, fmt.Sprintf("Invalid switch ID -- must be < %d", s.switches.CountSwitches()), http.StatusBadRequest)
+				s.sendError(w, fmt.Sprintf("Unknown switch ID -- must be < %d", s.switches.CountSwitches()), http.StatusNotFound)
 				return
 			}
 		}
