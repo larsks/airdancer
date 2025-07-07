@@ -27,8 +27,8 @@ type ButtonState struct {
 	mutex            sync.Mutex
 }
 
-// MonitoredButton represents a button being monitored
-type MonitoredButton struct {
+// Button represents a button being monitored
+type Button struct {
 	Name               string
 	Device             string
 	EventType          events.EventType
@@ -44,10 +44,10 @@ type MonitoredButton struct {
 	state              *ButtonState
 }
 
-type ButtonOption func(button *MonitoredButton)
+type ButtonOption func(button *Button)
 
-func NewButton(name string, device string, eventType events.EventType, eventCode uint32) *MonitoredButton {
-	return &MonitoredButton{
+func NewButton(name string, device string, eventType events.EventType, eventCode uint32) *Button {
+	return &Button{
 		Name:      name,
 		Device:    device,
 		EventType: eventType,
@@ -62,65 +62,80 @@ func NewButton(name string, device string, eventType events.EventType, eventCode
 }
 
 func ShortPress(duration time.Duration, action string) ButtonOption {
-	return func(button *MonitoredButton) {
+	return func(button *Button) {
 		button.ShortPressDuration = duration
 		button.ShortPressAction = action
 	}
 }
 
 func LongPress(duration time.Duration, action string) ButtonOption {
-	return func(button *MonitoredButton) {
+	return func(button *Button) {
 		button.LongPressDuration = duration
 		button.LongPressAction = action
 	}
 }
 
 func Click(action string) ButtonOption {
-	return func(button *MonitoredButton) {
+	return func(button *Button) {
 		button.ClickAction = action
 	}
 }
 
 func Timeout(timeout time.Duration) ButtonOption {
-	return func(button *MonitoredButton) {
+	return func(button *Button) {
 		button.Timeout = timeout
 	}
 }
 
 func LowValue(val uint32) ButtonOption {
-	return func(button *MonitoredButton) {
+	return func(button *Button) {
 		button.LowValue = val
 	}
 }
 
 func HighValue(val uint32) ButtonOption {
-	return func(button *MonitoredButton) {
+	return func(button *Button) {
 		button.HighValue = val
 	}
 }
 
-func (button *MonitoredButton) With(options ...ButtonOption) *MonitoredButton {
+func (button *Button) With(options ...ButtonOption) *Button {
 	for _, option := range options {
 		option(button)
 	}
 	return button
 }
 
-func (button *MonitoredButton) executeCommand(command string) error {
+func (button *Button) Validate() error {
+	if button.LongPressDuration > 0 && button.LongPressDuration <= button.ShortPressDuration {
+		return fmt.Errorf("LongPressDuration must be >= ShortPressDuration")
+	}
+
+	if button.Timeout > 0 && button.Timeout <= button.LongPressDuration || button.Timeout <= button.ShortPressDuration {
+		return fmt.Errorf("Timeout must be > both ShortPressDuration and LongPressDuration")
+	}
+
+	return nil
+}
+
+func (button *Button) executeCommand(command string) error {
 	if command == "" {
-		log.Printf("[%s] No command\n", button.Device)
+		log.Printf("[%s:%s] No command\n", button.Device, button.Name)
 		return nil
 	}
-	log.Printf("[%s] Executing command: %s\n", button.Device, command)
+	log.Printf("[%s:%s] Executing command: %s\n", button.Device, button.Name, command)
 	cmd := exec.Command("sh", "-c", command)
 	return cmd.Run()
 }
 
-func (button *MonitoredButton) startHoldTimer() {
+func (button *Button) startHoldTimer() {
 	button.state.mutex.Lock()
+	defer button.state.mutex.Unlock()
+	button.startHoldTimerUnlocked()
+}
 
+func (button *Button) startHoldTimerUnlocked() {
 	if button.state.ticker != nil {
-		button.state.mutex.Unlock()
 		return
 	}
 
@@ -130,8 +145,6 @@ func (button *MonitoredButton) startHoldTimer() {
 	button.state.shortPressWarned = false
 	button.state.longPressWarned = false
 	button.state.timeoutWarned = false
-
-	button.state.mutex.Unlock()
 
 	go func() {
 		for {
@@ -147,26 +160,21 @@ func (button *MonitoredButton) startHoldTimer() {
 
 						if button.ShortPressDuration > 0 &&
 							elapsed >= button.ShortPressDuration &&
-							elapsed < button.LongPressDuration &&
+							(button.LongPressDuration == 0 || elapsed < button.LongPressDuration) &&
 							!button.state.shortPressWarned {
-							log.Printf("Button %s - SHORT PRESS ZONE (%.0fs)", button.Name, button.ShortPressDuration.Seconds())
+							log.Printf("[%s:%s] SHORT PRESS ZONE (%.0fs)", button.Device, button.Name, button.ShortPressDuration.Seconds())
 							button.state.shortPressWarned = true
 						} else if button.LongPressDuration > 0 &&
 							elapsed >= button.LongPressDuration &&
 							elapsed < button.Timeout &&
 							!button.state.longPressWarned {
-							log.Printf("Button %s - LONG PRESS ZONE (%.0fs)", button.Name, button.LongPressDuration.Seconds())
+							log.Printf("[%s:%s] LONG PRESS ZONE (%.0fs)", button.Device, button.Name, button.LongPressDuration.Seconds())
 							button.state.longPressWarned = true
 						} else if button.Timeout > 0 &&
 							elapsed >= button.Timeout &&
 							!button.state.timeoutWarned {
-							log.Printf("Button %s - TIMEOUT (no action)", button.Name)
+							log.Printf("[%s:%s] TIMEOUT (%.0fs)", button.Device, button.Name, button.Timeout.Seconds())
 							button.state.timeoutWarned = true
-						}
-
-						if (button.ShortPressDuration > 0 && elapsed >= button.ShortPressDuration) ||
-							(button.LongPressDuration > 0 && elapsed >= button.LongPressDuration) {
-							fmt.Print("...")
 						}
 					}
 				}
@@ -178,7 +186,7 @@ func (button *MonitoredButton) startHoldTimer() {
 	}()
 }
 
-func (button *MonitoredButton) stopHoldTimer() {
+func (button *Button) stopHoldTimer() {
 	button.state.mutex.Lock()
 	defer button.state.mutex.Unlock()
 
@@ -187,25 +195,24 @@ func (button *MonitoredButton) stopHoldTimer() {
 		button.state.stopTicker <- true
 		close(button.state.stopTicker)
 		button.state.ticker = nil
-		log.Print()
 	}
 }
 
-func (button *MonitoredButton) handleButtonPress() {
+func (button *Button) handleButtonPress() {
 	button.state.mutex.Lock()
 	defer button.state.mutex.Unlock()
 
 	if !button.state.isPressed {
 		button.state.isPressed = true
 		button.state.pressTime = time.Now()
-		log.Printf("[%s] Button %s PRESSED (value=%d)\n",
+		log.Printf("[%s:%s] Button PRESSED (value=%d)\n",
 			button.Device, button.Name, button.HighValue)
 	}
 
-	button.startHoldTimer()
+	button.startHoldTimerUnlocked()
 }
 
-func (button *MonitoredButton) handleButtonRelease() {
+func (button *Button) handleButtonRelease() {
 	button.state.mutex.Lock()
 	isPressed := button.state.isPressed
 	pressTime := button.state.pressTime
@@ -218,28 +225,28 @@ func (button *MonitoredButton) handleButtonRelease() {
 
 		button.stopHoldTimer()
 
-		log.Printf("[%s] Button %s RELEASED (value=%d) - Hold duration: %.2f seconds\n",
+		log.Printf("[%s:%s] Button RELEASED (value=%d) - Hold duration: %.2f seconds\n",
 			button.Device, button.Name, button.LowValue, holdDuration.Seconds())
 
 		// Determine which action to execute based on hold duration
 		if button.Timeout > 0 && holdDuration >= button.Timeout {
-			log.Printf("[%s] Hold duration >= timeout (%.1fs): No action taken\n",
-				button.Device, button.Timeout.Seconds())
+			log.Printf("[%s:%s] Hold duration >= timeout (%.1fs): No action taken\n",
+				button.Device, button.Name, button.Timeout.Seconds())
 		} else if button.LongPressDuration > 0 && holdDuration >= button.LongPressDuration {
-			log.Printf("[%s] Long press detected (%.1fs): %s\n",
-				button.Device, button.LongPressDuration.Seconds(), button.LongPressAction)
+			log.Printf("[%s:%s] Long press detected (%.1fs): %s\n",
+				button.Device, button.Name, button.LongPressDuration.Seconds(), button.LongPressAction)
 			if err := button.executeCommand(button.LongPressAction); err != nil {
-				log.Printf("[%s] Error executing long press action: %v\n", button.Device, err)
+				log.Printf("[%s:%s] Error executing long press action: %v\n", button.Device, button.Name, err)
 			}
 		} else if button.ShortPressDuration > 0 && holdDuration >= button.ShortPressDuration {
-			log.Printf("[%s] Short press detected (%.1fs): %s\n",
-				button.Device, button.ShortPressDuration.Seconds(), button.ShortPressAction)
+			log.Printf("[%s:%s] Short press detected (%.1fs): %s\n",
+				button.Device, button.Name, button.ShortPressDuration.Seconds(), button.ShortPressAction)
 			if err := button.executeCommand(button.ShortPressAction); err != nil {
-				log.Printf("[%s] Error executing short press action: %v\n", button.Device, err)
+				log.Printf("[%s:%s] Error executing short press action: %v\n", button.Device, button.Name, err)
 			}
 		} else if button.ClickAction != "" {
-			log.Printf("[%s] Click detected %s\n",
-				button.Device, button.ClickAction)
+			log.Printf("[%s:%s] Click detected %s\n",
+				button.Device, button.Name, button.ClickAction)
 			if err := button.executeCommand(button.ClickAction); err != nil {
 				log.Printf("[%s] Error executing click action: %v\n", button.Device, err)
 			}
@@ -247,8 +254,7 @@ func (button *MonitoredButton) handleButtonRelease() {
 	}
 }
 
-func (button *MonitoredButton) handleEvent(value uint32) {
-	log.Printf("handleEvent: %d", value)
+func (button *Button) handleEvent(value uint32) {
 	switch value {
 	case button.HighValue:
 		button.handleButtonPress()
@@ -260,18 +266,21 @@ func (button *MonitoredButton) handleEvent(value uint32) {
 }
 
 type ButtonMonitor struct {
-	buttons map[string][]*MonitoredButton
+	buttons map[string][]*Button
 	files   map[string]*os.File
 }
 
 func NewButtonMonitor() *ButtonMonitor {
 	return &ButtonMonitor{
-		buttons: make(map[string][]*MonitoredButton),
+		buttons: make(map[string][]*Button),
 		files:   make(map[string]*os.File),
 	}
 }
 
-func (bm *ButtonMonitor) AddButton(button *MonitoredButton) error {
+func (bm *ButtonMonitor) AddButton(button *Button) error {
+	if err := button.Validate(); err != nil {
+		return fmt.Errorf("invalid button configuration for button %s: %v", button.Name, err)
+	}
 	bm.buttons[button.Device] = append(bm.buttons[button.Device], button)
 
 	if _, exists := bm.files[button.Device]; !exists {
@@ -297,7 +306,7 @@ func (bm *ButtonMonitor) Start() error {
 	select {}
 }
 
-func (bm *ButtonMonitor) monitorDevice(device string, buttons []*MonitoredButton) {
+func (bm *ButtonMonitor) monitorDevice(device string, buttons []*Button) {
 	file := bm.files[device]
 	log.Printf("Monitoring device: %s with %d button(s)\n", device, len(buttons))
 
@@ -322,8 +331,6 @@ func (bm *ButtonMonitor) monitorDevice(device string, buttons []*MonitoredButton
 			log.Printf("Error parsing event from %s: %v\n", device, err)
 			continue
 		}
-
-		fmt.Printf("EVENT: %+v\n", event)
 
 		for _, button := range buttons {
 			if events.EventType(event.Type) == button.EventType && uint32(event.Code) == button.EventCode {
