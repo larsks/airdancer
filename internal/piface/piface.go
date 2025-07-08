@@ -113,9 +113,41 @@ func (pf *PiFace) GetSwitch(id uint) (switchcollection.Switch, error) {
 	}, nil
 }
 
+func setLowerBits(original, newValues uint8, writableBits uint8) uint8 {
+	// 1. Create a mask for the bits we want to update.
+	//    If writableBits is N, we need a mask with N ones at the end.
+	//    (1 << N) creates a 1 at position N. Subtracting 1 flips all lower bits to 1.
+	//    Example (writableBits = 6):
+	//    1 << 6  -> 01000000
+	//    - 1     -> 00111111 (this is our updateMask, 0x3F)
+	updateMask := uint8((1 << writableBits) - 1)
+
+	// 2. Use the bit clear operator (&^) to clear the lower bits in the original value.
+	//    This is equivalent to `original & (^updateMask)`.
+	//    Example (original = 11010101, updateMask = 00111111):
+	//    11010101 &^ 00111111  ->  11000000
+	preservedBits := original &^ updateMask
+
+	// 3. Ensure the new values only affect the bits within the mask.
+	//    Example (newValues = 00001100, updateMask = 00111111):
+	//    00001100 & 00111111  ->  00001100
+	newBits := newValues & updateMask
+
+	// 4. Combine the preserved upper bits with the new lower bits.
+	//    11000000 | 00001100  ->  11001100
+	return preservedBits | newBits
+}
+
+// TurnOn turns on all managed outputs (that is, outputs
+// up to pf.maxSwitches).
 func (pf *PiFace) TurnOn() error {
 	log.Printf("turn on all switches on %s", pf)
-	if err := pf.WriteOutputs(0xff); err != nil {
+	outputs, err := pf.ReadOutputs()
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrSwitchTurnOn, err)
+	}
+	outputs = setLowerBits(outputs, 0xff, uint8(pf.maxSwitches))
+	if err := pf.WriteOutputs(outputs); err != nil {
 		return fmt.Errorf("%w: %v", ErrSwitchTurnOn, err)
 	}
 	return nil
@@ -123,7 +155,12 @@ func (pf *PiFace) TurnOn() error {
 
 func (pf *PiFace) TurnOff() error {
 	log.Printf("turn off all switches on %s", pf)
-	if err := pf.WriteOutputs(0x0); err != nil {
+	outputs, err := pf.ReadOutputs()
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrSwitchTurnOn, err)
+	}
+	outputs = setLowerBits(outputs, 0x00, uint8(pf.maxSwitches))
+	if err := pf.WriteOutputs(outputs); err != nil {
 		return fmt.Errorf("%w: %v", ErrSwitchTurnOff, err)
 	}
 	return nil
