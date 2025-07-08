@@ -17,6 +17,7 @@ var (
 	versionFlag = pflag.Bool("version", false, "Show version and exit")
 	spiDevice   = pflag.String("spi-device", "/dev/spidev0.0", "SPI device path")
 	helpFlag    = pflag.BoolP("help", "h", false, "Show help")
+	duration    = pflag.Duration("duration", 0, "Duration to run blink command (0 = run indefinitely)")
 )
 
 func usage() {
@@ -27,7 +28,8 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "  read inputs     Read current input pin states\n")
 	fmt.Fprintf(os.Stderr, "  read outputs    Read current output pin states\n")
 	fmt.Fprintf(os.Stderr, "  write pin:value Set output pins to specified values\n")
-	fmt.Fprintf(os.Stderr, "  reflect         Continuously mirror input pins to output pins\n\n")
+	fmt.Fprintf(os.Stderr, "  reflect         Continuously mirror input pins to output pins\n")
+	fmt.Fprintf(os.Stderr, "  blink pin:period[:dutycycle] Blink output pins with specified period and duty cycle\n\n")
 
 	fmt.Fprintf(os.Stderr, "Options:\n")
 	pflag.PrintDefaults()
@@ -38,6 +40,8 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "  %s write 0:1 1:0 2:1        # Set pin 0 on, pin 1 off, pin 2 on\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "  %s write 0:on 1:off         # Alternative syntax with on/off\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "  %s reflect                  # Mirror inputs to outputs continuously\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "  %s blink 0:1s 1:500ms:0.3   # Blink pin 0 every 1s, pin 1 every 500ms at 30%% duty cycle\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "  %s --duration 10s blink 0:2s # Blink pin 0 every 2s for 10 seconds\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "  %s --spi-device /dev/spidev0.1 read inputs  # Use alternative SPI device\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "\nPin values for write command:\n")
 	fmt.Fprintf(os.Stderr, "  on, 1, true     Turn pin on\n")
@@ -89,6 +93,10 @@ func main() {
 	case "reflect":
 		if err := handleReflectCommand(pf, args[1:]); err != nil {
 			log.Fatalf("Reflect command failed: %v", err)
+		}
+	case "blink":
+		if err := handleBlinkCommand(pf, args[1:]); err != nil {
+			log.Fatalf("Blink command failed: %v", err)
 		}
 	default:
 		fmt.Fprintf(os.Stderr, "Error: Unknown command '%s'\n\n", command)
@@ -228,6 +236,119 @@ func readOutputs(pf *piface.PiFace) error {
 	}
 
 	return nil
+}
+
+type blinkConfig struct {
+	pin       uint8
+	period    time.Duration
+	dutyCycle float64
+}
+
+func handleBlinkCommand(pf *piface.PiFace, args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("blink command requires at least one pin:period[:dutycycle] argument")
+	}
+
+	var configs []blinkConfig
+	for _, arg := range args {
+		config, err := parseBlinkArg(arg)
+		if err != nil {
+			return fmt.Errorf("invalid blink argument '%s': %v", arg, err)
+		}
+		configs = append(configs, config)
+	}
+
+	if *duration > 0 {
+		fmt.Printf("Starting blink for %v\n", *duration)
+	} else {
+		fmt.Println("Starting blink indefinitely. Press Ctrl+C to stop.")
+	}
+
+	var endTime time.Time
+	if *duration > 0 {
+		endTime = time.Now().Add(*duration)
+	}
+
+	for _, config := range configs {
+		go blinkPin(pf, config, endTime)
+	}
+
+	if *duration > 0 {
+		time.Sleep(*duration)
+	} else {
+		select {}
+	}
+
+	return nil
+}
+
+func parseBlinkArg(arg string) (blinkConfig, error) {
+	parts := strings.Split(arg, ":")
+	if len(parts) < 2 || len(parts) > 3 {
+		return blinkConfig{}, fmt.Errorf("format must be pin:period[:dutycycle]")
+	}
+
+	pin, err := strconv.ParseUint(parts[0], 10, 8)
+	if err != nil {
+		return blinkConfig{}, fmt.Errorf("invalid pin number '%s': %v", parts[0], err)
+	}
+	if pin > 7 {
+		return blinkConfig{}, fmt.Errorf("invalid pin number %d: must be 0-7", pin)
+	}
+
+	period, err := time.ParseDuration(parts[1])
+	if err != nil {
+		return blinkConfig{}, fmt.Errorf("invalid period '%s': %v", parts[1], err)
+	}
+	if period <= 0 {
+		return blinkConfig{}, fmt.Errorf("period must be positive")
+	}
+
+	dutyCycle := 0.5
+	if len(parts) == 3 {
+		dutyCycle, err = strconv.ParseFloat(parts[2], 64)
+		if err != nil {
+			return blinkConfig{}, fmt.Errorf("invalid duty cycle '%s': %v", parts[2], err)
+		}
+		if dutyCycle < 0 || dutyCycle > 1 {
+			return blinkConfig{}, fmt.Errorf("duty cycle must be between 0 and 1")
+		}
+	}
+
+	return blinkConfig{
+		pin:       uint8(pin),
+		period:    period,
+		dutyCycle: dutyCycle,
+	}, nil
+}
+
+func blinkPin(pf *piface.PiFace, config blinkConfig, endTime time.Time) {
+	onTime := time.Duration(float64(config.period) * config.dutyCycle)
+	offTime := config.period - onTime
+
+	for {
+		if !endTime.IsZero() && time.Now().After(endTime) {
+			pf.WriteOutput(config.pin, 0) //nolint:errcheck
+			return
+		}
+
+		if err := pf.WriteOutput(config.pin, 1); err != nil {
+			log.Printf("failed to set pin %d", config.pin)
+			return
+		}
+		time.Sleep(onTime)
+
+		if !endTime.IsZero() && time.Now().After(endTime) {
+			pf.WriteOutput(config.pin, 0) //nolint:errcheck
+			return
+		}
+
+		if err := pf.WriteOutput(config.pin, 0); err != nil {
+			log.Printf("failed to reset pin %d", config.pin)
+			return
+		}
+		time.Sleep(offTime)
+	}
 }
 
 func parseValue(valueStr string) (uint8, error) {
