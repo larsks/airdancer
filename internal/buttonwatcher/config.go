@@ -16,6 +16,9 @@ type ButtonConfig struct {
 	LowValue           *uint32        `mapstructure:"low_value"`
 	HighValue          *uint32        `mapstructure:"high_value"`
 	ClickAction        *string        `mapstructure:"click_action"`
+	DoubleClickAction  *string        `mapstructure:"double_click_action"`
+	TripleClickAction  *string        `mapstructure:"triple_click_action"`
+	ClickInterval      *time.Duration `mapstructure:"click_interval"`
 	ShortPressDuration *time.Duration `mapstructure:"short_press_duration"`
 	ShortPressAction   *string        `mapstructure:"short_press_action"`
 	LongPressDuration  *time.Duration `mapstructure:"long_press_duration"`
