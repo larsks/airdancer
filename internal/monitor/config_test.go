@@ -28,8 +28,8 @@ func TestNewConfig(t *testing.T) {
 		t.Errorf("Expected default mailbox to be 'INBOX', got %q", config.IMAP.Mailbox)
 	}
 
-	if config.Monitor.CheckInterval != 30 {
-		t.Errorf("Expected default check interval to be 30, got %d", config.Monitor.CheckInterval)
+	if config.IMAP.CheckInterval != 30 {
+		t.Errorf("Expected default check interval to be 30, got %d", config.IMAP.CheckInterval)
 	}
 
 	// Test that optional fields are empty by default
@@ -41,8 +41,8 @@ func TestNewConfig(t *testing.T) {
 		t.Errorf("Expected IMAP username to be empty by default, got %q", config.IMAP.Username)
 	}
 
-	if config.Monitor.RegexPattern != "" {
-		t.Errorf("Expected regex pattern to be empty by default, got %q", config.Monitor.RegexPattern)
+	if len(config.Monitor) != 0 {
+		t.Errorf("Expected empty monitor configurations by default, got %d", len(config.Monitor))
 	}
 }
 
@@ -61,9 +61,7 @@ func TestConfigAddFlags(t *testing.T) {
 		"imap.password",
 		"imap.use-ssl",
 		"imap.mailbox",
-		"monitor.regex-pattern",
-		"monitor.command",
-		"monitor.check-interval",
+		"imap.check-interval",
 	}
 
 	for _, flagName := range expectedFlags {
@@ -81,12 +79,12 @@ func TestConfigAddFlags(t *testing.T) {
 		t.Errorf("Expected server flag usage to be 'IMAP server address', got %q", serverFlag.Usage)
 	}
 
-	regexFlag := fs.Lookup("monitor.regex-pattern")
-	if regexFlag == nil {
-		t.Fatal("monitor.regex-pattern flag not found")
+	checkIntervalFlag := fs.Lookup("imap.check-interval")
+	if checkIntervalFlag == nil {
+		t.Fatal("imap.check-interval flag not found")
 	}
-	if regexFlag.Usage != "Regex pattern to match in email bodies" {
-		t.Errorf("Expected regex flag usage description, got %q", regexFlag.Usage)
+	if checkIntervalFlag.Usage != "Interval in seconds to check for new emails" {
+		t.Errorf("Expected check interval flag usage description, got %q", checkIntervalFlag.Usage)
 	}
 }
 
@@ -101,17 +99,19 @@ func TestConfigValidate(t *testing.T) {
 			name: "valid config",
 			config: &Config{
 				IMAP: IMAPConfig{
-					Server:   "imap.example.com",
-					Port:     993,
-					Username: "user@example.com",
-					Password: "password",
-					UseSSL:   true,
-					Mailbox:  "INBOX",
-				},
-				Monitor: MonitorConfig{
-					RegexPattern:  "test.*pattern",
-					Command:       "echo 'matched'",
+					Server:        "imap.example.com",
+					Port:          993,
+					Username:      "user@example.com",
+					Password:      "password",
+					UseSSL:        true,
+					Mailbox:       "INBOX",
 					CheckInterval: 30,
+				},
+				Monitor: []MonitorConfig{
+					{
+						RegexPattern: "test.*pattern",
+						Command:      "echo 'matched'",
+					},
 				},
 			},
 			expectedError: nil,
@@ -123,8 +123,10 @@ func TestConfigValidate(t *testing.T) {
 					Server: "", // Missing server
 					Port:   993,
 				},
-				Monitor: MonitorConfig{
-					RegexPattern: "test.*pattern",
+				Monitor: []MonitorConfig{
+					{
+						RegexPattern: "test.*pattern",
+					},
 				},
 			},
 			expectedError: ErrMissingIMAPServer,
@@ -136,8 +138,10 @@ func TestConfigValidate(t *testing.T) {
 					Server: "imap.example.com",
 					Port:   0, // Invalid port
 				},
-				Monitor: MonitorConfig{
-					RegexPattern: "test.*pattern",
+				Monitor: []MonitorConfig{
+					{
+						RegexPattern: "test.*pattern",
+					},
 				},
 			},
 			expectedError: ErrInvalidIMAPPort,
@@ -149,8 +153,10 @@ func TestConfigValidate(t *testing.T) {
 					Server: "imap.example.com",
 					Port:   993,
 				},
-				Monitor: MonitorConfig{
-					RegexPattern: "", // Missing pattern
+				Monitor: []MonitorConfig{
+					{
+						RegexPattern: "", // Missing pattern
+					},
 				},
 			},
 			expectedError: ErrMissingRegexPattern,
@@ -162,11 +168,24 @@ func TestConfigValidate(t *testing.T) {
 					Server: "imap.example.com",
 					Port:   993,
 				},
-				Monitor: MonitorConfig{
-					RegexPattern: ".*",
+				Monitor: []MonitorConfig{
+					{
+						RegexPattern: ".*",
+					},
 				},
 			},
 			expectedError: nil,
+		},
+		{
+			name: "no monitor configurations",
+			config: &Config{
+				IMAP: IMAPConfig{
+					Server: "imap.example.com",
+					Port:   993,
+				},
+				Monitor: []MonitorConfig{},
+			},
+			expectedError: ErrMissingRegexPattern,
 		},
 	}
 
@@ -232,12 +251,24 @@ func TestConfigLoadConfigFromStruct(t *testing.T) {
 		t.Errorf("Expected UseSSL to be false, got %v", config.IMAP.UseSSL)
 	}
 
-	if config.Monitor.RegexPattern != "urgent.*alert" {
-		t.Errorf("Expected regex pattern to be 'urgent.*alert', got %q", config.Monitor.RegexPattern)
+	if len(config.Monitor) != 2 {
+		t.Errorf("Expected 2 monitor configurations, got %d", len(config.Monitor))
 	}
 
-	if config.Monitor.CheckInterval != 60 {
-		t.Errorf("Expected check interval to be 60, got %d", config.Monitor.CheckInterval)
+	if config.Monitor[0].RegexPattern != "urgent.*alert" {
+		t.Errorf("Expected first regex pattern to be 'urgent.*alert', got %q", config.Monitor[0].RegexPattern)
+	}
+
+	if config.Monitor[0].Command != "notify-send 'Email Alert'" {
+		t.Errorf("Expected first command to be 'notify-send 'Email Alert'', got %q", config.Monitor[0].Command)
+	}
+
+	if config.Monitor[1].RegexPattern != "CRITICAL.*ERROR" {
+		t.Errorf("Expected second regex pattern to be 'CRITICAL.*ERROR', got %q", config.Monitor[1].RegexPattern)
+	}
+
+	if config.IMAP.CheckInterval != 60 {
+		t.Errorf("Expected check interval to be 60, got %d", config.IMAP.CheckInterval)
 	}
 }
 
@@ -289,8 +320,8 @@ func TestConfigLoadConfigFromStructUsesDefaults(t *testing.T) {
 		t.Errorf("Expected default mailbox 'INBOX', got %q", config.IMAP.Mailbox)
 	}
 
-	if config.Monitor.CheckInterval != 30 {
-		t.Errorf("Expected default check interval 30, got %d", config.Monitor.CheckInterval)
+	if config.IMAP.CheckInterval != 30 {
+		t.Errorf("Expected default check interval 30, got %d", config.IMAP.CheckInterval)
 	}
 }
 
@@ -307,7 +338,9 @@ func TestConfigValidateEdgeCases(t *testing.T) {
 				c := NewConfig()
 				c.IMAP.Server = "imap.example.com"
 				c.IMAP.Port = -1
-				c.Monitor.RegexPattern = "test"
+				c.Monitor = []MonitorConfig{
+					{RegexPattern: "test"},
+				}
 				return c
 			},
 			shouldPass: false,
@@ -318,7 +351,9 @@ func TestConfigValidateEdgeCases(t *testing.T) {
 				c := NewConfig()
 				c.IMAP.Server = "imap.example.com"
 				c.IMAP.Port = 99999
-				c.Monitor.RegexPattern = "test"
+				c.Monitor = []MonitorConfig{
+					{RegexPattern: "test"},
+				}
 				return c
 			},
 			shouldPass: true, // Port validation only checks for zero
@@ -329,7 +364,9 @@ func TestConfigValidateEdgeCases(t *testing.T) {
 				c := NewConfig()
 				c.IMAP.Server = "imap.example.com"
 				c.IMAP.Port = 993
-				c.Monitor.RegexPattern = ""
+				c.Monitor = []MonitorConfig{
+					{RegexPattern: ""},
+				}
 				return c
 			},
 			shouldPass: false,
@@ -340,7 +377,9 @@ func TestConfigValidateEdgeCases(t *testing.T) {
 				c := NewConfig()
 				c.IMAP.Server = "imap.example.com"
 				c.IMAP.Port = 993
-				c.Monitor.RegexPattern = "   "
+				c.Monitor = []MonitorConfig{
+					{RegexPattern: "   "},
+				}
 				return c
 			},
 			shouldPass: true, // Current validation doesn't trim whitespace
