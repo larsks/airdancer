@@ -5,8 +5,12 @@ username = "testuser"
 password = "testpass"
 use_ssl = false
 mailbox = "INBOX"
+check_interval_seconds = 60
 
-[monitor]
+[[monitor]]
 regex_pattern = "urgent.*alert"
 command = "notify-send 'Email Alert'"
-check_interval_seconds = 60 
+
+[[monitor]]
+regex_pattern = "CRITICAL.*ERROR"
+command = "echo 'Critical alert received'" 

@@ -235,8 +235,10 @@ func TestNewEmailMonitor(t *testing.T) {
 					Server: "imap.example.com",
 					Port:   993,
 				},
-				Monitor: MonitorConfig{
-					RegexPattern: "test.*pattern",
+				Monitor: []MonitorConfig{
+					{
+						RegexPattern: "test.*pattern",
+					},
 				},
 			},
 			expectedError: nil,
@@ -247,8 +249,10 @@ func TestNewEmailMonitor(t *testing.T) {
 				IMAP: IMAPConfig{
 					Port: 993,
 				},
-				Monitor: MonitorConfig{
-					RegexPattern: "test.*pattern",
+				Monitor: []MonitorConfig{
+					{
+						RegexPattern: "test.*pattern",
+					},
 				},
 			},
 			expectedError: ErrMissingIMAPServer,
@@ -260,8 +264,10 @@ func TestNewEmailMonitor(t *testing.T) {
 					Server: "imap.example.com",
 					Port:   993,
 				},
-				Monitor: MonitorConfig{
-					RegexPattern: "[invalid", // Invalid regex
+				Monitor: []MonitorConfig{
+					{
+						RegexPattern: "[invalid", // Invalid regex
+					},
 				},
 			},
 			expectedError: ErrInvalidRegexPattern,
@@ -345,8 +351,10 @@ func TestEmailMonitorConnect(t *testing.T) {
 					Password: "password",
 					UseSSL:   tt.useSSL,
 				},
-				Monitor: MonitorConfig{
-					RegexPattern: "test",
+				Monitor: []MonitorConfig{
+					{
+						RegexPattern: "test",
+					},
 				},
 			}
 
@@ -440,8 +448,10 @@ func TestEmailMonitorInitializeLastUID(t *testing.T) {
 					Port:    993,
 					Mailbox: "INBOX",
 				},
-				Monitor: MonitorConfig{
-					RegexPattern: "test",
+				Monitor: []MonitorConfig{
+					{
+						RegexPattern: "test",
+					},
 				},
 			}
 
@@ -540,9 +550,11 @@ func TestEmailMonitorProcessMessage(t *testing.T) {
 					Server: "imap.example.com",
 					Port:   993,
 				},
-				Monitor: MonitorConfig{
-					RegexPattern: tt.regexPattern,
-					Command:      tt.command,
+				Monitor: []MonitorConfig{
+					{
+						RegexPattern: tt.regexPattern,
+						Command:      tt.command,
+					},
 				},
 			}
 
@@ -588,9 +600,11 @@ func TestEmailMonitorExecuteCommand(t *testing.T) {
 			Server: "imap.example.com",
 			Port:   993,
 		},
-		Monitor: MonitorConfig{
-			RegexPattern: "test",
-			Command:      "echo 'test command'",
+		Monitor: []MonitorConfig{
+			{
+				RegexPattern: "test",
+				Command:      "echo 'test command'",
+			},
 		},
 	}
 
@@ -613,7 +627,7 @@ func TestEmailMonitorExecuteCommand(t *testing.T) {
 
 	body := "test email body"
 
-	err = monitor.executeCommand(message, body)
+	err = monitor.executeCommand(message, body, config.Monitor[0].Command)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -622,8 +636,8 @@ func TestEmailMonitorExecuteCommand(t *testing.T) {
 		t.Error("Expected Execute to be called")
 	}
 
-	if mockExecutor.lastCommand != config.Monitor.Command {
-		t.Errorf("Expected command %q, got %q", config.Monitor.Command, mockExecutor.lastCommand)
+	if mockExecutor.lastCommand != config.Monitor[0].Command {
+		t.Errorf("Expected command %q, got %q", config.Monitor[0].Command, mockExecutor.lastCommand)
 	}
 
 	if mockExecutor.lastStdin != body {
@@ -649,9 +663,11 @@ func TestEmailMonitorExecuteCommandNoCommand(t *testing.T) {
 			Server: "imap.example.com",
 			Port:   993,
 		},
-		Monitor: MonitorConfig{
-			RegexPattern: "test",
-			Command:      "", // No command configured
+		Monitor: []MonitorConfig{
+			{
+				RegexPattern: "test",
+				Command:      "", // No command configured
+			},
 		},
 	}
 
@@ -670,7 +686,7 @@ func TestEmailMonitorExecuteCommandNoCommand(t *testing.T) {
 		},
 	}
 
-	err = monitor.executeCommand(message, "test body")
+	err = monitor.executeCommand(message, "test body", "")
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -698,8 +714,10 @@ func TestEmailMonitorStop(t *testing.T) {
 			Server: "imap.example.com",
 			Port:   993,
 		},
-		Monitor: MonitorConfig{
-			RegexPattern: "test",
+		Monitor: []MonitorConfig{
+			{
+				RegexPattern: "test",
+			},
 		},
 	}
 

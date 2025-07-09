@@ -9,39 +9,38 @@ import (
 
 // IMAPConfig holds IMAP server configuration
 type IMAPConfig struct {
-	Server   string `mapstructure:"server"`
-	Port     int    `mapstructure:"port"`
-	Username string `mapstructure:"username"`
-	Password string `mapstructure:"password"`
-	UseSSL   bool   `mapstructure:"use_ssl"`
-	Mailbox  string `mapstructure:"mailbox"`
+	Server        string `mapstructure:"server"`
+	Port          int    `mapstructure:"port"`
+	Username      string `mapstructure:"username"`
+	Password      string `mapstructure:"password"`
+	UseSSL        bool   `mapstructure:"use_ssl"`
+	Mailbox       string `mapstructure:"mailbox"`
+	CheckInterval int    `mapstructure:"check_interval_seconds"`
 }
 
 // MonitorConfig holds monitoring configuration
 type MonitorConfig struct {
-	RegexPattern  string `mapstructure:"regex_pattern"`
-	Command       string `mapstructure:"command"`
-	CheckInterval int    `mapstructure:"check_interval_seconds"`
+	RegexPattern string `mapstructure:"regex_pattern"`
+	Command      string `mapstructure:"command"`
 }
 
 // Config holds the complete configuration for the email monitor
 type Config struct {
-	ConfigFile string        `mapstructure:"config-file"`
-	IMAP       IMAPConfig    `mapstructure:"imap"`
-	Monitor    MonitorConfig `mapstructure:"monitor"`
+	ConfigFile string          `mapstructure:"config-file"`
+	IMAP       IMAPConfig      `mapstructure:"imap"`
+	Monitor    []MonitorConfig `mapstructure:"monitor"`
 }
 
 // NewConfig creates a new Config with default values
 func NewConfig() *Config {
 	return &Config{
 		IMAP: IMAPConfig{
-			Port:    993,
-			UseSSL:  true,
-			Mailbox: "INBOX",
-		},
-		Monitor: MonitorConfig{
+			Port:          993,
+			UseSSL:        true,
+			Mailbox:       "INBOX",
 			CheckInterval: 30,
 		},
+		Monitor: []MonitorConfig{},
 	}
 }
 
@@ -57,11 +56,7 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&c.IMAP.Password, "imap.password", c.IMAP.Password, "IMAP password")
 	fs.BoolVar(&c.IMAP.UseSSL, "imap.use-ssl", c.IMAP.UseSSL, "Use SSL for IMAP connection")
 	fs.StringVar(&c.IMAP.Mailbox, "imap.mailbox", c.IMAP.Mailbox, "IMAP mailbox to monitor")
-
-	// Monitor flags
-	fs.StringVar(&c.Monitor.RegexPattern, "monitor.regex-pattern", c.Monitor.RegexPattern, "Regex pattern to match in email bodies")
-	fs.StringVar(&c.Monitor.Command, "monitor.command", c.Monitor.Command, "Command to execute on regex match")
-	fs.IntVar(&c.Monitor.CheckInterval, "monitor.check-interval", c.Monitor.CheckInterval, "Interval in seconds to check for new emails")
+	fs.IntVar(&c.IMAP.CheckInterval, "imap.check-interval", c.IMAP.CheckInterval, "Interval in seconds to check for new emails")
 }
 
 // LoadConfig loads configuration using the common config loader.
@@ -77,9 +72,7 @@ func (c *Config) LoadConfig(configFile string) error {
 		"imap.password":                  c.IMAP.Password,
 		"imap.use_ssl":                   c.IMAP.UseSSL,
 		"imap.mailbox":                   c.IMAP.Mailbox,
-		"monitor.regex_pattern":          c.Monitor.RegexPattern,
-		"monitor.command":                c.Monitor.Command,
-		"monitor.check_interval_seconds": c.Monitor.CheckInterval,
+		"imap.check_interval_seconds":    c.IMAP.CheckInterval,
 	})
 
 	return loader.LoadConfig(c)
@@ -99,9 +92,7 @@ func (c *Config) LoadConfigFromStruct() error {
 		"imap.password":                  "",
 		"imap.use_ssl":                   true,
 		"imap.mailbox":                   "INBOX",
-		"monitor.regex_pattern":          "",
-		"monitor.command":                "",
-		"monitor.check_interval_seconds": 30,
+		"imap.check_interval_seconds":    30,
 	})
 
 	return loader.LoadConfig(c)
@@ -115,8 +106,13 @@ func (c *Config) Validate() error {
 	if c.IMAP.Port <= 0 {
 		return fmt.Errorf("%w: port is %d", ErrInvalidIMAPPort, c.IMAP.Port)
 	}
-	if c.Monitor.RegexPattern == "" {
-		return fmt.Errorf("%w: pattern is empty", ErrMissingRegexPattern)
+	if len(c.Monitor) == 0 {
+		return fmt.Errorf("%w: no monitor configurations provided", ErrMissingRegexPattern)
+	}
+	for i, monitor := range c.Monitor {
+		if monitor.RegexPattern == "" {
+			return fmt.Errorf("%w: pattern is empty in monitor %d", ErrMissingRegexPattern, i)
+		}
 	}
 	return nil
 }
