@@ -9,38 +9,44 @@ import (
 
 // IMAPConfig holds IMAP server configuration
 type IMAPConfig struct {
-	Server        string `mapstructure:"server"`
-	Port          int    `mapstructure:"port"`
-	Username      string `mapstructure:"username"`
-	Password      string `mapstructure:"password"`
-	UseSSL        bool   `mapstructure:"use_ssl"`
-	Mailbox       string `mapstructure:"mailbox"`
-	CheckInterval int    `mapstructure:"check_interval_seconds"`
+	Server   string `mapstructure:"server"`
+	Port     int    `mapstructure:"port"`
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
+	UseSSL   bool   `mapstructure:"use_ssl"`
 }
 
-// MonitorConfig holds monitoring configuration
-type MonitorConfig struct {
+// TriggerConfig holds trigger configuration
+type TriggerConfig struct {
 	RegexPattern string `mapstructure:"regex_pattern"`
 	Command      string `mapstructure:"command"`
 }
 
+// MailboxConfig holds configuration for a single mailbox
+type MailboxConfig struct {
+	Mailbox       string          `mapstructure:"mailbox"`
+	CheckInterval *int            `mapstructure:"check_interval_seconds"`
+	Triggers      []TriggerConfig `mapstructure:"triggers"`
+}
+
 // Config holds the complete configuration for the email monitor
 type Config struct {
-	ConfigFile string          `mapstructure:"config-file"`
-	IMAP       IMAPConfig      `mapstructure:"imap"`
-	Monitor    []MonitorConfig `mapstructure:"monitor"`
+	ConfigFile    string          `mapstructure:"config-file"`
+	IMAP          IMAPConfig      `mapstructure:"imap"`
+	CheckInterval *int            `mapstructure:"check_interval_seconds"`
+	Monitor       []MailboxConfig `mapstructure:"monitor"`
 }
 
 // NewConfig creates a new Config with default values
 func NewConfig() *Config {
+	defaultCheckInterval := 30
 	return &Config{
 		IMAP: IMAPConfig{
-			Port:          993,
-			UseSSL:        true,
-			Mailbox:       "INBOX",
-			CheckInterval: 30,
+			Port:   993,
+			UseSSL: true,
 		},
-		Monitor: []MonitorConfig{},
+		CheckInterval: &defaultCheckInterval,
+		Monitor:       []MailboxConfig{},
 	}
 }
 
@@ -55,8 +61,11 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&c.IMAP.Username, "imap.username", c.IMAP.Username, "IMAP username")
 	fs.StringVar(&c.IMAP.Password, "imap.password", c.IMAP.Password, "IMAP password")
 	fs.BoolVar(&c.IMAP.UseSSL, "imap.use-ssl", c.IMAP.UseSSL, "Use SSL for IMAP connection")
-	fs.StringVar(&c.IMAP.Mailbox, "imap.mailbox", c.IMAP.Mailbox, "IMAP mailbox to monitor")
-	fs.IntVar(&c.IMAP.CheckInterval, "imap.check-interval", c.IMAP.CheckInterval, "Interval in seconds to check for new emails")
+	
+	// Global check interval flag
+	if c.CheckInterval != nil {
+		fs.IntVar(c.CheckInterval, "check-interval", *c.CheckInterval, "Global interval in seconds to check for new emails")
+	}
 }
 
 // LoadConfig loads configuration using the common config loader.
@@ -66,13 +75,12 @@ func (c *Config) LoadConfig(configFile string) error {
 
 	// Set default values
 	loader.SetDefaults(map[string]any{
-		"imap.server":                    c.IMAP.Server,
-		"imap.port":                      c.IMAP.Port,
-		"imap.username":                  c.IMAP.Username,
-		"imap.password":                  c.IMAP.Password,
-		"imap.use_ssl":                   c.IMAP.UseSSL,
-		"imap.mailbox":                   c.IMAP.Mailbox,
-		"imap.check_interval_seconds":    c.IMAP.CheckInterval,
+		"imap.server":             c.IMAP.Server,
+		"imap.port":               c.IMAP.Port,
+		"imap.username":           c.IMAP.Username,
+		"imap.password":           c.IMAP.Password,
+		"imap.use_ssl":            c.IMAP.UseSSL,
+		"check_interval_seconds":  30,
 	})
 
 	return loader.LoadConfig(c)
@@ -86,13 +94,12 @@ func (c *Config) LoadConfigFromStruct() error {
 
 	// Set default values using the struct defaults
 	loader.SetDefaults(map[string]any{
-		"imap.server":                    "",
-		"imap.port":                      993,
-		"imap.username":                  "",
-		"imap.password":                  "",
-		"imap.use_ssl":                   true,
-		"imap.mailbox":                   "INBOX",
-		"imap.check_interval_seconds":    30,
+		"imap.server":             "",
+		"imap.port":               993,
+		"imap.username":           "",
+		"imap.password":           "",
+		"imap.use_ssl":            true,
+		"check_interval_seconds":  30,
 	})
 
 	return loader.LoadConfig(c)
@@ -109,10 +116,30 @@ func (c *Config) Validate() error {
 	if len(c.Monitor) == 0 {
 		return fmt.Errorf("%w: no monitor configurations provided", ErrMissingRegexPattern)
 	}
-	for i, monitor := range c.Monitor {
-		if monitor.RegexPattern == "" {
-			return fmt.Errorf("%w: pattern is empty in monitor %d", ErrMissingRegexPattern, i)
+	for i, mailbox := range c.Monitor {
+		if mailbox.Mailbox == "" {
+			return fmt.Errorf("%w: mailbox is empty in monitor %d", ErrMissingRegexPattern, i)
+		}
+		if len(mailbox.Triggers) == 0 {
+			return fmt.Errorf("%w: no triggers configured for mailbox %s", ErrMissingRegexPattern, mailbox.Mailbox)
+		}
+		for j, trigger := range mailbox.Triggers {
+			if trigger.RegexPattern == "" {
+				return fmt.Errorf("%w: pattern is empty in trigger %d of mailbox %s", ErrMissingRegexPattern, j, mailbox.Mailbox)
+			}
 		}
 	}
 	return nil
+}
+
+// GetEffectiveCheckInterval returns the effective check interval for a mailbox
+// It uses the mailbox-specific value if set, otherwise falls back to the global value
+func (c *Config) GetEffectiveCheckInterval(mailbox *MailboxConfig) int {
+	if mailbox.CheckInterval != nil {
+		return *mailbox.CheckInterval
+	}
+	if c.CheckInterval != nil {
+		return *c.CheckInterval
+	}
+	return 30 // Default fallback
 }

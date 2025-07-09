@@ -1,24 +1,132 @@
-# Example configuration for airdancer-monitor
+# Airdancer Monitor Configuration Example
+# This file demonstrates the new multi-mailbox monitoring capabilities
 
-# IMAP server configuration
+# IMAP server connection settings
 [imap]
 server = "imap.gmail.com"
 port = 993
 username = "your-email@gmail.com"
-password = "your-app-password"
+password = "your-app-password"  # Use app password for Gmail
 use_ssl = true
+
+# Global check interval in seconds (can be overridden per mailbox)
+# If not specified, defaults to 30 seconds
+check_interval_seconds = 60
+
+# Monitor multiple mailboxes with different triggers and intervals
+# Each [[monitor]] section defines a mailbox to monitor
+
+# Primary inbox monitoring with frequent checks
+[[monitor]]
 mailbox = "INBOX"
-check_interval_seconds = 30
+check_interval_seconds = 30  # Override global setting for faster checks
 
-# Monitor configurations - you can define multiple monitors for different patterns
-[[monitor]]
-regex_pattern = "activate switch (\\d+)"
-command = "echo 'Switch activation request: $1'"
+# Trigger for switch activation commands
+[[monitor.triggers]]
+regex_pattern = 'activate switch (\d+)'
+command = "echo 'Activating switch $1' && /usr/local/bin/switch-control.sh $1"
 
-[[monitor]]
+# Trigger for critical alerts
+[[monitor.triggers]]
 regex_pattern = "CRITICAL.*ERROR"
-command = "notify-send 'Critical Alert' 'Error detected in email'"
+command = "notify-send 'Critical Alert' 'Critical error detected in email' && logger 'CRITICAL: Email alert received'"
 
-[[monitor]]
+# Trigger for backup completion notifications
+[[monitor.triggers]]
 regex_pattern = "backup.*complete"
-command = "logger 'Backup notification received'" 
+command = "logger 'Backup notification received' && echo 'Backup completed at $(date)' >> /var/log/backup-monitor.log"
+
+# Spam folder monitoring with less frequent checks
+[[monitor]]
+mailbox = "SPAM"
+# Uses global check_interval_seconds = 60
+
+# Monitor for false positives in spam
+[[monitor.triggers]]
+regex_pattern = "URGENT.*IMPORTANT"
+command = "logger 'Potential false positive in spam: $EMAIL_SUBJECT'"
+
+# Monitor for phishing attempts
+[[monitor.triggers]]
+regex_pattern = "verify.*account|suspended.*account"
+command = "logger 'Phishing attempt detected from $EMAIL_FROM: $EMAIL_SUBJECT'"
+
+# Work folder monitoring for project updates
+[[monitor]]
+mailbox = "Work"
+check_interval_seconds = 120  # Check every 2 minutes
+
+# Monitor for deployment notifications
+[[monitor.triggers]]
+regex_pattern = "deployment.*(?:success|failed|complete)"
+command = "curl -X POST https://slack.com/api/chat.postMessage -H 'Authorization: Bearer YOUR_SLACK_TOKEN' -d 'channel=#deployments' -d 'text=Deployment notification: $EMAIL_SUBJECT'"
+
+# Monitor for build failures
+[[monitor.triggers]]
+regex_pattern = "build.*failed|test.*failed"
+command = "notify-send 'Build Alert' 'Build or test failure detected' && echo 'Build failure: $EMAIL_SUBJECT' >> /var/log/build-monitor.log"
+
+# Monitor for security alerts
+[[monitor.triggers]]
+regex_pattern = "security.*alert|vulnerability.*detected"
+command = "logger 'SECURITY: Alert received from $EMAIL_FROM' && mail -s 'Security Alert Forward' security-team@company.com < /dev/stdin"
+
+# Automated notifications folder
+[[monitor]]
+mailbox = "Notifications"
+check_interval_seconds = 300  # Check every 5 minutes
+
+# Monitor for server health alerts
+[[monitor.triggers]]
+regex_pattern = "server.*down|service.*unavailable"
+command = "/usr/local/bin/alert-handler.sh server-down '$EMAIL_SUBJECT' '$EMAIL_FROM'"
+
+# Monitor for disk space warnings
+[[monitor.triggers]]
+regex_pattern = "disk.*space.*(?:low|full|warning)"
+command = "/usr/local/bin/alert-handler.sh disk-space '$EMAIL_SUBJECT' '$EMAIL_FROM'"
+
+# Monitor for SSL certificate expiration
+[[monitor.triggers]]
+regex_pattern = "certificate.*expir|ssl.*expir"
+command = "/usr/local/bin/alert-handler.sh ssl-expiry '$EMAIL_SUBJECT' '$EMAIL_FROM'"
+
+# Archive folder monitoring for compliance
+[[monitor]]
+mailbox = "Archive"
+check_interval_seconds = 600  # Check every 10 minutes
+
+# Monitor for audit-related emails
+[[monitor.triggers]]
+regex_pattern = "audit.*request|compliance.*review"
+command = "logger 'AUDIT: Request received from $EMAIL_FROM' && echo 'Audit request: $EMAIL_SUBJECT' >> /var/log/audit-monitor.log"
+
+# Example of a monitoring setup for a specific project
+[[monitor]]
+mailbox = "ProjectAlpha"
+check_interval_seconds = 180  # Check every 3 minutes
+
+# Monitor for customer feedback
+[[monitor.triggers]]
+regex_pattern = "feedback|review|rating"
+command = "python3 /usr/local/bin/feedback-processor.py --email-from='$EMAIL_FROM' --subject='$EMAIL_SUBJECT' --date='$EMAIL_DATE'"
+
+# Monitor for bug reports
+[[monitor.triggers]]
+regex_pattern = "bug.*report|issue.*found|problem.*with"
+command = "curl -X POST https://api.bugtracker.com/issues -H 'Content-Type: application/json' -d '{\"title\": \"$EMAIL_SUBJECT\", \"reporter\": \"$EMAIL_FROM\", \"source\": \"email\"}'"
+
+# Available environment variables in commands:
+# - $EMAIL_FROM: Sender's email address
+# - $EMAIL_SUBJECT: Email subject line
+# - $EMAIL_DATE: Email date in RFC3339 format
+# - $EMAIL_UID: Unique identifier for the email
+# - Email body is passed via stdin to the command
+
+# Configuration notes:
+# 1. Each mailbox must have at least one trigger
+# 2. Regex patterns use Go's regex syntax
+# 3. Commands are executed in a shell environment
+# 4. Multiple triggers can match the same email
+# 5. Global check_interval_seconds applies to mailboxes without their own setting
+# 6. All mailboxes must be on the same IMAP server
