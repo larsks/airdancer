@@ -12,11 +12,17 @@ import (
 	"github.com/emersion/go-message/mail"
 )
 
+// compiledMonitor holds a compiled regex pattern with its associated command
+type compiledMonitor struct {
+	regex   *regexp.Regexp
+	command string
+}
+
 // EmailMonitor handles monitoring an IMAP mailbox for new emails
 type EmailMonitor struct {
 	config      Config
 	client      IMAPClient
-	regex       *regexp.Regexp
+	monitors    []compiledMonitor
 	lastUID     uint32
 	reconnectCh chan bool
 
@@ -36,14 +42,21 @@ func NewEmailMonitor(config Config, dialer IMAPDialer, executor CommandExecutor,
 		return nil, err
 	}
 
-	regex, err := regexp.Compile(config.Monitor.RegexPattern)
-	if err != nil {
-		return nil, fmt.Errorf("%w \"%s\": %v", ErrInvalidRegexPattern, config.Monitor.RegexPattern, err)
+	var monitors []compiledMonitor
+	for i, monitorConfig := range config.Monitor {
+		regex, err := regexp.Compile(monitorConfig.RegexPattern)
+		if err != nil {
+			return nil, fmt.Errorf("%w \"%s\" in monitor %d: %v", ErrInvalidRegexPattern, monitorConfig.RegexPattern, i, err)
+		}
+		monitors = append(monitors, compiledMonitor{
+			regex:   regex,
+			command: monitorConfig.Command,
+		})
 	}
 
 	monitor := &EmailMonitor{
 		config:      config,
-		regex:       regex,
+		monitors:    monitors,
 		reconnectCh: make(chan bool, 1),
 		dialer:      dialer,
 		executor:    executor,
@@ -214,7 +227,7 @@ func (em *EmailMonitor) initializeLastUID() error {
 
 // monitor continuously checks for new messages
 func (em *EmailMonitor) monitor() error {
-	checkInterval := time.Duration(em.config.Monitor.CheckInterval) * time.Second
+	checkInterval := time.Duration(em.config.IMAP.CheckInterval) * time.Second
 	if checkInterval == 0 {
 		checkInterval = 30 * time.Second
 	}
@@ -347,16 +360,18 @@ func (em *EmailMonitor) processMessage(msg *imap.Message) error {
 			continue
 		}
 
-		// Check if body matches regex
-		if em.regex.MatchString(body) {
-			em.logger.Printf("regex match found in message from: %s", from)
+		// Check if body matches any of the configured monitors
+		for i, monitor := range em.monitors {
+			if monitor.regex.MatchString(body) {
+				em.logger.Printf("regex match found in message from: %s (monitor %d)", from, i)
 
-			err := em.executeCommand(msg, body)
-			if err != nil {
-				return fmt.Errorf("%w: %v", ErrCommandExecution, err)
+				err := em.executeCommand(msg, body, monitor.command)
+				if err != nil {
+					return fmt.Errorf("%w: %v", ErrCommandExecution, err)
+				}
+
+				// Don't return here - continue checking other monitors
 			}
-
-			return nil
 		}
 	}
 
@@ -397,8 +412,8 @@ func (em *EmailMonitor) extractTextFromPart(part io.Reader) (string, error) {
 }
 
 // executeCommand runs the configured command when a regex match is found
-func (em *EmailMonitor) executeCommand(msg *imap.Message, body string) error {
-	if em.config.Monitor.Command == "" {
+func (em *EmailMonitor) executeCommand(msg *imap.Message, body string, command string) error {
+	if command == "" {
 		em.logger.Println("no command configured")
 		return nil
 	}
@@ -415,5 +430,5 @@ func (em *EmailMonitor) executeCommand(msg *imap.Message, body string) error {
 	env = append(env, fmt.Sprintf("EMAIL_DATE=%s", msg.Envelope.Date.Format(time.RFC3339)))
 	env = append(env, fmt.Sprintf("EMAIL_UID=%d", msg.Uid))
 
-	return em.executor.Execute(em.config.Monitor.Command, env, strings.NewReader(body))
+	return em.executor.Execute(command, env, strings.NewReader(body))
 }

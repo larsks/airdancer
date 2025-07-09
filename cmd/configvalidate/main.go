@@ -235,9 +235,7 @@ func validateMonitorConfig(configFile string) error {
 		"imap.password":                  "",
 		"imap.use_ssl":                   true,
 		"imap.mailbox":                   "INBOX",
-		"monitor.regex_pattern":          "",
-		"monitor.command":                "",
-		"monitor.check_interval_seconds": 30,
+		"imap.check_interval_seconds":    30,
 	})
 
 	// Use the config loader directly to get strict validation
