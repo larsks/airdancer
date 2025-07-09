@@ -24,6 +24,9 @@ type ButtonState struct {
 	shortPressWarned bool
 	longPressWarned  bool
 	timeoutWarned    bool
+	clickCount       int
+	lastClickTime    time.Time
+	clickTimer       *time.Timer
 	mutex            sync.Mutex
 }
 
@@ -36,6 +39,9 @@ type Button struct {
 	LowValue           uint32
 	HighValue          uint32
 	ClickAction        string
+	DoubleClickAction  string
+	TripleClickAction  string
+	ClickInterval      time.Duration
 	ShortPressDuration time.Duration
 	ShortPressAction   string
 	LongPressDuration  time.Duration
@@ -48,13 +54,14 @@ type ButtonOption func(button *Button)
 
 func NewButton(name string, device string, eventType events.EventType, eventCode uint32) *Button {
 	return &Button{
-		Name:      name,
-		Device:    device,
-		EventType: eventType,
-		EventCode: eventCode,
-		LowValue:  0,
-		HighValue: 1,
-		Timeout:   10 * time.Second,
+		Name:          name,
+		Device:        device,
+		EventType:     eventType,
+		EventCode:     eventCode,
+		LowValue:      0,
+		HighValue:     1,
+		Timeout:       10 * time.Second,
+		ClickInterval: 500 * time.Millisecond,
 		state: &ButtonState{
 			mutex: sync.Mutex{},
 		},
@@ -78,6 +85,24 @@ func LongPress(duration time.Duration, action string) ButtonOption {
 func Click(action string) ButtonOption {
 	return func(button *Button) {
 		button.ClickAction = action
+	}
+}
+
+func DoubleClick(action string) ButtonOption {
+	return func(button *Button) {
+		button.DoubleClickAction = action
+	}
+}
+
+func TripleClick(action string) ButtonOption {
+	return func(button *Button) {
+		button.TripleClickAction = action
+	}
+}
+
+func ClickInterval(interval time.Duration) ButtonOption {
+	return func(button *Button) {
+		button.ClickInterval = interval
 	}
 }
 
@@ -128,11 +153,39 @@ func (button *Button) executeCommand(command string) error {
 	return cmd.Run()
 }
 
+func (button *Button) executeClickAction(clickCount int) {
+	var action string
+	var actionType string
+
+	switch clickCount {
+	case 1:
+		action = button.ClickAction
+		actionType = "click"
+	case 2:
+		action = button.DoubleClickAction
+		actionType = "double-click"
+	case 3:
+		action = button.TripleClickAction
+		actionType = "triple-click"
+	default:
+		return
+	}
+
+	if action != "" {
+		log.Printf("[%s:%s] %s detected: %s\n", button.Device, button.Name, actionType, action)
+		if err := button.executeCommand(action); err != nil {
+			log.Printf("[%s:%s] Error executing %s action: %v\n", button.Device, button.Name, actionType, err)
+		}
+	}
+}
+
+/*
 func (button *Button) startHoldTimer() {
 	button.state.mutex.Lock()
 	defer button.state.mutex.Unlock()
 	button.startHoldTimerUnlocked()
 }
+*/
 
 func (button *Button) startHoldTimerUnlocked() {
 	if button.state.ticker != nil {
@@ -244,14 +297,41 @@ func (button *Button) handleButtonRelease() {
 			if err := button.executeCommand(button.ShortPressAction); err != nil {
 				log.Printf("[%s:%s] Error executing short press action: %v\n", button.Device, button.Name, err)
 			}
-		} else if button.ClickAction != "" {
-			log.Printf("[%s:%s] Click detected %s\n",
-				button.Device, button.Name, button.ClickAction)
-			if err := button.executeCommand(button.ClickAction); err != nil {
-				log.Printf("[%s] Error executing click action: %v\n", button.Device, err)
-			}
+		} else {
+			// Handle click detection (single, double, triple)
+			button.handleClickSequence(releaseTime)
 		}
 	}
+}
+
+func (button *Button) handleClickSequence(releaseTime time.Time) {
+	button.state.mutex.Lock()
+	defer button.state.mutex.Unlock()
+
+	// Check if this is within the click interval from the last click
+	if !button.state.lastClickTime.IsZero() && releaseTime.Sub(button.state.lastClickTime) <= button.ClickInterval {
+		button.state.clickCount++
+	} else {
+		button.state.clickCount = 1
+	}
+
+	button.state.lastClickTime = releaseTime
+
+	// Cancel any existing click timer
+	if button.state.clickTimer != nil {
+		button.state.clickTimer.Stop()
+	}
+
+	// Start a new timer to wait for potential additional clicks
+	button.state.clickTimer = time.AfterFunc(button.ClickInterval, func() {
+		button.state.mutex.Lock()
+		clickCount := button.state.clickCount
+		button.state.clickCount = 0
+		button.state.lastClickTime = time.Time{}
+		button.state.mutex.Unlock()
+
+		button.executeClickAction(clickCount)
+	})
 }
 
 func (button *Button) handleEvent(value uint32) {

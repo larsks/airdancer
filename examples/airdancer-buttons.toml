@@ -5,17 +5,11 @@ name = "Power"
 device = "/dev/input/by-id/usb-Microntek_USB_Joystick-event-joystick"
 event_type = "EV_KEY"
 event_code = 289
-click_action = "xh -I localhost:8080/switch/0 state=on duration:=10"
-short_press_duration = "2s"
-short_press_action = "sudo reboot"
-long_press_duration = "5s"
-long_press_action = "sudo poweroff"
-
-[[buttons]]
-name = "Wifi"
-device = "/dev/input/by-id/usb-Microntek_USB_Joystick-event-joystick"
-event_type = "EV_KEY"
-event_code = 288
-click_action = "xh -I localhost:8080/switch/1 state=on duration:=10"
-short_press_duration = "2s"
-short_press_action = "sudo systemctl start airdancer-wifi-fallback"
+click_action = "notify-send 'CLICK'"
+double_click_action = "notify-send 'DOUBLE CLICK'"
+triple_click_action = "notify-send 'TRIPLE_CLICK'"
+short_press_action = "notify-send 'SHORT PRESS'"
+short_press_duration = 2
+long_press_action = "notify-send 'LONG PRESS'"
+long_press_duration = 5
+timeout = 10
