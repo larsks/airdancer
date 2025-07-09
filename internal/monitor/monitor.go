@@ -12,18 +12,25 @@ import (
 	"github.com/emersion/go-message/mail"
 )
 
-// compiledMonitor holds a compiled regex pattern with its associated command
-type compiledMonitor struct {
+// compiledTrigger holds a compiled regex pattern with its associated command
+type compiledTrigger struct {
 	regex   *regexp.Regexp
 	command string
 }
 
-// EmailMonitor handles monitoring an IMAP mailbox for new emails
+// compiledMailbox holds a compiled mailbox configuration
+type compiledMailbox struct {
+	mailbox       string
+	checkInterval int
+	triggers      []compiledTrigger
+}
+
+// EmailMonitor handles monitoring multiple IMAP mailboxes for new emails
 type EmailMonitor struct {
 	config      Config
 	client      IMAPClient
-	monitors    []compiledMonitor
-	lastUID     uint32
+	mailboxes   []compiledMailbox
+	lastUIDs    map[string]uint32
 	reconnectCh chan bool
 
 	// Injected dependencies for testability
@@ -42,21 +49,31 @@ func NewEmailMonitor(config Config, dialer IMAPDialer, executor CommandExecutor,
 		return nil, err
 	}
 
-	var monitors []compiledMonitor
-	for i, monitorConfig := range config.Monitor {
-		regex, err := regexp.Compile(monitorConfig.RegexPattern)
-		if err != nil {
-			return nil, fmt.Errorf("%w \"%s\" in monitor %d: %v", ErrInvalidRegexPattern, monitorConfig.RegexPattern, i, err)
+	var mailboxes []compiledMailbox
+	for _, mailboxConfig := range config.Monitor {
+		var triggers []compiledTrigger
+		for j, triggerConfig := range mailboxConfig.Triggers {
+			regex, err := regexp.Compile(triggerConfig.RegexPattern)
+			if err != nil {
+				return nil, fmt.Errorf("%w \"%s\" in trigger %d of mailbox %s: %v", ErrInvalidRegexPattern, triggerConfig.RegexPattern, j, mailboxConfig.Mailbox, err)
+			}
+			triggers = append(triggers, compiledTrigger{
+				regex:   regex,
+				command: triggerConfig.Command,
+			})
 		}
-		monitors = append(monitors, compiledMonitor{
-			regex:   regex,
-			command: monitorConfig.Command,
+
+		mailboxes = append(mailboxes, compiledMailbox{
+			mailbox:       mailboxConfig.Mailbox,
+			checkInterval: config.GetEffectiveCheckInterval(&mailboxConfig),
+			triggers:      triggers,
 		})
 	}
 
 	monitor := &EmailMonitor{
 		config:      config,
-		monitors:    monitors,
+		mailboxes:   mailboxes,
+		lastUIDs:    make(map[string]uint32),
 		reconnectCh: make(chan bool, 1),
 		dialer:      dialer,
 		executor:    executor,
@@ -79,7 +96,7 @@ func NewEmailMonitorWithDefaults(config Config) (*EmailMonitor, error) {
 	)
 }
 
-// Start begins monitoring the IMAP mailbox for new emails
+// Start begins monitoring all configured IMAP mailboxes for new emails
 func (em *EmailMonitor) Start() {
 	em.logger.Println("starting email monitor...")
 
@@ -105,16 +122,16 @@ func (em *EmailMonitor) Start() {
 
 		em.logger.Println("connected to IMAP server")
 
-		// Get initial state
-		err = em.initializeLastUID()
+		// Initialize last UIDs for all mailboxes
+		err = em.initializeLastUIDs()
 		if err != nil {
 			em.logger.Printf("failed to initialize: %v", err)
 			em.disconnect()
 			continue
 		}
 
-		// Start monitoring
-		err = em.monitor()
+		// Start monitoring all mailboxes
+		err = em.monitorAllMailboxes()
 		if err != nil {
 			em.logger.Printf("monitor error: %v. Reconnecting...", err)
 		}
@@ -170,23 +187,29 @@ func (em *EmailMonitor) disconnect() {
 	}
 }
 
-// initializeLastUID gets the UID of the most recent message to track new emails
-func (em *EmailMonitor) initializeLastUID() error {
-	mailbox := em.config.IMAP.Mailbox
-	if mailbox == "" {
-		mailbox = "INBOX"
+// initializeLastUIDs gets the UID of the most recent message in each mailbox to track new emails
+func (em *EmailMonitor) initializeLastUIDs() error {
+	for _, mailbox := range em.mailboxes {
+		uid, err := em.initializeLastUIDForMailbox(mailbox.mailbox)
+		if err != nil {
+			return err
+		}
+		em.lastUIDs[mailbox.mailbox] = uid
 	}
+	return nil
+}
 
-	mbox, err := em.client.Select(mailbox, false)
+// initializeLastUIDForMailbox gets the UID of the most recent message in a specific mailbox
+func (em *EmailMonitor) initializeLastUIDForMailbox(mailboxName string) (uint32, error) {
+	mbox, err := em.client.Select(mailboxName, false)
 	if err != nil {
-		return fmt.Errorf("%w \"%s\": %v", ErrMailboxNotFound, mailbox, err)
+		return 0, fmt.Errorf("%w \"%s\": %v", ErrMailboxNotFound, mailboxName, err)
 	}
 
 	// If the mailbox is empty, there's no UID
 	if mbox.Messages == 0 {
-		em.lastUID = 0
-		em.logger.Printf("mailbox is empty, starting with UID: 0")
-		return nil
+		em.logger.Printf("mailbox %s is empty, starting with UID: 0", mailboxName)
+		return 0, nil
 	}
 
 	// Search for all messages to get the sequence numbers
@@ -195,13 +218,12 @@ func (em *EmailMonitor) initializeLastUID() error {
 	criteria.SeqNum.AddRange(1, mbox.Messages)
 	uids, err := em.client.Search(criteria)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if len(uids) == 0 {
-		em.lastUID = 0
-		em.logger.Printf("mailbox is empty, starting with UID: 0")
-		return nil
+		em.logger.Printf("mailbox %s is empty, starting with UID: 0", mailboxName)
+		return 0, nil
 	}
 
 	// Fetch the UID of the last message
@@ -215,24 +237,48 @@ func (em *EmailMonitor) initializeLastUID() error {
 	}()
 
 	msg := <-messages
-	em.lastUID = msg.Uid
+	lastUID := msg.Uid
 
 	if err := <-done; err != nil {
-		return err
+		return 0, err
 	}
 
-	em.logger.Printf("initialized with last UID: %d (UidNext: %d)", em.lastUID, mbox.UidNext)
-	return nil
+	em.logger.Printf("initialized mailbox %s with last UID: %d (UidNext: %d)", mailboxName, lastUID, mbox.UidNext)
+	return lastUID, nil
 }
 
-// monitor continuously checks for new messages
-func (em *EmailMonitor) monitor() error {
-	checkInterval := time.Duration(em.config.IMAP.CheckInterval) * time.Second
-	if checkInterval == 0 {
-		checkInterval = 30 * time.Second
+// monitorAllMailboxes coordinates monitoring of all configured mailboxes
+func (em *EmailMonitor) monitorAllMailboxes() error {
+	// Group mailboxes by their check interval to optimize monitoring
+	intervalGroups := make(map[int][]compiledMailbox)
+	for _, mailbox := range em.mailboxes {
+		interval := mailbox.checkInterval
+		intervalGroups[interval] = append(intervalGroups[interval], mailbox)
 	}
 
-	ticker := em.timer.NewTicker(checkInterval)
+	// Start a goroutine for each interval group
+	errorCh := make(chan error, len(intervalGroups))
+	for interval, mailboxes := range intervalGroups {
+		go func(interval int, mailboxes []compiledMailbox) {
+			err := em.monitorMailboxGroup(interval, mailboxes)
+			if err != nil {
+				errorCh <- err
+			}
+		}(interval, mailboxes)
+	}
+
+	// Wait for the first error or stop signal
+	select {
+	case <-em.stopCh:
+		return nil
+	case err := <-errorCh:
+		return err
+	}
+}
+
+// monitorMailboxGroup monitors a group of mailboxes with the same check interval
+func (em *EmailMonitor) monitorMailboxGroup(checkInterval int, mailboxes []compiledMailbox) error {
+	ticker := em.timer.NewTicker(time.Duration(checkInterval) * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -240,41 +286,41 @@ func (em *EmailMonitor) monitor() error {
 		case <-em.stopCh:
 			return nil
 		case <-ticker.C():
-			err := em.checkForNewMessages()
-			if err != nil {
-				return err
+			for _, mailbox := range mailboxes {
+				err := em.checkForNewMessagesInMailbox(mailbox)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
 }
 
-// checkForNewMessages looks for new messages and processes them
-func (em *EmailMonitor) checkForNewMessages() error {
-	mailbox := em.config.IMAP.Mailbox
-	if mailbox == "" {
-		mailbox = "INBOX"
-	}
+// checkForNewMessagesInMailbox looks for new messages in a specific mailbox and processes them
+func (em *EmailMonitor) checkForNewMessagesInMailbox(mailbox compiledMailbox) error {
+	mailboxName := mailbox.mailbox
+	em.logger.Printf("checking for new messages in %s", mailboxName)
 
-	em.logger.Printf("checking for new messages in %s", mailbox)
-
-	mbox, err := em.client.Select(mailbox, false)
+	mbox, err := em.client.Select(mailboxName, false)
 	if err != nil {
 		return err
 	}
 
 	// If no messages in mailbox, nothing to do
 	if mbox.Messages == 0 {
-		em.logger.Println("no messages")
+		em.logger.Printf("no messages in %s", mailboxName)
 		return nil
 	}
+
+	lastUID := em.lastUIDs[mailboxName]
 
 	// Search for messages with UID greater than lastUID
 	criteria := imap.NewSearchCriteria()
 	criteria.Uid = new(imap.SeqSet)
 
 	// Only search if we have a valid lastUID
-	if em.lastUID > 0 {
-		criteria.Uid.AddRange(em.lastUID+1, 0)
+	if lastUID > 0 {
+		criteria.Uid.AddRange(lastUID+1, 0)
 	} else {
 		// If lastUID is 0, we want all messages
 		criteria.Uid.AddRange(1, 0)
@@ -288,17 +334,17 @@ func (em *EmailMonitor) checkForNewMessages() error {
 	// Filter out UIDs that we've already seen (additional safety check)
 	var newUIDs []uint32
 	for _, uid := range uids {
-		if uid > em.lastUID {
+		if uid > lastUID {
 			newUIDs = append(newUIDs, uid)
 		}
 	}
 
 	if len(newUIDs) == 0 {
-		em.logger.Println("no new messages")
+		em.logger.Printf("no new messages in %s", mailboxName)
 		return nil
 	}
 
-	em.logger.Printf("found %d new messages (UIDs: %v)", len(newUIDs), newUIDs)
+	em.logger.Printf("found %d new messages in %s (UIDs: %v)", len(newUIDs), mailboxName, newUIDs)
 
 	// Fetch new messages
 	seqset := new(imap.SeqSet)
@@ -315,14 +361,14 @@ func (em *EmailMonitor) checkForNewMessages() error {
 
 	var processedUIDs []uint32
 	for msg := range messages {
-		err := em.processMessage(msg)
+		err := em.processMessageInMailbox(msg, mailbox)
 		if err != nil {
-			em.logger.Printf("error processing message UID %d: %v", msg.Uid, err)
+			em.logger.Printf("error processing message UID %d in %s: %v", msg.Uid, mailboxName, err)
 		}
 
 		processedUIDs = append(processedUIDs, msg.Uid)
-		if msg.Uid > em.lastUID {
-			em.lastUID = msg.Uid
+		if msg.Uid > lastUID {
+			em.lastUIDs[mailboxName] = msg.Uid
 		}
 	}
 
@@ -330,12 +376,12 @@ func (em *EmailMonitor) checkForNewMessages() error {
 		return err
 	}
 
-	em.logger.Printf("processed messages with UIDs: %v, new lastUID: %d", processedUIDs, em.lastUID)
+	em.logger.Printf("processed messages in %s with UIDs: %v, new lastUID: %d", mailboxName, processedUIDs, em.lastUIDs[mailboxName])
 	return nil
 }
 
-// processMessage processes a single email message
-func (em *EmailMonitor) processMessage(msg *imap.Message) error {
+// processMessageInMailbox processes a single email message using the triggers for a specific mailbox
+func (em *EmailMonitor) processMessageInMailbox(msg *imap.Message, mailbox compiledMailbox) error {
 	if msg == nil || msg.Envelope == nil {
 		em.logger.Println("skipping message with nil envelope")
 		return nil
@@ -346,7 +392,7 @@ func (em *EmailMonitor) processMessage(msg *imap.Message) error {
 		from = msg.Envelope.From[0].Address()
 	}
 
-	em.logger.Printf("processing message from: %s, Subject: %s", from, msg.Envelope.Subject)
+	em.logger.Printf("processing message from: %s, Subject: %s in mailbox: %s", from, msg.Envelope.Subject, mailbox.mailbox)
 
 	// Get message body
 	for _, part := range msg.Body {
@@ -360,17 +406,17 @@ func (em *EmailMonitor) processMessage(msg *imap.Message) error {
 			continue
 		}
 
-		// Check if body matches any of the configured monitors
-		for i, monitor := range em.monitors {
-			if monitor.regex.MatchString(body) {
-				em.logger.Printf("regex match found in message from: %s (monitor %d)", from, i)
+		// Check if body matches any of the configured triggers for this mailbox
+		for i, trigger := range mailbox.triggers {
+			if trigger.regex.MatchString(body) {
+				em.logger.Printf("regex match found in message from: %s (trigger %d in mailbox %s)", from, i, mailbox.mailbox)
 
-				err := em.executeCommand(msg, body, monitor.command)
+				err := em.executeCommand(msg, body, trigger.command)
 				if err != nil {
 					return fmt.Errorf("%w: %v", ErrCommandExecution, err)
 				}
 
-				// Don't return here - continue checking other monitors
+				// Don't return here - continue checking other triggers
 			}
 		}
 	}

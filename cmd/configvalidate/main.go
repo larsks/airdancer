@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"regexp"
 
 	"github.com/larsks/airdancer/internal/api"
 	"github.com/larsks/airdancer/internal/config"
@@ -222,30 +223,75 @@ func validateMonitorConfig(configFile string) error {
 		return fmt.Errorf("failed to parse flags: %v", err)
 	}
 
-	// Create a config loader with strict mode enabled
-	loader := config.NewConfigLoader()
-	loader.SetConfigFile(configFile)
-	loader.SetStrictMode(true) // Enable strict validation to detect unknown fields
-
-	// Set the same defaults as the monitor config
-	loader.SetDefaults(map[string]any{
-		"imap.server":                    "",
-		"imap.port":                      993,
-		"imap.username":                  "",
-		"imap.password":                  "",
-		"imap.use_ssl":                   true,
-		"imap.mailbox":                   "INBOX",
-		"imap.check_interval_seconds":    30,
-	})
-
-	// Use the config loader directly to get strict validation
-	if err := loader.LoadConfig(cfg); err != nil {
+	// Use the monitor config's LoadConfigFromStruct method for proper validation
+	if err := cfg.LoadConfigFromStruct(); err != nil {
 		return fmt.Errorf("failed to load monitor configuration: %v", err)
 	}
 
 	// Use the built-in validation
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("monitor configuration validation failed: %v", err)
+	}
+
+	// Additional validation for the new multi-mailbox structure
+	if err := validateMonitorStructure(cfg); err != nil {
+		return fmt.Errorf("monitor structure validation failed: %v", err)
+	}
+
+	return nil
+}
+
+// validateMonitorStructure performs additional validation on the monitor configuration structure
+func validateMonitorStructure(cfg *monitor.Config) error {
+	// Validate IMAP configuration
+	if cfg.IMAP.Server == "" {
+		return fmt.Errorf("IMAP server is required")
+	}
+
+	if cfg.IMAP.Port <= 0 || cfg.IMAP.Port > 65535 {
+		return fmt.Errorf("IMAP port must be between 1 and 65535, got %d", cfg.IMAP.Port)
+	}
+
+	if cfg.IMAP.Username == "" {
+		return fmt.Errorf("IMAP username is required")
+	}
+
+	if cfg.IMAP.Password == "" {
+		return fmt.Errorf("IMAP password is required")
+	}
+
+	// Validate global check interval if set
+	if cfg.CheckInterval != nil && *cfg.CheckInterval <= 0 {
+		return fmt.Errorf("global check_interval_seconds must be positive, got %d", *cfg.CheckInterval)
+	}
+
+	// Validate each mailbox configuration
+	for i, mailbox := range cfg.Monitor {
+		if mailbox.Mailbox == "" {
+			return fmt.Errorf("mailbox name is required for monitor %d", i)
+		}
+
+		// Validate mailbox-specific check interval if set
+		if mailbox.CheckInterval != nil && *mailbox.CheckInterval <= 0 {
+			return fmt.Errorf("check_interval_seconds must be positive for mailbox %s, got %d", mailbox.Mailbox, *mailbox.CheckInterval)
+		}
+
+		// Validate that mailbox has at least one trigger
+		if len(mailbox.Triggers) == 0 {
+			return fmt.Errorf("mailbox %s must have at least one trigger", mailbox.Mailbox)
+		}
+
+		// Validate each trigger
+		for j, trigger := range mailbox.Triggers {
+			if trigger.RegexPattern == "" {
+				return fmt.Errorf("regex_pattern is required for trigger %d in mailbox %s", j, mailbox.Mailbox)
+			}
+
+			// Test if regex pattern is valid
+			if _, err := regexp.Compile(trigger.RegexPattern); err != nil {
+				return fmt.Errorf("invalid regex pattern '%s' in trigger %d of mailbox %s: %v", trigger.RegexPattern, j, mailbox.Mailbox, err)
+			}
+		}
 	}
 
 	return nil
