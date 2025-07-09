@@ -235,9 +235,14 @@ func TestNewEmailMonitor(t *testing.T) {
 					Server: "imap.example.com",
 					Port:   993,
 				},
-				Monitor: []MonitorConfig{
+				Monitor: []MailboxConfig{
 					{
-						RegexPattern: "test.*pattern",
+						Mailbox: "INBOX",
+						Triggers: []TriggerConfig{
+							{
+								RegexPattern: "test.*pattern",
+							},
+						},
 					},
 				},
 			},
@@ -249,9 +254,14 @@ func TestNewEmailMonitor(t *testing.T) {
 				IMAP: IMAPConfig{
 					Port: 993,
 				},
-				Monitor: []MonitorConfig{
+				Monitor: []MailboxConfig{
 					{
-						RegexPattern: "test.*pattern",
+						Mailbox: "INBOX",
+						Triggers: []TriggerConfig{
+							{
+								RegexPattern: "test.*pattern",
+							},
+						},
 					},
 				},
 			},
@@ -264,9 +274,14 @@ func TestNewEmailMonitor(t *testing.T) {
 					Server: "imap.example.com",
 					Port:   993,
 				},
-				Monitor: []MonitorConfig{
+				Monitor: []MailboxConfig{
 					{
-						RegexPattern: "[invalid", // Invalid regex
+						Mailbox: "INBOX",
+						Triggers: []TriggerConfig{
+							{
+								RegexPattern: "[invalid", // Invalid regex
+							},
+						},
 					},
 				},
 			},
@@ -351,9 +366,14 @@ func TestEmailMonitorConnect(t *testing.T) {
 					Password: "password",
 					UseSSL:   tt.useSSL,
 				},
-				Monitor: []MonitorConfig{
+				Monitor: []MailboxConfig{
 					{
-						RegexPattern: "test",
+						Mailbox: "INBOX",
+						Triggers: []TriggerConfig{
+							{
+								RegexPattern: "test",
+							},
+						},
 					},
 				},
 			}
@@ -444,13 +464,17 @@ func TestEmailMonitorInitializeLastUID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			config := Config{
 				IMAP: IMAPConfig{
-					Server:  "imap.example.com",
-					Port:    993,
-					Mailbox: "INBOX",
+					Server: "imap.example.com",
+					Port:   993,
 				},
-				Monitor: []MonitorConfig{
+				Monitor: []MailboxConfig{
 					{
-						RegexPattern: "test",
+						Mailbox: "INBOX",
+						Triggers: []TriggerConfig{
+							{
+								RegexPattern: "test",
+							},
+						},
 					},
 				},
 			}
@@ -471,7 +495,7 @@ func TestEmailMonitorInitializeLastUID(t *testing.T) {
 
 			monitor.client = mockClient
 
-			err = monitor.initializeLastUID()
+			err = monitor.initializeLastUIDs()
 
 			if tt.expectedError {
 				if err == nil {
@@ -481,8 +505,8 @@ func TestEmailMonitorInitializeLastUID(t *testing.T) {
 				if err != nil {
 					t.Errorf("Expected no error, got %v", err)
 				}
-				if monitor.lastUID != tt.expectedUID {
-					t.Errorf("Expected lastUID %d, got %d", tt.expectedUID, monitor.lastUID)
+				if monitor.lastUIDs["INBOX"] != tt.expectedUID {
+					t.Errorf("Expected lastUID %d, got %d", tt.expectedUID, monitor.lastUIDs["INBOX"])
 				}
 			}
 		})
@@ -550,10 +574,15 @@ func TestEmailMonitorProcessMessage(t *testing.T) {
 					Server: "imap.example.com",
 					Port:   993,
 				},
-				Monitor: []MonitorConfig{
+				Monitor: []MailboxConfig{
 					{
-						RegexPattern: tt.regexPattern,
-						Command:      tt.command,
+						Mailbox: "INBOX",
+						Triggers: []TriggerConfig{
+							{
+								RegexPattern: tt.regexPattern,
+								Command:      tt.command,
+							},
+						},
 					},
 				},
 			}
@@ -566,7 +595,12 @@ func TestEmailMonitorProcessMessage(t *testing.T) {
 				t.Fatalf("Failed to create monitor: %v", err)
 			}
 
-			err = monitor.processMessage(tt.message)
+			// Create a mailbox configuration for the test
+			mailbox := compiledMailbox{
+				mailbox: "INBOX",
+				triggers: monitor.mailboxes[0].triggers,
+			}
+			err = monitor.processMessageInMailbox(tt.message, mailbox)
 
 			if tt.expectedError {
 				if err == nil {
@@ -600,10 +634,15 @@ func TestEmailMonitorExecuteCommand(t *testing.T) {
 			Server: "imap.example.com",
 			Port:   993,
 		},
-		Monitor: []MonitorConfig{
+		Monitor: []MailboxConfig{
 			{
-				RegexPattern: "test",
-				Command:      "echo 'test command'",
+				Mailbox: "INBOX",
+				Triggers: []TriggerConfig{
+					{
+						RegexPattern: "test",
+						Command:      "echo 'test command'",
+					},
+				},
 			},
 		},
 	}
@@ -627,7 +666,7 @@ func TestEmailMonitorExecuteCommand(t *testing.T) {
 
 	body := "test email body"
 
-	err = monitor.executeCommand(message, body, config.Monitor[0].Command)
+	err = monitor.executeCommand(message, body, config.Monitor[0].Triggers[0].Command)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -636,8 +675,8 @@ func TestEmailMonitorExecuteCommand(t *testing.T) {
 		t.Error("Expected Execute to be called")
 	}
 
-	if mockExecutor.lastCommand != config.Monitor[0].Command {
-		t.Errorf("Expected command %q, got %q", config.Monitor[0].Command, mockExecutor.lastCommand)
+	if mockExecutor.lastCommand != config.Monitor[0].Triggers[0].Command {
+		t.Errorf("Expected command %q, got %q", config.Monitor[0].Triggers[0].Command, mockExecutor.lastCommand)
 	}
 
 	if mockExecutor.lastStdin != body {
@@ -663,10 +702,15 @@ func TestEmailMonitorExecuteCommandNoCommand(t *testing.T) {
 			Server: "imap.example.com",
 			Port:   993,
 		},
-		Monitor: []MonitorConfig{
+		Monitor: []MailboxConfig{
 			{
-				RegexPattern: "test",
-				Command:      "", // No command configured
+				Mailbox: "INBOX",
+				Triggers: []TriggerConfig{
+					{
+						RegexPattern: "test",
+						Command:      "", // No command configured
+					},
+				},
 			},
 		},
 	}
@@ -714,9 +758,14 @@ func TestEmailMonitorStop(t *testing.T) {
 			Server: "imap.example.com",
 			Port:   993,
 		},
-		Monitor: []MonitorConfig{
+		Monitor: []MailboxConfig{
 			{
-				RegexPattern: "test",
+				Mailbox: "INBOX",
+				Triggers: []TriggerConfig{
+					{
+						RegexPattern: "test",
+					},
+				},
 			},
 		},
 	}
