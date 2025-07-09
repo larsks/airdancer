@@ -3,6 +3,7 @@
 NOIP_CONFIG_FILE=${NOIP_CONFIG_FILE:-/etc/airdancer/noip.conf}
 NOIP_UPDATE_URL=${NOIP_UPDATE_URL:-http://dynupdate.no-ip.com/nic/update}
 NOIP_LOG_LEVEL=${NOIP_LOG_LEVEL:-INFO}
+NOIP_INTERFACE=${NOIP_INTERFACE:-wlan0}
 
 get_interface_ip() {
   ip -j addr show | jq -r --arg ifname "$ifname" '.[]|select(.ifname == $ifname).addr_info[]|select(.family == "inet").local'
@@ -53,6 +54,11 @@ for required in NOIP_USERNAME NOIP_PASSWORD NOIP_HOSTNAME; do
   fi
 done
 
+if [[ $NOIP_INTERFACE != "$ifname" ]]; then
+  log_info "ignoring interface $ifname"
+  exit 0
+fi
+
 if [[ $ifstate = up ]]; then
   if [[ -z $NOIP_ADDRESS ]]; then
     NOIP_ADDRESS=$(get_interface_ip)
@@ -60,7 +66,7 @@ if [[ $ifstate = up ]]; then
   fi
 
   log_info "update address for $NOIP_HOSTNAME to $NOIP_ADDRESS"
-  curl -Sf -u "${NOIP_USERNAME}:${NOIP_PASSWORD}" \
+  curl -sSf -u "${NOIP_USERNAME}:${NOIP_PASSWORD}" \
     "${NOIP_UPDATE_URL}?hostname=${NOIP_HOSTNAME}&myip=${NOIP_ADDRESS}" ||
     log_fatal "failed to update address for $NOIP_HOSTNAME"
 fi
