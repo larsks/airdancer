@@ -61,6 +61,18 @@ func main() {
 			button = button.With(buttonwatcher.Click(*buttonCfg.ClickAction))
 		}
 
+		if buttonCfg.DoubleClickAction != nil {
+			button = button.With(buttonwatcher.DoubleClick(*buttonCfg.DoubleClickAction))
+		}
+
+		if buttonCfg.TripleClickAction != nil {
+			button = button.With(buttonwatcher.TripleClick(*buttonCfg.TripleClickAction))
+		}
+
+		if buttonCfg.ClickInterval != nil {
+			button = button.With(buttonwatcher.ClickInterval(*buttonCfg.ClickInterval))
+		}
+
 		if err := monitor.AddButton(button); err != nil {
 			log.Fatalf("failed to add button %s to monitor: %v", buttonCfg.Name, err)
 		}
