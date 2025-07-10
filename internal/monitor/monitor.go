@@ -201,6 +201,7 @@ func (em *EmailMonitor) initializeLastUIDs() error {
 
 // initializeLastUIDForMailbox gets the UID of the most recent message in a specific mailbox
 func (em *EmailMonitor) initializeLastUIDForMailbox(mailboxName string) (uint32, error) {
+	em.logger.Printf("selecting mailbox %s", mailboxName)
 	mbox, err := em.client.Select(mailboxName, false)
 	if err != nil {
 		return 0, fmt.Errorf("%w \"%s\": %v", ErrMailboxNotFound, mailboxName, err)
