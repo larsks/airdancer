@@ -43,6 +43,7 @@ type ButtonMonitor struct {
 	wg           sync.WaitGroup
 	debounceMs   int
 	pullMode     string
+	globalConfig *Config
 }
 
 func NewButtonMonitor() *ButtonMonitor {
@@ -53,6 +54,11 @@ func NewButtonMonitor() *ButtonMonitor {
 		debounceMs: 50,
 		pullMode:   "auto",
 	}
+}
+
+// SetGlobalConfig sets the global configuration for default values
+func (bm *ButtonMonitor) SetGlobalConfig(config *Config) {
+	bm.globalConfig = config
 }
 
 func (bm *ButtonMonitor) createDriver(driverType string) (common.ButtonDriver, error) {
@@ -138,31 +144,66 @@ func (bm *ButtonMonitor) AddButtonFromConfig(config ButtonConfig) error {
 	if config.TripleClickAction != nil {
 		wrapper.tripleClickAction = *config.TripleClickAction
 	}
-	if config.ClickInterval != nil {
-		wrapper.clickInterval = *config.ClickInterval
-	} else {
-		wrapper.clickInterval = 500 * time.Millisecond
-	}
-	if config.ShortPressDuration != nil {
-		wrapper.shortPressDuration = *config.ShortPressDuration
-	}
+	
+	// Set timing configuration with global defaults
+	wrapper.clickInterval = bm.getClickInterval(config.ClickInterval)
+	wrapper.shortPressDuration = bm.getShortPressDuration(config.ShortPressDuration)
+	wrapper.longPressDuration = bm.getLongPressDuration(config.LongPressDuration)
+	wrapper.timeout = bm.getTimeout(config.Timeout)
+	
 	if config.ShortPressAction != nil {
 		wrapper.shortPressAction = *config.ShortPressAction
-	}
-	if config.LongPressDuration != nil {
-		wrapper.longPressDuration = *config.LongPressDuration
 	}
 	if config.LongPressAction != nil {
 		wrapper.longPressAction = *config.LongPressAction
 	}
-	if config.Timeout != nil {
-		wrapper.timeout = *config.Timeout
-	} else {
-		wrapper.timeout = 10 * time.Second
-	}
 	
 	bm.wrappers = append(bm.wrappers, wrapper)
 	return nil
+}
+
+// getClickInterval returns the click interval, using button-specific value or global default
+func (bm *ButtonMonitor) getClickInterval(buttonValue *time.Duration) time.Duration {
+	if buttonValue != nil {
+		return *buttonValue
+	}
+	if bm.globalConfig != nil && bm.globalConfig.ClickInterval != nil {
+		return *bm.globalConfig.ClickInterval
+	}
+	return 500 * time.Millisecond // default value
+}
+
+// getShortPressDuration returns the short press duration, using button-specific value or global default
+func (bm *ButtonMonitor) getShortPressDuration(buttonValue *time.Duration) time.Duration {
+	if buttonValue != nil {
+		return *buttonValue
+	}
+	if bm.globalConfig != nil && bm.globalConfig.ShortPressDuration != nil {
+		return *bm.globalConfig.ShortPressDuration
+	}
+	return 0 // default value (disabled)
+}
+
+// getLongPressDuration returns the long press duration, using button-specific value or global default
+func (bm *ButtonMonitor) getLongPressDuration(buttonValue *time.Duration) time.Duration {
+	if buttonValue != nil {
+		return *buttonValue
+	}
+	if bm.globalConfig != nil && bm.globalConfig.LongPressDuration != nil {
+		return *bm.globalConfig.LongPressDuration
+	}
+	return 0 // default value (disabled)
+}
+
+// getTimeout returns the timeout, using button-specific value or global default
+func (bm *ButtonMonitor) getTimeout(buttonValue *time.Duration) time.Duration {
+	if buttonValue != nil {
+		return *buttonValue
+	}
+	if bm.globalConfig != nil && bm.globalConfig.Timeout != nil {
+		return *bm.globalConfig.Timeout
+	}
+	return 10 * time.Second // default value
 }
 
 func (bm *ButtonMonitor) Start() error {

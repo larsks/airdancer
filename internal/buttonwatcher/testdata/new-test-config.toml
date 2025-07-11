@@ -1,0 +1,21 @@
+[[buttons]]
+name = "GPIO Button 1"
+driver = "gpio"
+spec = "GPIO16:active-low:pull-up"
+click_action = "echo 'GPIO button clicked'"
+
+[[buttons]]
+name = "Event Button 1"
+driver = "event"
+spec = "/dev/input/event0:EV_KEY:115"
+short_press_action = "echo 'Event button short press'"
+long_press_action = "echo 'Event button long press'"
+short_press_duration = "200ms"
+long_press_duration = "2s"
+timeout = "5s"
+
+[[buttons]]
+name = "Event Button 2"
+driver = "event"
+spec = "/dev/input/event1:EV_KEY:114:0:1"
+click_action = "reboot"

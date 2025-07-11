@@ -28,6 +28,9 @@ func main() {
 	monitor := buttonwatcher.NewButtonMonitor()
 	defer monitor.Close() //nolint:errcheck
 
+	// Set global configuration for defaults
+	monitor.SetGlobalConfig(cfg)
+
 	for _, buttonCfg := range cfg.Buttons {
 		if err := monitor.AddButtonFromConfig(buttonCfg); err != nil {
 			log.Fatalf("failed to add button %s to monitor: %v", buttonCfg.Name, err)
