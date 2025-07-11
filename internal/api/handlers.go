@@ -16,9 +16,10 @@ import (
 type switchState string
 
 const (
-	switchStateOn    switchState = "on"
-	switchStateOff   switchState = "off"
-	switchStateBlink switchState = "blink"
+	switchStateOn     switchState = "on"
+	switchStateOff    switchState = "off"
+	switchStateBlink  switchState = "blink"
+	switchStateToggle switchState = "toggle"
 )
 
 type (
@@ -104,6 +105,27 @@ func (s *Server) handleSwitchHelper(w http.ResponseWriter, req *switchRequest, s
 		if err := sw.TurnOff(); err != nil {
 			return fmt.Errorf("failed to turn off switch %s: %w", sw, err)
 		}
+	case switchStateToggle:
+		var err error
+		var state bool
+
+		state, err = sw.GetState()
+		if err != nil {
+			return fmt.Errorf("failed to get switch state for switch %s: %w", sw, err)
+		}
+
+		if state {
+			err = sw.TurnOff()
+		} else {
+			err = sw.TurnOn()
+		}
+
+		if err != nil {
+			return fmt.Errorf("failed to toggle switch %s: %w", sw, err)
+		}
+
+		// no duration when using "toggle"
+		return nil
 	case switchStateBlink:
 		dutyCycle := 0.5
 		if req.DutyCycle != nil {
