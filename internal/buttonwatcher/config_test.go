@@ -76,9 +76,8 @@ func TestConfigLoadConfig(t *testing.T) {
 
 		// Button 1 assertions
 		assert.Equal(t, "Button 1", config.Buttons[0].Name)
-		assert.Equal(t, "/dev/input/event0", config.Buttons[0].Device)
-		assert.Equal(t, "EV_KEY", config.Buttons[0].EventType)
-		assert.Equal(t, uint32(115), config.Buttons[0].EventCode)
+		assert.Equal(t, "event", config.Buttons[0].Driver)
+		assert.Equal(t, "/dev/input/event0:EV_KEY:115", config.Buttons[0].Spec)
 		assert.NotNil(t, config.Buttons[0].ClickAction)
 		assert.Equal(t, "reboot", *config.Buttons[0].ClickAction)
 		assert.Nil(t, config.Buttons[0].ShortPressAction)
@@ -86,7 +85,8 @@ func TestConfigLoadConfig(t *testing.T) {
 
 		// Button 2 assertions
 		assert.Equal(t, "Button 2", config.Buttons[1].Name)
-		assert.Equal(t, "/dev/input/event1", config.Buttons[1].Device)
+		assert.Equal(t, "event", config.Buttons[1].Driver)
+		assert.Equal(t, "/dev/input/event1:EV_KEY:114", config.Buttons[1].Spec)
 		assert.NotNil(t, config.Buttons[1].ShortPressAction)
 		assert.Equal(t, "shutdown", *config.Buttons[1].ShortPressAction)
 		assert.NotNil(t, config.Buttons[1].LongPressAction)
@@ -105,8 +105,8 @@ func TestConfigValidate(t *testing.T) {
 	t.Run("valid config", func(t *testing.T) {
 		config := &Config{
 			Buttons: []ButtonConfig{
-				{Name: "b1", Device: "d1"},
-				{Name: "b2", Device: "d2"},
+				{Name: "b1", Driver: "event", Spec: "/dev/input/event0:EV_KEY:115"},
+				{Name: "b2", Driver: "gpio", Spec: "GPIO16"},
 			},
 		}
 		err := config.Validate()
@@ -123,7 +123,7 @@ func TestConfigValidate(t *testing.T) {
 	t.Run("button missing name", func(t *testing.T) {
 		config := &Config{
 			Buttons: []ButtonConfig{
-				{Device: "d1"},
+				{Driver: "event", Spec: "/dev/input/event0:EV_KEY:115"},
 			},
 		}
 		err := config.Validate()
@@ -131,15 +131,26 @@ func TestConfigValidate(t *testing.T) {
 		assert.Equal(t, "button 0: name is required", err.Error())
 	})
 
-	t.Run("button missing device", func(t *testing.T) {
+	t.Run("button missing driver", func(t *testing.T) {
 		config := &Config{
 			Buttons: []ButtonConfig{
-				{Name: "b1"},
+				{Name: "b1", Spec: "/dev/input/event0:EV_KEY:115"},
 			},
 		}
 		err := config.Validate()
-		assert.Error(t, err, "Validation should fail with button missing device")
-		assert.Equal(t, "button 0 (b1): device is required", err.Error())
+		assert.Error(t, err, "Validation should fail with button missing driver")
+		assert.Equal(t, "button 0 (b1): driver is required", err.Error())
+	})
+
+	t.Run("button missing spec", func(t *testing.T) {
+		config := &Config{
+			Buttons: []ButtonConfig{
+				{Name: "b1", Driver: "event"},
+			},
+		}
+		err := config.Validate()
+		assert.Error(t, err, "Validation should fail with button missing spec")
+		assert.Equal(t, "button 0 (b1): spec is required", err.Error())
 	})
 
 	t.Run("loaded invalid config", func(t *testing.T) {
@@ -159,7 +170,7 @@ func TestConfigValidate(t *testing.T) {
 
 		err = config.Validate()
 		assert.Error(t, err, "Validation should fail for the loaded invalid config")
-		assert.Equal(t, "button 0 (Button 1): device is required", err.Error())
+		assert.Equal(t, "button 0 (Button 1): driver is required", err.Error())
 	})
 
 	t.Run("loaded empty config", func(t *testing.T) {
