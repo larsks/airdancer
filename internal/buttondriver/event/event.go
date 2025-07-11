@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -86,18 +87,18 @@ func (d *EventButtonDriver) Stop() {
 
 	d.started = false
 
-	// Signal all goroutines to stop
-	close(d.stopChan)
-
-	// Wait for all goroutines to finish
-	d.wg.Wait()
-
-	// Close all device files
+	// Close all device files first to unblock any Read operations
 	for device, file := range d.files {
 		if err := file.Close(); err != nil {
 			log.Printf("Error closing device %s: %v", device, err)
 		}
 	}
+
+	// Signal all goroutines to stop
+	close(d.stopChan)
+
+	// Wait for all goroutines to finish
+	d.wg.Wait()
 
 	// Close the event channel
 	close(d.eventChan)
@@ -135,6 +136,7 @@ func (d *EventButtonDriver) GetButtons() []string {
 	return buttonNames
 }
 
+
 // monitorDevice monitors a single input device for events
 func (d *EventButtonDriver) monitorDevice(device string, buttonSpecs []*EventButtonSpec) {
 	defer d.wg.Done()
@@ -143,29 +145,51 @@ func (d *EventButtonDriver) monitorDevice(device string, buttonSpecs []*EventBut
 	log.Printf("Starting monitoring for device: %s with %d button(s)", device, len(buttonSpecs))
 
 	eventSize := int(unsafe.Sizeof(events.InputEvent{}))
-	buffer := make([]byte, eventSize)
+
+	// Create a goroutine to read from the file
+	readChan := make(chan []byte, 1)
+	errorChan := make(chan error, 1)
+	readerDone := make(chan struct{})
+
+	go func() {
+		defer close(readerDone)
+		for {
+			readBuffer := make([]byte, eventSize)
+			n, err := file.Read(readBuffer)
+			if err != nil {
+				select {
+				case errorChan <- err:
+				case <-d.stopChan:
+				}
+				return
+			}
+			if n == eventSize {
+				select {
+				case readChan <- readBuffer:
+				case <-d.stopChan:
+					return
+				}
+			}
+		}
+	}()
 
 	for {
 		select {
 		case <-d.stopChan:
 			log.Printf("Stopping monitoring for device: %s", device)
 			return
-		default:
-			// Read event from device
-			n, err := file.Read(buffer)
-			if err != nil {
+		case err := <-errorChan:
+			// Check if this is an expected error due to shutdown
+			if strings.Contains(err.Error(), "file already closed") {
+				log.Printf("Stopping monitoring for device: %s", device)
+			} else {
 				log.Printf("Error reading from device %s: %v", device, err)
-				return
 			}
-
-			if n != eventSize {
-				log.Printf("Incomplete read from %s: got %d bytes, expected %d", device, n, eventSize)
-				continue
-			}
-
+			return
+		case buffer := <-readChan:
 			// Parse the input event
 			var inputEvent events.InputEvent
-			err = binary.Read(bytes.NewReader(buffer), binary.LittleEndian, &inputEvent)
+			err := binary.Read(bytes.NewReader(buffer), binary.LittleEndian, &inputEvent)
 			if err != nil {
 				log.Printf("Error parsing event from %s: %v", device, err)
 				continue

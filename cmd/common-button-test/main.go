@@ -17,7 +17,6 @@ import (
 
 func main() {
 	var (
-		buttons      = flag.String("buttons", "", "Comma-separated list of button specs (format: driver:name:spec)")
 		debounceMs   = flag.Int("debounce", 50, "Debounce delay in milliseconds (GPIO only)")
 		pullMode     = flag.String("pull", "auto", "Default pull resistor mode: none, up, down, auto (GPIO only)")
 		showHelp     = flag.Bool("help", false, "Show help message")
@@ -32,6 +31,9 @@ func main() {
 		fmt.Println("with different button implementations (GPIO, USB HID, etc.).")
 		fmt.Println()
 		fmt.Println("Usage:")
+		fmt.Println("  common-button-test [options] button_spec [button_spec ...]")
+		fmt.Println()
+		fmt.Println("Options:")
 		flag.PrintDefaults()
 		fmt.Println()
 		fmt.Println("Button Specification Format:")
@@ -45,16 +47,16 @@ func main() {
 		fmt.Println()
 		fmt.Println("Examples:")
 		fmt.Println("  # Simple GPIO button on pin 16")
-		fmt.Println("  common-button-test -buttons=gpio:btn1:GPIO16")
+		fmt.Println("  common-button-test gpio:btn1:GPIO16")
 		fmt.Println()
 		fmt.Println("  # Multiple buttons with different drivers")
-		fmt.Println("  common-button-test -buttons=\"gpio:btn1:GPIO16:active-low:pull-up,event:power:/dev/input/event0:EV_KEY:116\"")
+		fmt.Println("  common-button-test gpio:btn1:GPIO16:active-low:pull-up event:power:/dev/input/event0:EV_KEY:116")
 		fmt.Println()
 		fmt.Println("  # Event button with custom values")
-		fmt.Println("  common-button-test -buttons=event:volume_up:/dev/input/event1:EV_KEY:115:0:1")
+		fmt.Println("  common-button-test event:volume_up:/dev/input/event1:EV_KEY:115:0:1")
 		fmt.Println()
 		fmt.Println("  # Button with custom debounce (GPIO only)")
-		fmt.Println("  common-button-test -buttons=gpio:btn1:GPIO16 -debounce=100")
+		fmt.Println("  common-button-test -debounce=100 gpio:btn1:GPIO16")
 		fmt.Println()
 		fmt.Println("Driver Types:")
 		fmt.Println("  gpio  - GPIO-based buttons")
@@ -64,12 +66,13 @@ func main() {
 		return
 	}
 
-	if *buttons == "" {
-		log.Fatal("Error: -buttons parameter is required. Use -help for usage information.")
+	// Get button specs from non-option arguments
+	buttonSpecs := flag.Args()
+	if len(buttonSpecs) == 0 {
+		log.Fatal("Error: At least one button specification is required. Use -help for usage information.")
 	}
 
 	// Parse and create drivers for each button spec
-	buttonSpecs := strings.Split(*buttons, ",")
 	drivers := make(map[string]common.ButtonDriver)
 	
 	for _, spec := range buttonSpecs {
