@@ -20,6 +20,9 @@ var invalidConfigTOML []byte
 //go:embed testdata/empty-config.toml
 var emptyConfigTOML []byte
 
+//go:embed testdata/global-defaults-config.toml
+var globalDefaultsConfigTOML []byte
+
 func TestNewConfig(t *testing.T) {
 	config := NewConfig()
 	assert.NotNil(t, config, "NewConfig() should not return nil")
@@ -191,5 +194,59 @@ func TestConfigValidate(t *testing.T) {
 		err = config.Validate()
 		assert.Error(t, err, "Validation should fail for the loaded empty config")
 		assert.Equal(t, "no buttons configured", err.Error())
+	})
+}
+
+func TestGlobalDefaults(t *testing.T) {
+	t.Run("config with global defaults", func(t *testing.T) {
+		tmpFile, err := os.CreateTemp("", "global-defaults-config-*.toml")
+		require.NoError(t, err, "Failed to create temp file")
+		defer os.Remove(tmpFile.Name())
+
+		_, err = tmpFile.Write(globalDefaultsConfigTOML)
+		require.NoError(t, err, "Failed to write to temp file")
+		tmpFile.Close()
+
+		config := NewConfig()
+		config.ConfigFile = tmpFile.Name()
+
+		err = config.LoadConfig()
+		assert.NoError(t, err, "LoadConfig() with global defaults should not fail")
+
+		// Check global defaults are loaded
+		assert.NotNil(t, config.ClickInterval)
+		assert.Equal(t, 300*time.Millisecond, *config.ClickInterval)
+		assert.NotNil(t, config.ShortPressDuration)
+		assert.Equal(t, 500*time.Millisecond, *config.ShortPressDuration)
+		assert.NotNil(t, config.LongPressDuration)
+		assert.Equal(t, 2*time.Second, *config.LongPressDuration)
+		assert.NotNil(t, config.Timeout)
+		assert.Equal(t, 8*time.Second, *config.Timeout)
+
+		// Check buttons are loaded correctly
+		require.Len(t, config.Buttons, 3, "Should load 3 buttons")
+		
+		// Button 1 has no timing overrides
+		assert.Nil(t, config.Buttons[0].ClickInterval)
+		assert.Nil(t, config.Buttons[0].ShortPressDuration)
+		assert.Nil(t, config.Buttons[0].LongPressDuration)
+		assert.Nil(t, config.Buttons[0].Timeout)
+		
+		// Button 2 has click_interval override
+		assert.NotNil(t, config.Buttons[1].ClickInterval)
+		assert.Equal(t, 800*time.Millisecond, *config.Buttons[1].ClickInterval)
+		assert.Nil(t, config.Buttons[1].ShortPressDuration)
+		assert.Nil(t, config.Buttons[1].LongPressDuration)
+		assert.Nil(t, config.Buttons[1].Timeout)
+		
+		// Button 3 has all timing overrides
+		assert.NotNil(t, config.Buttons[2].ClickInterval)
+		assert.Equal(t, 200*time.Millisecond, *config.Buttons[2].ClickInterval)
+		assert.NotNil(t, config.Buttons[2].ShortPressDuration)
+		assert.Equal(t, 1*time.Second, *config.Buttons[2].ShortPressDuration)
+		assert.NotNil(t, config.Buttons[2].LongPressDuration)
+		assert.Equal(t, 3*time.Second, *config.Buttons[2].LongPressDuration)
+		assert.NotNil(t, config.Buttons[2].Timeout)
+		assert.Equal(t, 10*time.Second, *config.Buttons[2].Timeout)
 	})
 }
