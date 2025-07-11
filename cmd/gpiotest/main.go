@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/larsks/airdancer/internal/gpio"
+	"github.com/larsks/airdancer/internal/switchcollection/gpio"
 )
 
 func main() {

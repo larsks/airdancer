@@ -16,7 +16,7 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/larsks/airdancer/internal/blink"
 	"github.com/larsks/airdancer/internal/config"
-	"github.com/larsks/airdancer/internal/gpio"
+	"github.com/larsks/airdancer/internal/switchcollection/gpio"
 	"github.com/larsks/airdancer/internal/piface"
 	"github.com/larsks/airdancer/internal/switchcollection"
 	"github.com/spf13/pflag"
