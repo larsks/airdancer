@@ -17,6 +17,7 @@ UNITS = \
 CFGFILES = \
 	Caddyfile \
 	airdancer-wifi-fallback.conf
+	airdancer-buttons.toml
 
 SCRIPTS = \
 	airdancer-wifi-fallback.sh
