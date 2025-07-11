@@ -10,11 +10,8 @@ import (
 
 type ButtonConfig struct {
 	Name               string         `mapstructure:"name"`
-	Device             string         `mapstructure:"device"`
-	EventType          string         `mapstructure:"event_type"`
-	EventCode          uint32         `mapstructure:"event_code"`
-	LowValue           *uint32        `mapstructure:"low_value"`
-	HighValue          *uint32        `mapstructure:"high_value"`
+	Driver             string         `mapstructure:"driver"`
+	Spec               string         `mapstructure:"spec"`
 	ClickAction        *string        `mapstructure:"click_action"`
 	DoubleClickAction  *string        `mapstructure:"double_click_action"`
 	TripleClickAction  *string        `mapstructure:"triple_click_action"`
@@ -53,8 +50,11 @@ func (c *Config) Validate() error {
 		if button.Name == "" {
 			return fmt.Errorf("button %d: name is required", i)
 		}
-		if button.Device == "" {
-			return fmt.Errorf("button %d (%s): device is required", i, button.Name)
+		if button.Driver == "" {
+			return fmt.Errorf("button %d (%s): driver is required", i, button.Name)
+		}
+		if button.Spec == "" {
+			return fmt.Errorf("button %d (%s): spec is required", i, button.Name)
 		}
 	}
 	return nil

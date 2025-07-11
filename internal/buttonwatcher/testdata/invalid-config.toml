@@ -1,6 +1,5 @@
 [[buttons]]
 name = "Button 1"
-# device is missing
-event_type = "EV_KEY"
-event_code = 115
+# driver is missing
+spec = "/dev/input/event0:EV_KEY:115"
 click_action = "reboot"
