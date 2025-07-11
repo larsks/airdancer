@@ -12,28 +12,42 @@ import (
 type GPIOButtonSpec struct {
 	// Name is the button identifier
 	Name string
-	
+
 	// Pin is the GPIO pin name (e.g., "GPIO16", "GPIO18")
 	Pin string
-	
+
 	// ActiveHigh indicates if the button is active-high (true) or active-low (false)
 	ActiveHigh bool
-	
+
 	// PullMode specifies the pull resistor configuration
 	PullMode PullMode
-	
+
 	// DebounceDelay is the debounce delay for this specific button
 	DebounceDelay *time.Duration // nil means use driver default
 }
 
 // NewGPIOButtonSpec creates a new GPIO button specification
-func NewGPIOButtonSpec(name, pin string, activeHigh bool, pullMode PullMode) *GPIOButtonSpec {
+func NewGPIOButtonSpec(name, pin string) *GPIOButtonSpec {
 	return &GPIOButtonSpec{
-		Name:       name,
-		Pin:        pin,
-		ActiveHigh: activeHigh,
-		PullMode:   pullMode,
+		Name:     name,
+		Pin:      pin,
+		PullMode: PullAuto,
 	}
+}
+
+func (b *GPIOButtonSpec) WithPullMode(pullMode PullMode) *GPIOButtonSpec {
+	b.PullMode = pullMode
+	return b
+}
+
+func (b *GPIOButtonSpec) WithActiveHigh() *GPIOButtonSpec {
+	b.ActiveHigh = true
+	return b
+}
+
+func (b *GPIOButtonSpec) WithDebounceDelay(delay time.Duration) *GPIOButtonSpec {
+	b.DebounceDelay = &delay
+	return b
 }
 
 // ParseGPIOButtonSpec parses a GPIO button specification from a string
@@ -44,21 +58,21 @@ func ParseGPIOButtonSpec(spec string) (*GPIOButtonSpec, error) {
 	if len(parts) < 2 {
 		return nil, fmt.Errorf("invalid GPIO button spec format: %s (expected name:pin[:options])", spec)
 	}
-	
+
 	name := strings.TrimSpace(parts[0])
 	pin := strings.TrimSpace(parts[1])
-	
+
 	if name == "" {
 		return nil, fmt.Errorf("button name cannot be empty")
 	}
 	if pin == "" {
 		return nil, fmt.Errorf("GPIO pin cannot be empty")
 	}
-	
+
 	// Default values
 	activeHigh := true
 	pullMode := PullAuto
-	
+
 	// Parse optional parameters
 	for i := 2; i < len(parts); i++ {
 		param := strings.ToLower(strings.TrimSpace(parts[i]))
@@ -79,7 +93,7 @@ func ParseGPIOButtonSpec(spec string) (*GPIOButtonSpec, error) {
 			return nil, fmt.Errorf("unknown parameter: %s", param)
 		}
 	}
-	
+
 	return &GPIOButtonSpec{
 		Name:       name,
 		Pin:        pin,
@@ -115,7 +129,7 @@ func (spec *GPIOButtonSpec) String() string {
 	if !spec.ActiveHigh {
 		activeStr = "active-low"
 	}
-	
+
 	var pullStr string
 	switch spec.PullMode {
 	case PullNone:
@@ -127,9 +141,10 @@ func (spec *GPIOButtonSpec) String() string {
 	case PullAuto:
 		pullStr = "pull-auto"
 	}
-	
+
 	return fmt.Sprintf("%s:%s:%s:%s", spec.Name, spec.Pin, activeStr, pullStr)
 }
 
 // Ensure GPIOButtonSpec implements the common.ButtonSpec interface
 var _ common.ButtonSpec = (*GPIOButtonSpec)(nil)
+
