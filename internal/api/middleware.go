@@ -71,8 +71,8 @@ func (s *Server) validateSwitchRequest(next http.Handler) http.Handler {
 		}
 
 		// Validate state field
-		if req.State != switchStateOn && req.State != switchStateOff && req.State != switchStateBlink {
-			s.sendError(w, "State must be 'on', 'off', or 'blink'", http.StatusBadRequest)
+		if req.State != switchStateOn && req.State != switchStateOff && req.State != switchStateBlink && req.State != switchStateToggle {
+			s.sendError(w, "State must be 'on', 'off', 'toggle', or 'blink'", http.StatusBadRequest)
 			return
 		}
 
