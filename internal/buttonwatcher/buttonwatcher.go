@@ -3,6 +3,7 @@ package buttonwatcher
 import (
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"sync"
 	"time"
@@ -11,7 +12,6 @@ import (
 	"github.com/larsks/airdancer/internal/buttondriver/event"
 	"github.com/larsks/airdancer/internal/buttondriver/gpio"
 )
-
 
 // ButtonWrapper wraps a button driver with action handling functionality
 type ButtonWrapper struct {
@@ -26,7 +26,7 @@ type ButtonWrapper struct {
 	longPressDuration  time.Duration
 	longPressAction    string
 	timeout            time.Duration
-	
+
 	// State tracking for click/press detection
 	clickCount     int
 	lastClickTime  time.Time
@@ -91,7 +91,6 @@ func (bm *ButtonMonitor) createGPIODriver() (common.ButtonDriver, error) {
 	return gpio.NewButtonDriver(debounceDelay, pullModeEnum)
 }
 
-
 func (bm *ButtonMonitor) AddButtonFromConfig(config ButtonConfig) error {
 	// Get or create driver for this type
 	driverType := config.Driver
@@ -108,9 +107,9 @@ func (bm *ButtonMonitor) AddButtonFromConfig(config ButtonConfig) error {
 	// Parse the button spec and add to driver
 	var buttonSpec interface{}
 	var err error
-	
+
 	fullSpec := config.Name + ":" + config.Spec
-	
+
 	switch driverType {
 	case "gpio":
 		buttonSpec, err = gpio.ParseGPIOButtonSpec(fullSpec)
@@ -119,11 +118,11 @@ func (bm *ButtonMonitor) AddButtonFromConfig(config ButtonConfig) error {
 	default:
 		return fmt.Errorf("unsupported driver type: %s", driverType)
 	}
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to parse button spec for %s: %v", config.Name, err)
 	}
-	
+
 	if err := driver.AddButton(buttonSpec); err != nil {
 		return fmt.Errorf("failed to add button %s to driver: %v", config.Name, err)
 	}
@@ -133,7 +132,7 @@ func (bm *ButtonMonitor) AddButtonFromConfig(config ButtonConfig) error {
 		name:   config.Name,
 		driver: driver,
 	}
-	
+
 	// Set action configuration
 	if config.ClickAction != nil {
 		wrapper.clickAction = *config.ClickAction
@@ -144,20 +143,20 @@ func (bm *ButtonMonitor) AddButtonFromConfig(config ButtonConfig) error {
 	if config.TripleClickAction != nil {
 		wrapper.tripleClickAction = *config.TripleClickAction
 	}
-	
+
 	// Set timing configuration with global defaults
 	wrapper.clickInterval = bm.getClickInterval(config.ClickInterval)
 	wrapper.shortPressDuration = bm.getShortPressDuration(config.ShortPressDuration)
 	wrapper.longPressDuration = bm.getLongPressDuration(config.LongPressDuration)
 	wrapper.timeout = bm.getTimeout(config.Timeout)
-	
+
 	if config.ShortPressAction != nil {
 		wrapper.shortPressAction = *config.ShortPressAction
 	}
 	if config.LongPressAction != nil {
 		wrapper.longPressAction = *config.LongPressAction
 	}
-	
+
 	bm.wrappers = append(bm.wrappers, wrapper)
 	return nil
 }
@@ -217,7 +216,7 @@ func (bm *ButtonMonitor) Start() error {
 			return fmt.Errorf("failed to start %s driver: %v", driverType, err)
 		}
 		log.Printf("Started %s button driver", driverType)
-		
+
 		// Start event processor for this driver
 		bm.wg.Add(1)
 		go bm.processEvents(driver)
@@ -228,7 +227,7 @@ func (bm *ButtonMonitor) Start() error {
 
 func (bm *ButtonMonitor) processEvents(driver common.ButtonDriver) {
 	defer bm.wg.Done()
-	
+
 	for {
 		select {
 		case <-bm.stopChan:
@@ -251,37 +250,37 @@ func (bm *ButtonMonitor) handleButtonEvent(event common.ButtonEvent) {
 			break
 		}
 	}
-	
+
 	if wrapper == nil {
 		log.Printf("No wrapper found for button: %s", event.Source)
 		return
 	}
-	
+
 	wrapper.mutex.Lock()
 	defer wrapper.mutex.Unlock()
-	
+
 	switch event.Type {
 	case common.ButtonPressed:
 		wrapper.isPressed = true
 		wrapper.pressStartTime = event.Timestamp
 		log.Printf("[%s] Button PRESSED", event.Source)
-		
+
 	case common.ButtonReleased:
 		if wrapper.isPressed {
 			wrapper.isPressed = false
 			holdDuration := event.Timestamp.Sub(wrapper.pressStartTime)
-			
+
 			log.Printf("[%s] Button RELEASED - Hold duration: %.2f seconds", event.Source, holdDuration.Seconds())
-			
+
 			// Determine action based on hold duration
 			if wrapper.timeout > 0 && holdDuration >= wrapper.timeout {
 				log.Printf("[%s] Hold duration >= timeout (%.1fs): No action taken", event.Source, wrapper.timeout.Seconds())
 			} else if wrapper.longPressDuration > 0 && holdDuration >= wrapper.longPressDuration {
 				log.Printf("[%s] Long press detected (%.1fs): %s", event.Source, wrapper.longPressDuration.Seconds(), wrapper.longPressAction)
-				wrapper.executeCommand(wrapper.longPressAction)
+				wrapper.executeCommand(wrapper.longPressAction, "long-press")
 			} else if wrapper.shortPressDuration > 0 && holdDuration >= wrapper.shortPressDuration {
 				log.Printf("[%s] Short press detected (%.1fs): %s", event.Source, wrapper.shortPressDuration.Seconds(), wrapper.shortPressAction)
-				wrapper.executeCommand(wrapper.shortPressAction)
+				wrapper.executeCommand(wrapper.shortPressAction, "short-press")
 			} else {
 				// Handle click sequence
 				wrapper.handleClickSequence(event.Timestamp)
@@ -324,7 +323,7 @@ func (wrapper *ButtonWrapper) executeClickAction(clickCount int) {
 	switch clickCount {
 	case 1:
 		action = wrapper.clickAction
-		actionType = "click"
+		actionType = "single-click"
 	case 2:
 		action = wrapper.doubleClickAction
 		actionType = "double-click"
@@ -337,17 +336,21 @@ func (wrapper *ButtonWrapper) executeClickAction(clickCount int) {
 
 	if action != "" {
 		log.Printf("[%s] %s detected: %s", wrapper.name, actionType, action)
-		wrapper.executeCommand(action)
+		wrapper.executeCommand(action, actionType)
 	}
 }
 
-func (wrapper *ButtonWrapper) executeCommand(command string) {
+func (wrapper *ButtonWrapper) executeCommand(command string, actionType string) {
 	if command == "" {
 		log.Printf("[%s] No command", wrapper.name)
 		return
 	}
 	log.Printf("[%s] Executing command: %s", wrapper.name, command)
 	cmd := exec.Command("sh", "-c", command)
+	env := os.Environ()
+	env = append(env, fmt.Sprintf("BUTTON_ACTION_TYPE=%s", actionType))
+	env = append(env, fmt.Sprintf("BUTTON_NAME=%s", wrapper.name))
+	cmd.Env = env
 	if err := cmd.Run(); err != nil {
 		log.Printf("[%s] Error executing command: %v", wrapper.name, err)
 	}
@@ -356,7 +359,7 @@ func (wrapper *ButtonWrapper) executeCommand(command string) {
 func (bm *ButtonMonitor) Close() error {
 	close(bm.stopChan)
 	bm.wg.Wait()
-	
+
 	for driverType, driver := range bm.drivers {
 		driver.Stop()
 		log.Printf("Stopped %s button driver", driverType)
