@@ -23,6 +23,9 @@ var emptyConfigTOML []byte
 //go:embed testdata/global-defaults-config.toml
 var globalDefaultsConfigTOML []byte
 
+//go:embed testdata/default-action-config.toml
+var defaultActionConfigTOML []byte
+
 func TestNewConfig(t *testing.T) {
 	config := NewConfig()
 	assert.NotNil(t, config, "NewConfig() should not return nil")
@@ -248,5 +251,43 @@ func TestGlobalDefaults(t *testing.T) {
 		assert.Equal(t, 3*time.Second, *config.Buttons[2].LongPressDuration)
 		assert.NotNil(t, config.Buttons[2].Timeout)
 		assert.Equal(t, 10*time.Second, *config.Buttons[2].Timeout)
+	})
+}
+
+func TestDefaultActionConfig(t *testing.T) {
+	t.Run("config with default actions", func(t *testing.T) {
+		tmpFile, err := os.CreateTemp("", "default-action-config-*.toml")
+		require.NoError(t, err, "Failed to create temp file")
+		defer os.Remove(tmpFile.Name())
+
+		_, err = tmpFile.Write(defaultActionConfigTOML)
+		require.NoError(t, err, "Failed to write to temp file")
+		tmpFile.Close()
+
+		config := NewConfig()
+		config.ConfigFile = tmpFile.Name()
+
+		err = config.LoadConfig()
+		assert.NoError(t, err, "LoadConfig() with default actions should not fail")
+
+		// Check global default action is loaded
+		assert.NotNil(t, config.DefaultAction)
+		assert.Equal(t, "echo 'Global default action executed'", *config.DefaultAction)
+
+		// Check buttons are loaded correctly
+		require.Len(t, config.Buttons, 3, "Should load 3 buttons")
+		
+		// Button 1 has click_action but no default_action
+		assert.NotNil(t, config.Buttons[0].ClickAction)
+		assert.Equal(t, "echo 'Button 1 clicked'", *config.Buttons[0].ClickAction)
+		assert.Nil(t, config.Buttons[0].DefaultAction)
+		
+		// Button 2 has its own default_action
+		assert.NotNil(t, config.Buttons[1].DefaultAction)
+		assert.Equal(t, "echo 'Button 2 default action'", *config.Buttons[1].DefaultAction)
+		
+		// Button 3 has no actions at all
+		assert.Nil(t, config.Buttons[2].ClickAction)
+		assert.Nil(t, config.Buttons[2].DefaultAction)
 	})
 }
