@@ -1,6 +1,7 @@
 package buttonwatcher
 
 import (
+	"cmp"
 	"fmt"
 	"log"
 	"os"
@@ -26,6 +27,7 @@ type ButtonWrapper struct {
 	longPressDuration  time.Duration
 	longPressAction    string
 	timeout            time.Duration
+	defaultAction      string
 
 	// State tracking for click/press detection
 	clickCount     int
@@ -156,6 +158,12 @@ func (bm *ButtonMonitor) AddButtonFromConfig(config ButtonConfig) error {
 	if config.LongPressAction != nil {
 		wrapper.longPressAction = *config.LongPressAction
 	}
+	// Set default action with fallback to global default
+	if config.DefaultAction != nil {
+		wrapper.defaultAction = *config.DefaultAction
+	} else if bm.globalConfig != nil && bm.globalConfig.DefaultAction != nil {
+		wrapper.defaultAction = *bm.globalConfig.DefaultAction
+	}
 
 	bm.wrappers = append(bm.wrappers, wrapper)
 	return nil
@@ -276,11 +284,13 @@ func (bm *ButtonMonitor) handleButtonEvent(event common.ButtonEvent) {
 			if wrapper.timeout > 0 && holdDuration >= wrapper.timeout {
 				log.Printf("[%s] Hold duration >= timeout (%.1fs): No action taken", event.Source, wrapper.timeout.Seconds())
 			} else if wrapper.longPressDuration > 0 && holdDuration >= wrapper.longPressDuration {
-				log.Printf("[%s] Long press detected (%.1fs): %s", event.Source, wrapper.longPressDuration.Seconds(), wrapper.longPressAction)
-				wrapper.executeCommand(wrapper.longPressAction, "long-press")
+				action := cmp.Or(wrapper.longPressAction, wrapper.defaultAction)
+				log.Printf("[%s] Long press detected (%.1fs): %s", event.Source, wrapper.longPressDuration.Seconds(), action)
+				wrapper.executeCommand(action, "long-press")
 			} else if wrapper.shortPressDuration > 0 && holdDuration >= wrapper.shortPressDuration {
-				log.Printf("[%s] Short press detected (%.1fs): %s", event.Source, wrapper.shortPressDuration.Seconds(), wrapper.shortPressAction)
-				wrapper.executeCommand(wrapper.shortPressAction, "short-press")
+				action := cmp.Or(wrapper.shortPressAction, wrapper.defaultAction)
+				log.Printf("[%s] Short press detected (%.1fs): %s", event.Source, wrapper.shortPressDuration.Seconds(), action)
+				wrapper.executeCommand(action, "short-press")
 			} else {
 				// Handle click sequence
 				wrapper.handleClickSequence(event.Timestamp)
@@ -322,13 +332,13 @@ func (wrapper *ButtonWrapper) executeClickAction(clickCount int) {
 
 	switch clickCount {
 	case 1:
-		action = wrapper.clickAction
+		action = cmp.Or(wrapper.clickAction, wrapper.defaultAction)
 		actionType = "single-click"
 	case 2:
-		action = wrapper.doubleClickAction
+		action = cmp.Or(wrapper.doubleClickAction, wrapper.defaultAction)
 		actionType = "double-click"
 	case 3:
-		action = wrapper.tripleClickAction
+		action = cmp.Or(wrapper.tripleClickAction, wrapper.defaultAction)
 		actionType = "triple-click"
 	default:
 		return

@@ -21,6 +21,7 @@ type ButtonConfig struct {
 	LongPressDuration  *time.Duration `mapstructure:"long_press_duration"`
 	LongPressAction    *string        `mapstructure:"long_press_action"`
 	Timeout            *time.Duration `mapstructure:"timeout"`
+	DefaultAction      *string        `mapstructure:"default_action"`
 }
 
 type Config struct {
@@ -32,6 +33,7 @@ type Config struct {
 	ShortPressDuration *time.Duration `mapstructure:"short_press_duration"`
 	LongPressDuration  *time.Duration `mapstructure:"long_press_duration"`
 	Timeout            *time.Duration `mapstructure:"timeout"`
+	DefaultAction      *string        `mapstructure:"default_action"`
 }
 
 func NewConfig() *Config {

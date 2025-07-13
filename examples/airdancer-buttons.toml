@@ -1,3 +1,6 @@
+# Global default action that will be used for any button action that is not specifically configured
+default_action = "echo 'No specific action configured, using default'"
+
 [[buttons]]
 name = "PowerButton"
 driver = "gpio"
@@ -5,9 +8,12 @@ spec = "GPIO16:active-low:pull-up"
 click_action = "echo 'Power button clicked'"
 long_press_action = "shutdown -h now"
 long_press_duration = "3s"
+# This button will use the global default_action for double-click, triple-click, and short-press
 
 [[buttons]]
 name = "VolumeUp"
 driver = "event"
 spec = "/dev/input/event0:EV_KEY:115:0:1"
 click_action = "amixer set Master 5%+"
+default_action = "amixer set Master toggle"
+# This button overrides the global default_action with its own
