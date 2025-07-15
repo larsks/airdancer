@@ -212,14 +212,14 @@ func TestValidateSwitchRequest(t *testing.T) {
 			requestBody:       `{}`,
 			wantStatus:        http.StatusBadRequest,
 			wantHandlerCalled: false,
-			wantErrorMsg:      "State must be 'on', 'off', or 'blink'",
+			wantErrorMsg:      "State must be 'on', 'off', 'toggle', or 'blink'",
 		},
 		{
 			name:              "invalid state",
-			requestBody:       `{"state":"toggle"}`,
+			requestBody:       `{"state":"invalid"}`,
 			wantStatus:        http.StatusBadRequest,
 			wantHandlerCalled: false,
-			wantErrorMsg:      "State must be 'on', 'off', or 'blink'",
+			wantErrorMsg:      "State must be 'on', 'off', 'toggle', or 'blink'",
 		},
 		{
 			name:              "zero duration",
@@ -240,7 +240,7 @@ func TestValidateSwitchRequest(t *testing.T) {
 			requestBody:       `{"duration":10}`,
 			wantStatus:        http.StatusBadRequest,
 			wantHandlerCalled: false,
-			wantErrorMsg:      "State must be 'on', 'off', or 'blink'",
+			wantErrorMsg:      "State must be 'on', 'off', 'toggle', or 'blink'",
 		},
 	}
 
