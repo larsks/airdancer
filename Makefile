@@ -53,6 +53,15 @@ test: test-unit
 test-unit:
 	$(GOTEST) ./...
 
+# Test example configurations
+.PHONY: test-examples
+test-examples: $(BIN_DIR)/configvalidate
+	$(SAY) "Validating example configurations"
+	$(Q)$(BIN_DIR)/configvalidate --type api --config examples/airdancer-api.toml
+	$(Q)$(BIN_DIR)/configvalidate --type ui --config examples/airdancer-ui.toml
+	$(Q)$(BIN_DIR)/configvalidate --type monitor --config examples/airdancer-monitor.toml
+	$(Q)$(BIN_DIR)/configvalidate --type buttons --config examples/airdancer-buttons.toml
+
 # Integration tests
 .PHONY: test-integration
 test-integration:
