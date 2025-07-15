@@ -1,0 +1,12 @@
+#!/bin/sh
+
+set -e
+
+echo "Tidying modules"
+go mod tidy
+
+echo "Running linter"
+golangci-lint run
+
+echo "Building code"
+make -j rebuild
