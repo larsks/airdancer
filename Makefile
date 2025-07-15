@@ -1,6 +1,7 @@
 # Go configuration
-PKG = github.com/larsks/airdancer
-GO = go
+PKG ?= github.com/larsks/airdancer
+GO ?= go
+GOTEST ?= go test
 
 # Verbosity control
 ifeq ($(V),1)
@@ -10,13 +11,14 @@ else
   Q = @
   SAY = @echo
 endif
-GOLDFLAGS = \
+
+GOLDFLAGS ?= \
 			-s \
 			-w \
 	    -X '$(PKG)/internal/version.BuildVersion=$(VERSION)' \
 	    -X '$(PKG)/internal/version.BuildRef=$(COMMIT)' \
 	    -X '$(PKG)/internal/version.BuildDate=$(DATE)'
-GOFLAGS = -ldflags="$(GOLDFLAGS)"
+GOFLAGS ?= -ldflags="$(GOLDFLAGS)"
 
 # Directories
 BIN_DIR = bin
@@ -49,7 +51,7 @@ test: test-unit
 # Unit tests
 .PHONY: test-unit
 test-unit:
-	$(GO) test -v ./...
+	$(GOTEST) ./...
 
 # Integration tests
 .PHONY: test-integration
