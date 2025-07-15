@@ -1,6 +1,15 @@
 # Go configuration
 PKG = github.com/larsks/airdancer
 GO = go
+
+# Verbosity control
+ifeq ($(V),1)
+  Q =
+  SAY = @true
+else
+  Q = @
+  SAY = @echo
+endif
 GOLDFLAGS = \
 			-s \
 			-w \
@@ -94,25 +103,32 @@ $(BIN_DIR):
 	mkdir -p $(BIN_DIR)
 
 $(BIN_DIR)/airdancer-api: $(GO_SOURCES) $(GO_MOD_FILES) | $(BIN_DIR)
-	$(GO) build $(GOFLAGS) -o $@ ./cmd/airdancer-api
+	$(SAY) "Compiling airdancer-api"
+	$(Q)$(GO) build $(GOFLAGS) -o $@ ./cmd/airdancer-api
 
 $(BIN_DIR)/airdancer-buttons: $(GO_SOURCES) $(GO_MOD_FILES) | $(BIN_DIR)
-	$(GO) build $(GOFLAGS) -o $@ ./cmd/airdancer-buttons
+	$(SAY) "Compiling airdancer-buttons"
+	$(Q)$(GO) build $(GOFLAGS) -o $@ ./cmd/airdancer-buttons
 
 $(BIN_DIR)/airdancer-monitor: $(GO_SOURCES) $(GO_MOD_FILES) | $(BIN_DIR)
-	$(GO) build $(GOFLAGS) -o $@ ./cmd/airdancer-monitor
+	$(SAY) "Compiling airdancer-monitor"
+	$(Q)$(GO) build $(GOFLAGS) -o $@ ./cmd/airdancer-monitor
 
 $(BIN_DIR)/airdancer-ui: $(GO_SOURCES) $(GO_MOD_FILES) | $(BIN_DIR)
-	$(GO) build $(GOFLAGS) -o $@ ./cmd/airdancer-ui
+	$(SAY) "Compiling airdancer-ui"
+	$(Q)$(GO) build $(GOFLAGS) -o $@ ./cmd/airdancer-ui
 
 $(BIN_DIR)/gpiotest: $(GO_SOURCES) $(GO_MOD_FILES) | $(BIN_DIR)
-	$(GO) build $(GOFLAGS) -o $@ ./cmd/gpiotest
+	$(SAY) "Compiling gpiotest"
+	$(Q)$(GO) build $(GOFLAGS) -o $@ ./cmd/gpiotest
 
 $(BIN_DIR)/pfctl: $(GO_SOURCES) $(GO_MOD_FILES) | $(BIN_DIR)
-	$(GO) build $(GOFLAGS) -o $@ ./cmd/pfctl
+	$(SAY) "Compiling pfctl"
+	$(Q)$(GO) build $(GOFLAGS) -o $@ ./cmd/pfctl
 
 $(BIN_DIR)/configvalidate: $(GO_SOURCES) $(GO_MOD_FILES) | $(BIN_DIR)
-	$(GO) build $(GOFLAGS) -o $@ ./cmd/configvalidate
+	$(SAY) "Compiling configvalidate"
+	$(Q)$(GO) build $(GOFLAGS) -o $@ ./cmd/configvalidate
 
 # Convenience targets for individual binaries
 .PHONY: airdancer-api airdancer-monitor airdancer-ui gpiotest pfctl configvalidate
