@@ -6,6 +6,7 @@ import (
 	"regexp"
 
 	"github.com/larsks/airdancer/internal/api"
+	"github.com/larsks/airdancer/internal/buttonwatcher"
 	"github.com/larsks/airdancer/internal/config"
 	"github.com/larsks/airdancer/internal/monitor"
 	"github.com/larsks/airdancer/internal/ui"
@@ -16,7 +17,7 @@ import (
 func main() {
 	var (
 		versionFlag = pflag.Bool("version", false, "Show version and exit")
-		configType  = pflag.String("type", "", "Configuration type: api, ui, or monitor")
+		configType  = pflag.String("type", "", "Configuration type: api, ui, monitor, or buttons")
 		configFile  = pflag.String("config", "", "Configuration file to validate")
 		helpFlag    = pflag.BoolP("help", "h", false, "Show help")
 	)
@@ -59,8 +60,10 @@ func main() {
 		err = validateUIConfig(*configFile)
 	case "monitor":
 		err = validateMonitorConfig(*configFile)
+	case "buttons":
+		err = validateButtonsConfig(*configFile)
 	default:
-		fmt.Fprintf(os.Stderr, "Error: Unknown configuration type '%s'. Must be 'api', 'ui', or 'monitor'\n", *configType)
+		fmt.Fprintf(os.Stderr, "Error: Unknown configuration type '%s'. Must be 'api', 'ui', 'monitor', or 'buttons'\n", *configType)
 		os.Exit(1)
 	}
 
@@ -83,6 +86,7 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "  %s --type api --config airdancer-api.toml\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "  %s --type ui --config airdancer-ui.toml\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "  %s --type monitor --config airdancer-monitor.toml\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "  %s --type buttons --config airdancer-buttons.toml\n", os.Args[0])
 }
 
 func validateAPIConfig(configFile string) error {
@@ -292,6 +296,38 @@ func validateMonitorStructure(cfg *monitor.Config) error {
 				return fmt.Errorf("invalid regex pattern '%s' in trigger %d of mailbox %s: %v", trigger.RegexPattern, j, mailbox.Mailbox, err)
 			}
 		}
+	}
+
+	return nil
+}
+
+func validateButtonsConfig(configFile string) error {
+	// Save the original command line flags
+	originalFlags := pflag.CommandLine
+	defer func() { pflag.CommandLine = originalFlags }()
+
+	// Create a clean flag set for this validation
+	pflag.CommandLine = pflag.NewFlagSet("buttons-validation", pflag.ContinueOnError)
+
+	cfg := buttonwatcher.NewConfig()
+	cfg.ConfigFile = configFile
+
+	// Add flags using the same method as the application
+	cfg.AddFlags(pflag.CommandLine)
+
+	// Parse with empty arguments (no command line flags set)
+	if err := pflag.CommandLine.Parse([]string{}); err != nil {
+		return fmt.Errorf("failed to parse flags: %v", err)
+	}
+
+	// Load configuration
+	if err := cfg.LoadConfig(); err != nil {
+		return fmt.Errorf("failed to load buttons configuration: %v", err)
+	}
+
+	// Use the built-in validation
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("buttons configuration validation failed: %v", err)
 	}
 
 	return nil
