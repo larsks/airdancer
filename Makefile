@@ -19,6 +19,7 @@ GOLDFLAGS ?= \
 	    -X '$(PKG)/internal/version.BuildRef=$(COMMIT)' \
 	    -X '$(PKG)/internal/version.BuildDate=$(DATE)'
 GOFLAGS ?= -ldflags="$(GOLDFLAGS)"
+GOTESTFLAGS = -coverprofile=coverage.out
 
 # Directories
 BIN_DIR = bin
@@ -51,7 +52,7 @@ test: test-unit
 # Unit tests
 .PHONY: test-unit
 test-unit:
-	$(GOTEST) ./...
+	$(GOTEST) $(GOTESTFLAGS) ./...
 
 # Test example configurations
 .PHONY: test-examples
