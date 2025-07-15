@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -240,6 +241,56 @@ func TestSwitchHandler(t *testing.T) {
 				return req.WithContext(ctx)
 			},
 		},
+		{
+			name:        "toggle switch from off to on",
+			switchID:    "1",
+			requestBody: `{"state":"toggle"}`,
+			wantStatus:  http.StatusOK,
+			setupContext: func(req *http.Request) *http.Request {
+				switchReq := switchRequest{State: "toggle"}
+				ctx := context.WithValue(req.Context(), switchRequestKey, switchReq)
+				return req.WithContext(ctx)
+			},
+		},
+		{
+			name:        "toggle switch from on to off",
+			switchID:    "2",
+			requestBody: `{"state":"toggle"}`,
+			wantStatus:  http.StatusOK,
+			setupContext: func(req *http.Request) *http.Request {
+				// First turn on switch 2
+				sw, _ := server.switches.GetSwitch(2)
+				sw.TurnOn()
+				switchReq := switchRequest{State: "toggle"}
+				ctx := context.WithValue(req.Context(), switchRequestKey, switchReq)
+				return req.WithContext(ctx)
+			},
+		},
+		{
+			name:        "blink switch",
+			switchID:    "0",
+			requestBody: `{"state":"blink","period":1.0,"dutyCycle":0.5}`,
+			wantStatus:  http.StatusOK,
+			setupContext: func(req *http.Request) *http.Request {
+				period := 1.0
+				dutyCycle := 0.5
+				switchReq := switchRequest{State: "blink", Period: &period, DutyCycle: &dutyCycle}
+				ctx := context.WithValue(req.Context(), switchRequestKey, switchReq)
+				return req.WithContext(ctx)
+			},
+		},
+		{
+			name:        "blink switch with default duty cycle",
+			switchID:    "1",
+			requestBody: `{"state":"blink","period":2.0}`,
+			wantStatus:  http.StatusOK,
+			setupContext: func(req *http.Request) *http.Request {
+				period := 2.0
+				switchReq := switchRequest{State: "blink", Period: &period}
+				ctx := context.WithValue(req.Context(), switchRequestKey, switchReq)
+				return req.WithContext(ctx)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -269,6 +320,173 @@ func TestSwitchHandler(t *testing.T) {
 			if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 				t.Errorf("switchHandler() returned invalid JSON: %v", err)
 			}
+		})
+	}
+}
+
+func TestSwitchToggleBehavior(t *testing.T) {
+	server := createTestServer(t, 2)
+
+	tests := []struct {
+		name          string
+		switchID      uint
+		initialState  bool
+		expectedState bool
+	}{
+		{
+			name:          "toggle off to on",
+			switchID:      0,
+			initialState:  false,
+			expectedState: true,
+		},
+		{
+			name:          "toggle on to off",
+			switchID:      1,
+			initialState:  true,
+			expectedState: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup initial state
+			sw, _ := server.switches.GetSwitch(tt.switchID)
+			if tt.initialState {
+				sw.TurnOn()
+			} else {
+				sw.TurnOff()
+			}
+
+			// Verify initial state
+			state, _ := sw.GetState()
+			if state != tt.initialState {
+				t.Fatalf("Initial state setup failed: expected %v, got %v", tt.initialState, state)
+			}
+
+			// Create toggle request
+			switchReq := switchRequest{State: switchStateToggle}
+			req := httptest.NewRequest("POST", fmt.Sprintf("/switch/%d", tt.switchID), strings.NewReader(`{"state":"toggle"}`))
+			req.Header.Set("Content-Type", "application/json")
+
+			// Add chi route context
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("id", fmt.Sprintf("%d", tt.switchID))
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+			// Add request context
+			ctx := context.WithValue(req.Context(), switchRequestKey, switchReq)
+			req = req.WithContext(ctx)
+
+			// Execute toggle
+			w := httptest.NewRecorder()
+			server.switchHandler(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Errorf("toggle failed with status %v: %s", w.Code, w.Body.String())
+			}
+
+			// Verify final state
+			finalState, _ := sw.GetState()
+			if finalState != tt.expectedState {
+				t.Errorf("toggle didn't work: expected %v, got %v", tt.expectedState, finalState)
+			}
+		})
+	}
+}
+
+func TestSwitchBlinkBehavior(t *testing.T) {
+	server := createTestServer(t, 2)
+
+	tests := []struct {
+		name      string
+		switchID  uint
+		period    float64
+		dutyCycle *float64
+		wantError bool
+	}{
+		{
+			name:      "blink with custom duty cycle",
+			switchID:  0,
+			period:    1.0,
+			dutyCycle: func() *float64 { d := 0.7; return &d }(),
+			wantError: false,
+		},
+		{
+			name:      "blink with default duty cycle",
+			switchID:  1,
+			period:    2.0,
+			dutyCycle: nil,
+			wantError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create blink request
+			switchReq := switchRequest{
+				State:     switchStateBlink,
+				Period:    &tt.period,
+				DutyCycle: tt.dutyCycle,
+			}
+
+			req := httptest.NewRequest("POST", fmt.Sprintf("/switch/%d", tt.switchID), strings.NewReader(`{"state":"blink"}`))
+			req.Header.Set("Content-Type", "application/json")
+
+			// Add chi route context
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("id", fmt.Sprintf("%d", tt.switchID))
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+			// Add request context
+			ctx := context.WithValue(req.Context(), switchRequestKey, switchReq)
+			req = req.WithContext(ctx)
+
+			// Execute blink
+			w := httptest.NewRecorder()
+			server.switchHandler(w, req)
+
+			if tt.wantError {
+				if w.Code == http.StatusOK {
+					t.Error("expected error but got success")
+				}
+				return
+			}
+
+			if w.Code != http.StatusOK {
+				t.Errorf("blink failed with status %v: %s", w.Code, w.Body.String())
+				return
+			}
+
+			// Verify blinker was created
+			swid := fmt.Sprintf("dummy:%d", tt.switchID)
+			server.mutex.Lock()
+			blinker, exists := server.blinkers[swid]
+			server.mutex.Unlock()
+
+			if !exists {
+				t.Error("blinker was not created")
+				return
+			}
+
+			// Verify blinker properties
+			if blinker.GetPeriod() != tt.period {
+				t.Errorf("blinker period: expected %v, got %v", tt.period, blinker.GetPeriod())
+			}
+
+			expectedDutyCycle := 0.5 // default
+			if tt.dutyCycle != nil {
+				expectedDutyCycle = *tt.dutyCycle
+			}
+			if blinker.GetDutyCycle() != expectedDutyCycle {
+				t.Errorf("blinker duty cycle: expected %v, got %v", expectedDutyCycle, blinker.GetDutyCycle())
+			}
+
+			if !blinker.IsRunning() {
+				t.Error("blinker should be running")
+			}
+
+			// Clean up - stop the blinker
+			blinker.Stop()
 		})
 	}
 }
