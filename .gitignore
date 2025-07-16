@@ -1,3 +1,6 @@
 .envrc
 /*.toml
 bin/
+coverage.*
+.vscode/
+GNUmakefile

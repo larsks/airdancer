@@ -13,11 +13,11 @@ driver = 'dummy'
 [collections.backpanel.driverconfig]
 switch_count = 4
 
-[switches.lamp1]
+[switches.sw1]
 spec = "frontpanel.0"
 
-[switches.lamp2]
+[switches.sw2]
 spec = "frontpanel.3"
 
-[switches.lamp3]
+[switches.sw3]
 spec = "backpanel.0"
