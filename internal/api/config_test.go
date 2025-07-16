@@ -33,6 +33,10 @@ func TestNewConfig(t *testing.T) {
 	if len(config.Switches) != 0 {
 		t.Errorf("NewConfig() Switches = %v, want empty map", config.Switches)
 	}
+
+	if len(config.Groups) != 0 {
+		t.Errorf("NewConfig() Groups = %v, want empty map", config.Groups)
+	}
 }
 
 func TestConfigAddFlags(t *testing.T) {
@@ -180,6 +184,12 @@ func TestEmbeddedConfigContent(t *testing.T) {
 		t.Errorf("Expected %d switches, got %d", expectedSwitches, len(config.Switches))
 	}
 
+	// Check groups
+	expectedGroups := 2
+	if len(config.Groups) != expectedGroups {
+		t.Errorf("Expected %d groups, got %d", expectedGroups, len(config.Groups))
+	}
+
 	// Verify specific collection exists
 	dummyCollection, exists := config.Collections["dummy-collection"]
 	if !exists {
@@ -194,6 +204,29 @@ func TestEmbeddedConfigContent(t *testing.T) {
 		t.Error("Expected to find switch1 in switches")
 	} else if switch1.Spec != "dummy-collection.0" {
 		t.Errorf("Expected switch1 spec to be 'dummy-collection.0', got %s", switch1.Spec)
+	}
+
+	// Verify specific group exists
+	testGroup, exists := config.Groups["test-group"]
+	if !exists {
+		t.Error("Expected to find test-group in groups")
+	} else {
+		expectedSwitchesInGroup := []string{"switch1", "switch2"}
+		if len(testGroup.Switches) != len(expectedSwitchesInGroup) {
+			t.Errorf("Expected test-group to have %d switches, got %d", len(expectedSwitchesInGroup), len(testGroup.Switches))
+		}
+		for _, expectedSwitch := range expectedSwitchesInGroup {
+			found := false
+			for _, groupSwitch := range testGroup.Switches {
+				if groupSwitch == expectedSwitch {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("Expected to find switch %s in test-group", expectedSwitch)
+			}
+		}
 	}
 
 	// Verify that the embedded invalid TOML config content is non-empty

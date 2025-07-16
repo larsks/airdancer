@@ -30,3 +30,9 @@ spec = "piface-collection.0"
 
 [switches.gpio-switch]
 spec = "gpio-collection.0"
+
+[groups.test-group]
+switches = ["switch1", "switch2"]
+
+[groups.mixed-group]
+switches = ["switch1", "piface-switch", "gpio-switch"]
