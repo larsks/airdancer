@@ -16,10 +16,10 @@ import (
 type switchState string
 
 const (
-	switchStateOn      switchState = "on"
-	switchStateOff     switchState = "off"
-	switchStateBlink   switchState = "blink"
-	switchStateToggle  switchState = "toggle"
+	switchStateOn       switchState = "on"
+	switchStateOff      switchState = "off"
+	switchStateBlink    switchState = "blink"
+	switchStateToggle   switchState = "toggle"
 	switchStateFlipflop switchState = "flipflop"
 )
 

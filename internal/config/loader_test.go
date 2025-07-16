@@ -9,9 +9,9 @@ import (
 
 // TestConfig is a sample config struct for testing
 type TestConfig struct {
-	ConfigFile    string `mapstructure:"config_file"`
-	ListenAddress string `mapstructure:"listen_address"`
-	ListenPort    int    `mapstructure:"listen_port"`
+	ConfigFile    string `mapstructure:"config-file"`
+	ListenAddress string `mapstructure:"listen-address"`
+	ListenPort    int    `mapstructure:"listen-port"`
 	Debug         bool   `mapstructure:"debug"`
 }
 
@@ -25,8 +25,8 @@ func (c *TestConfig) AddFlags(fs *pflag.FlagSet) {
 func TestConfigLoader_LoadConfig(t *testing.T) {
 	// Create a temporary config file
 	configContent := `
-listen_address = "192.168.1.100"
-listen_port = 9090
+listen-address = "192.168.1.100"
+listen-port = 9090
 debug = true
 `
 	tmpFile, err := os.CreateTemp("", "test-config-*.toml")
@@ -60,8 +60,8 @@ debug = true
 	loader := NewConfigLoader()
 	loader.SetConfigFile(config.ConfigFile)
 	loader.SetDefaults(map[string]any{
-		"listen_address": "127.0.0.1",
-		"listen_port":    8080,
+		"listen-address": "127.0.0.1",
+		"listen-port":    8080,
 		"debug":          false,
 	})
 
@@ -87,8 +87,8 @@ debug = true
 func TestConfigLoader_FlagPrecedence(t *testing.T) {
 	// Create a temporary config file
 	configContent := `
-listen_address = "192.168.1.100"
-listen_port = 9090
+listen-address = "192.168.1.100"
+listen-port = 9090
 debug = true
 `
 	tmpFile, err := os.CreateTemp("", "test-config-*.toml")
@@ -122,8 +122,8 @@ debug = true
 	loader := NewConfigLoader()
 	loader.SetConfigFile(config.ConfigFile)
 	loader.SetDefaults(map[string]any{
-		"listen_address": "127.0.0.1",
-		"listen_port":    8080,
+		"listen-address": "127.0.0.1",
+		"listen-port":    8080,
 		"debug":          false,
 	})
 
@@ -146,8 +146,8 @@ debug = true
 func TestStandardConfigPattern(t *testing.T) {
 	// Create a temporary config file
 	configContent := `
-listen_address = "10.0.0.1"
-listen_port = 5555
+listen-address = "10.0.0.1"
+listen-port = 5555
 debug = false
 `
 	tmpFile, err := os.CreateTemp("", "test-config-*.toml")
@@ -178,8 +178,8 @@ debug = false
 	}
 
 	defaults := map[string]any{
-		"listen_address": "127.0.0.1",
-		"listen_port":    8080,
+		"listen-address": "127.0.0.1",
+		"listen-port":    8080,
 		"debug":          true,
 	}
 
@@ -203,7 +203,7 @@ debug = false
 func TestConfigLoader_FlagNameMapping(t *testing.T) {
 	// This test specifically validates the dummy.switch-count issue
 	type DummyTestConfig struct {
-		DummySwitchCount uint `mapstructure:"switch_count"`
+		DummySwitchCount uint `mapstructure:"switch-count"`
 	}
 
 	type TestConfig struct {
@@ -231,7 +231,7 @@ func TestConfigLoader_FlagNameMapping(t *testing.T) {
 
 	loader := NewConfigLoader()
 	loader.SetDefaults(map[string]any{
-		"dummy.switch_count": 4,
+		"dummy.switch-count": 4,
 	})
 
 	if err := loader.LoadConfig(config); err != nil {

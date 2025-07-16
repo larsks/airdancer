@@ -3,16 +3,16 @@ server = "test.example.com"
 port = 143
 username = "testuser"
 password = "testpass"
-use_ssl = false
+use-ssl = false
 
-check_interval_seconds = 60
+check-interval-seconds = 60
 
 [[monitor]]
 mailbox = "INBOX"
 [[monitor.triggers]]
-regex_pattern = "urgent.*alert"
+regex-pattern = "urgent.*alert"
 command = "notify-send 'Email Alert'"
 
 [[monitor.triggers]]
-regex_pattern = "CRITICAL.*ERROR"
+regex-pattern = "CRITICAL.*ERROR"
 command = "echo 'Critical alert received'" 

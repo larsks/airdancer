@@ -64,7 +64,7 @@ type (
 	}
 
 	DummyDriverConfig struct {
-		SwitchCount uint `mapstructure:"switch_count"`
+		SwitchCount uint `mapstructure:"switch-count"`
 	}
 
 	CollectionConfig struct {
@@ -118,8 +118,8 @@ func (c *Config) LoadConfig() error {
 
 	// Set default values
 	loader.SetDefaults(map[string]any{
-		"listen_address": "",
-		"listen_port":    8080,
+		"listen-address": "",
+		"listen-port":    8080,
 		"collections":    make(map[string]CollectionConfig),
 		"switches":       make(map[string]SwitchConfig),
 		"groups":         make(map[string]GroupConfig),
@@ -203,9 +203,9 @@ func mapConfigToStruct(configMap map[string]interface{}, target interface{}) err
 			t.Pins = pins
 		}
 	case *DummyDriverConfig:
-		if switchCount, ok := configMap["switch_count"].(uint); ok {
+		if switchCount, ok := configMap["switch-count"].(uint); ok {
 			t.SwitchCount = switchCount
-		} else if switchCount, ok := configMap["switch_count"].(int); ok {
+		} else if switchCount, ok := configMap["switch-count"].(int); ok {
 			t.SwitchCount = uint(switchCount)
 		}
 	}

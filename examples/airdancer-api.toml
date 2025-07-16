@@ -5,13 +5,13 @@ listen-port = 8080
 driver = 'dummy'
 
 [collections.frontpanel.driverconfig]
-switch_count = 4
+switch-count = 4
 
 [collections.backpanel]
 driver = 'dummy'
 
 [collections.backpanel.driverconfig]
-switch_count = 4
+switch-count = 4
 
 [collections.gpiopanel]
 driver = 'gpio'

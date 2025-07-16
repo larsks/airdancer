@@ -2,4 +2,4 @@
 name = "Button 1"
 # driver is missing
 spec = "/dev/input/event0:EV_KEY:115"
-click_action = "reboot"
+click-action = "reboot"

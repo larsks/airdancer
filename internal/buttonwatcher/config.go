@@ -12,16 +12,16 @@ type ButtonConfig struct {
 	Name               string         `mapstructure:"name"`
 	Driver             string         `mapstructure:"driver"`
 	Spec               string         `mapstructure:"spec"`
-	ClickAction        *string        `mapstructure:"click_action"`
-	DoubleClickAction  *string        `mapstructure:"double_click_action"`
-	TripleClickAction  *string        `mapstructure:"triple_click_action"`
-	ClickInterval      *time.Duration `mapstructure:"click_interval"`
-	ShortPressDuration *time.Duration `mapstructure:"short_press_duration"`
-	ShortPressAction   *string        `mapstructure:"short_press_action"`
-	LongPressDuration  *time.Duration `mapstructure:"long_press_duration"`
-	LongPressAction    *string        `mapstructure:"long_press_action"`
+	ClickAction        *string        `mapstructure:"click-action"`
+	DoubleClickAction  *string        `mapstructure:"double-click-action"`
+	TripleClickAction  *string        `mapstructure:"triple-click-action"`
+	ClickInterval      *time.Duration `mapstructure:"click-interval"`
+	ShortPressDuration *time.Duration `mapstructure:"short-press-duration"`
+	ShortPressAction   *string        `mapstructure:"short-press-action"`
+	LongPressDuration  *time.Duration `mapstructure:"long-press-duration"`
+	LongPressAction    *string        `mapstructure:"long-press-action"`
 	Timeout            *time.Duration `mapstructure:"timeout"`
-	DefaultAction      *string        `mapstructure:"default_action"`
+	DefaultAction      *string        `mapstructure:"default-action"`
 }
 
 type Config struct {
@@ -29,11 +29,11 @@ type Config struct {
 	Buttons    []ButtonConfig `mapstructure:"buttons"`
 
 	// Global defaults for timing-related settings
-	ClickInterval      *time.Duration `mapstructure:"click_interval"`
-	ShortPressDuration *time.Duration `mapstructure:"short_press_duration"`
-	LongPressDuration  *time.Duration `mapstructure:"long_press_duration"`
+	ClickInterval      *time.Duration `mapstructure:"click-interval"`
+	ShortPressDuration *time.Duration `mapstructure:"short-press-duration"`
+	LongPressDuration  *time.Duration `mapstructure:"long-press-duration"`
 	Timeout            *time.Duration `mapstructure:"timeout"`
-	DefaultAction      *string        `mapstructure:"default_action"`
+	DefaultAction      *string        `mapstructure:"default-action"`
 }
 
 func NewConfig() *Config {

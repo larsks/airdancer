@@ -13,19 +13,19 @@ type IMAPConfig struct {
 	Port     int    `mapstructure:"port"`
 	Username string `mapstructure:"username"`
 	Password string `mapstructure:"password"`
-	UseSSL   bool   `mapstructure:"use_ssl"`
+	UseSSL   bool   `mapstructure:"use-ssl"`
 }
 
 // TriggerConfig holds trigger configuration
 type TriggerConfig struct {
-	RegexPattern string `mapstructure:"regex_pattern"`
+	RegexPattern string `mapstructure:"regex-pattern"`
 	Command      string `mapstructure:"command"`
 }
 
 // MailboxConfig holds configuration for a single mailbox
 type MailboxConfig struct {
 	Mailbox       string          `mapstructure:"mailbox"`
-	CheckInterval *int            `mapstructure:"check_interval_seconds"`
+	CheckInterval *int            `mapstructure:"check-interval-seconds"`
 	Triggers      []TriggerConfig `mapstructure:"triggers"`
 }
 
@@ -33,7 +33,7 @@ type MailboxConfig struct {
 type Config struct {
 	ConfigFile    string          `mapstructure:"config-file"`
 	IMAP          IMAPConfig      `mapstructure:"imap"`
-	CheckInterval *int            `mapstructure:"check_interval_seconds"`
+	CheckInterval *int            `mapstructure:"check-interval-seconds"`
 	Monitor       []MailboxConfig `mapstructure:"monitor"`
 }
 
@@ -79,8 +79,8 @@ func (c *Config) LoadConfig(configFile string) error {
 		"imap.port":              c.IMAP.Port,
 		"imap.username":          c.IMAP.Username,
 		"imap.password":          c.IMAP.Password,
-		"imap.use_ssl":           c.IMAP.UseSSL,
-		"check_interval_seconds": 30,
+		"imap.use-ssl":           c.IMAP.UseSSL,
+		"check-interval-seconds": 30,
 	})
 
 	return loader.LoadConfig(c)
@@ -98,8 +98,8 @@ func (c *Config) LoadConfigFromStruct() error {
 		"imap.port":              993,
 		"imap.username":          "",
 		"imap.password":          "",
-		"imap.use_ssl":           true,
-		"check_interval_seconds": 30,
+		"imap.use-ssl":           true,
+		"check-interval-seconds": 30,
 	})
 
 	return loader.LoadConfig(c)
