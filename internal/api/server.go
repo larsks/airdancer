@@ -18,6 +18,7 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/larsks/airdancer/internal/blink"
 	"github.com/larsks/airdancer/internal/config"
+	"github.com/larsks/airdancer/internal/flipflop"
 	"github.com/larsks/airdancer/internal/piface"
 	"github.com/larsks/airdancer/internal/switchcollection"
 	"github.com/larsks/airdancer/internal/switchcollection/gpio"
@@ -46,6 +47,7 @@ type Server struct {
 	mutex       sync.Mutex
 	timers      map[string]*timerData
 	blinkers    map[string]*blink.Blink
+	flipflops   map[string]*flipflop.Flipflop
 	router      *chi.Mux
 }
 
@@ -321,6 +323,7 @@ func newServerWithCollections(collections map[string]switchcollection.SwitchColl
 		groups:      groups,
 		timers:      make(map[string]*timerData),
 		blinkers:    make(map[string]*blink.Blink),
+		flipflops:   make(map[string]*flipflop.Flipflop),
 		router:      chi.NewRouter(),
 	}
 

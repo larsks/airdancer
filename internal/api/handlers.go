@@ -9,16 +9,18 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/larsks/airdancer/internal/blink"
+	"github.com/larsks/airdancer/internal/flipflop"
 	"github.com/larsks/airdancer/internal/switchcollection"
 )
 
 type switchState string
 
 const (
-	switchStateOn     switchState = "on"
-	switchStateOff    switchState = "off"
-	switchStateBlink  switchState = "blink"
-	switchStateToggle switchState = "toggle"
+	switchStateOn      switchState = "on"
+	switchStateOff     switchState = "off"
+	switchStateBlink   switchState = "blink"
+	switchStateToggle  switchState = "toggle"
+	switchStateFlipflop switchState = "flipflop"
 )
 
 type (
@@ -95,6 +97,17 @@ func (s *Server) handleSwitchHelper(w http.ResponseWriter, req *switchRequest, s
 		delete(s.blinkers, swid)
 	}
 
+	// Stop any running flipflop for this switch
+	if flipflopInstance, ok := s.flipflops[swid]; ok {
+		if flipflopInstance.IsRunning() {
+			log.Printf("cancelling flipflop on %s", swid)
+			if err := flipflopInstance.Stop(); err != nil {
+				return fmt.Errorf("failed to cancel flipflop on %s: %w", swid, err)
+			}
+		}
+		delete(s.flipflops, swid)
+	}
+
 	// Execute switch operation
 	switch req.State {
 	case switchStateOn:
@@ -141,6 +154,8 @@ func (s *Server) handleSwitchHelper(w http.ResponseWriter, req *switchRequest, s
 		if err := newBlinker.Start(); err != nil {
 			return fmt.Errorf("failed to start blinker for %s: %w", swid, err)
 		}
+	case switchStateFlipflop:
+		return fmt.Errorf("flipflop state is only supported for switch groups, not individual switches")
 	}
 
 	// Set up auto-off timer if duration specified
@@ -185,6 +200,15 @@ func (s *Server) handleAllSwitches(w http.ResponseWriter, r *http.Request) {
 			log.Printf("failed to stop blinker on %s: %v", swid, err)
 		}
 		delete(s.blinkers, swid)
+	}
+
+	// Cancel any existing flipflop for all switches
+	for swid, flipflopInstance := range s.flipflops {
+		log.Printf("cancelling flipflop on %s", swid)
+		if err := flipflopInstance.Stop(); err != nil {
+			log.Printf("failed to stop flipflop on %s: %v", swid, err)
+		}
+		delete(s.flipflops, swid)
 	}
 
 	// Apply operation to all defined switches
@@ -252,7 +276,122 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 	s.mutex.Lock()
 	defer s.mutex.Unlock() //nolint:errcheck
 
-	// Apply operation to all switches in the group
+	// Handle flipflop specially since it operates on the group as a whole
+	if req.State == switchStateFlipflop {
+		// Cancel any existing timer for this group
+		if timer, ok := s.timers[groupName]; ok {
+			log.Printf("cancelling timer on group %s", groupName)
+			timer.timer.Stop()
+			delete(s.timers, groupName)
+		}
+
+		// Stop any running blinker for this group
+		if blinker, ok := s.blinkers[groupName]; ok {
+			if blinker.IsRunning() {
+				log.Printf("cancelling blinker on group %s", groupName)
+				if err := blinker.Stop(); err != nil {
+					s.sendError(w, fmt.Sprintf("failed to cancel blinker on group %s: %v", groupName, err), http.StatusInternalServerError)
+					return
+				}
+			}
+			delete(s.blinkers, groupName)
+		}
+
+		// Stop any running flipflop for this group
+		if flipflopInstance, ok := s.flipflops[groupName]; ok {
+			if flipflopInstance.IsRunning() {
+				log.Printf("cancelling flipflop on group %s", groupName)
+				if err := flipflopInstance.Stop(); err != nil {
+					s.sendError(w, fmt.Sprintf("failed to cancel flipflop on group %s: %v", groupName, err), http.StatusInternalServerError)
+					return
+				}
+			}
+			delete(s.flipflops, groupName)
+		}
+
+		// Create list of switches for the flipflop
+		var switches []switchcollection.Switch
+		for _, resolvedSwitch := range group.GetSwitches() {
+			switches = append(switches, resolvedSwitch.Switch)
+		}
+
+		dutyCycle := 0.5
+		if req.DutyCycle != nil {
+			dutyCycle = *req.DutyCycle
+		}
+
+		newFlipflop, err := flipflop.NewFlipflop(switches, *req.Period, dutyCycle)
+		if err != nil {
+			s.sendError(w, fmt.Sprintf("failed to create flipflop for group %s: %v", groupName, err), http.StatusBadRequest)
+			return
+		}
+
+		s.flipflops[groupName] = newFlipflop
+		log.Printf("start flipflop on group %s", groupName)
+		if err := newFlipflop.Start(); err != nil {
+			s.sendError(w, fmt.Sprintf("failed to start flipflop for group %s: %v", groupName, err), http.StatusBadRequest)
+			return
+		}
+
+		// Set up auto-off timer if duration specified
+		if req.Duration != nil {
+			duration := time.Duration(*req.Duration) * time.Second
+			log.Printf("start timer on group %s for %v", groupName, duration)
+			s.timers[groupName] = &timerData{
+				duration: duration,
+				timer: time.AfterFunc(duration, func() {
+					s.mutex.Lock()
+					defer s.mutex.Unlock() //nolint:errcheck
+					delete(s.timers, groupName)
+
+					if flipflopInstance, ok := s.flipflops[groupName]; ok {
+						if err := flipflopInstance.Stop(); err != nil {
+							log.Printf("timer failed to stop flipflop on group %s: %v", groupName, err)
+						}
+						delete(s.flipflops, groupName)
+					}
+					log.Printf("timer expired for group %s after %s", groupName, duration)
+				}),
+			}
+		}
+
+		s.sendSuccess(w, req)
+		return
+	}
+
+	// For all other states, first cancel any group-level activities
+	// Cancel any existing timer for this group
+	if timer, ok := s.timers[groupName]; ok {
+		log.Printf("cancelling timer on group %s", groupName)
+		timer.timer.Stop()
+		delete(s.timers, groupName)
+	}
+
+	// Stop any running blinker for this group
+	if blinker, ok := s.blinkers[groupName]; ok {
+		if blinker.IsRunning() {
+			log.Printf("cancelling blinker on group %s", groupName)
+			if err := blinker.Stop(); err != nil {
+				s.sendError(w, fmt.Sprintf("failed to cancel blinker on group %s: %v", groupName, err), http.StatusInternalServerError)
+				return
+			}
+		}
+		delete(s.blinkers, groupName)
+	}
+
+	// Stop any running flipflop for this group
+	if flipflopInstance, ok := s.flipflops[groupName]; ok {
+		if flipflopInstance.IsRunning() {
+			log.Printf("cancelling flipflop on group %s", groupName)
+			if err := flipflopInstance.Stop(); err != nil {
+				s.sendError(w, fmt.Sprintf("failed to cancel flipflop on group %s: %v", groupName, err), http.StatusInternalServerError)
+				return
+			}
+		}
+		delete(s.flipflops, groupName)
+	}
+
+	// Now apply operation to all switches in the group
 	var errors []error
 	for switchName, resolvedSwitch := range group.GetSwitches() {
 		if err := s.handleSwitchHelper(w, &req, switchName, resolvedSwitch.Switch); err != nil {
@@ -391,6 +530,12 @@ func (s *Server) handleGroupSwitchStatus(w http.ResponseWriter, groupName string
 	if blinker, ok := s.blinkers[groupName]; ok {
 		if blinker.IsRunning() {
 			response.State = switchStateBlink
+		}
+	}
+
+	if flipflopInstance, ok := s.flipflops[groupName]; ok {
+		if flipflopInstance.IsRunning() {
+			response.State = switchStateFlipflop
 		}
 	}
 
