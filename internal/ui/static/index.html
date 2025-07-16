@@ -172,8 +172,10 @@
         }
 
         #message-container {
-            min-height: 50px;
+            height: 50px;
             margin-bottom: 20px;
+            display: flex;
+            align-items: center;
         }
 
         .error {
@@ -182,6 +184,8 @@
             padding: 15px;
             border-radius: 8px;
             border: 1px solid #f5c6cb;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .success {
@@ -190,6 +194,8 @@
             padding: 15px;
             border-radius: 8px;
             border: 1px solid #c3e6cb;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .btn {
@@ -217,6 +223,100 @@
             color: #6c757d;
             font-size: 0.9em;
             margin-top: 20px;
+        }
+
+        .groups-section {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 2px solid #e9ecef;
+        }
+
+        .groups-section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+        }
+
+        .groups-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .group-card {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .group-card:hover {
+            border-color: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .group-name {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .group-state {
+            font-size: 0.9em;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+
+        .group-state.on {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .group-state.off {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .group-state.blink {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .group-state.flipflop {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .group-switches {
+            margin-bottom: 15px;
+        }
+
+        .group-switches-label {
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+
+        .group-switches-list {
+            font-size: 0.9em;
+            color: #495057;
+            font-style: italic;
+        }
+
+        .group-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
     </style>
 </head>
@@ -247,6 +347,13 @@
                 <!-- Switches will be populated here -->
             </div>
 
+            <div class="groups-section" id="groups-section" style="display: none;">
+                <h2>Switch Groups</h2>
+                <div class="groups-grid" id="groups-container">
+                    <!-- Groups will be populated here -->
+                </div>
+            </div>
+
             <div class="last-updated" id="last-updated">
                 Last updated: Never
             </div>
@@ -262,6 +369,8 @@
             constructor() {
                 this.switches = {}; // Changed to object to store switch names and states
                 this.switchNames = []; // Array of switch names for iteration
+                this.groups = {}; // Object to store group data
+                this.groupNames = []; // Array of group names for iteration
                 this.isLoading = false;
                 this.updateInterval = null;
                 this.init();
@@ -292,6 +401,8 @@
                     switchCount = data.data.count;
                     this.switches = {};
                     this.switchNames = [];
+                    this.groups = {};
+                    this.groupNames = [];
                     
                     // Convert new map-based response to our internal structure
                     for (const [switchName, switchData] of Object.entries(data.data.switches)) {
@@ -299,7 +410,16 @@
                         this.switchNames.push(switchName);
                     }
                     
+                    // Process groups if they exist
+                    if (data.data.groups) {
+                        for (const [groupName, groupData] of Object.entries(data.data.groups)) {
+                            this.groups[groupName] = groupData;
+                            this.groupNames.push(groupName);
+                        }
+                    }
+                    
                     this.renderSwitches();
+                    this.renderGroups();
                     this.updateLastUpdated();
                     this.showMessage('Switches loaded successfully', 'success');
                 } catch (error) {
@@ -325,12 +445,17 @@
                     this.updateConnectionStatus('Connected');
                     const newCount = data.data.count;
                     const newSwitchNames = Object.keys(data.data.switches);
+                    const newGroupNames = data.data.groups ? Object.keys(data.data.groups) : [];
                     
-                    // Check if the switch configuration has changed
-                    if (newCount !== switchCount || !this.arraysEqual(newSwitchNames.sort(), this.switchNames.sort())) {
+                    // Check if the switch or group configuration has changed
+                    if (newCount !== switchCount || 
+                        !this.arraysEqual(newSwitchNames.sort(), this.switchNames.sort()) ||
+                        !this.arraysEqual(newGroupNames.sort(), this.groupNames.sort())) {
                         switchCount = newCount;
                         this.switches = {};
                         this.switchNames = [];
+                        this.groups = {};
+                        this.groupNames = [];
                         
                         // Reload all switches
                         for (const [switchName, switchData] of Object.entries(data.data.switches)) {
@@ -338,14 +463,33 @@
                             this.switchNames.push(switchName);
                         }
                         
+                        // Reload all groups
+                        if (data.data.groups) {
+                            for (const [groupName, groupData] of Object.entries(data.data.groups)) {
+                                this.groups[groupName] = groupData;
+                                this.groupNames.push(groupName);
+                            }
+                        }
+                        
                         this.renderSwitches();
-                        this.showMessage(`Switch configuration changed: now ${switchCount} switches available`, 'success');
+                        this.renderGroups();
+                        this.showMessage(`Configuration changed: ${switchCount} switches, ${this.groupNames.length} groups`, 'success');
                     } else {
                         // Update individual switch states
                         for (const [switchName, switchData] of Object.entries(data.data.switches)) {
                             if (this.switches[switchName] !== switchData.currentState) {
                                 this.switches[switchName] = switchData.currentState;
                                 this.updateSwitchUI(switchName, switchData.currentState);
+                            }
+                        }
+                        
+                        // Update group states
+                        if (data.data.groups) {
+                            for (const [groupName, groupData] of Object.entries(data.data.groups)) {
+                                if (JSON.stringify(this.groups[groupName]) !== JSON.stringify(groupData)) {
+                                    this.groups[groupName] = groupData;
+                                    this.updateGroupUI(groupName, groupData);
+                                }
                             }
                         }
                     }
@@ -363,6 +507,24 @@
                 for (const switchName of this.switchNames) {
                     const switchCard = this.createSwitchCard(switchName, this.switches[switchName]);
                     container.appendChild(switchCard);
+                }
+            }
+
+            renderGroups() {
+                const groupsSection = document.getElementById('groups-section');
+                const container = document.getElementById('groups-container');
+                
+                if (this.groupNames.length === 0) {
+                    groupsSection.style.display = 'none';
+                    return;
+                }
+
+                groupsSection.style.display = 'block';
+                container.innerHTML = '';
+
+                for (const groupName of this.groupNames) {
+                    const groupCard = this.createGroupCard(groupName, this.groups[groupName]);
+                    container.appendChild(groupCard);
                 }
             }
             
@@ -390,6 +552,46 @@
                 const checkbox = card.querySelector(`#switch-${safeId}`);
                 checkbox.addEventListener('change', (e) => {
                     this.toggleSwitch(switchName, e.target.checked);
+                });
+
+                return card;
+            }
+
+            createGroupCard(groupName, groupData) {
+                const card = document.createElement('div');
+                card.className = 'group-card';
+                const safeId = this.getSafeId(groupName);
+                
+                const stateText = groupData.state.toUpperCase();
+                const switchesList = groupData.switches.join(', ');
+                
+                const isGroupOn = groupData.summary; // Use summary to determine if group should be considered "on"
+                
+                card.innerHTML = `
+                    <div class="group-header">
+                        <div class="group-name">${this.escapeHtml(groupName)}</div>
+                        <div class="group-state ${groupData.state}" id="group-state-${safeId}">
+                            ${stateText}
+                        </div>
+                    </div>
+                    <div class="group-switches">
+                        <div class="group-switches-label">Switches:</div>
+                        <div class="group-switches-list" id="group-switches-${safeId}">
+                            ${this.escapeHtml(switchesList)}
+                        </div>
+                    </div>
+                    <div class="group-controls">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="group-toggle-${safeId}" ${isGroupOn ? 'checked' : ''}>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                `;
+
+                // Add event listener for group toggle
+                const toggleCheckbox = card.querySelector(`#group-toggle-${safeId}`);
+                toggleCheckbox.addEventListener('change', (e) => {
+                    this.controlGroup(groupName, e.target.checked);
                 });
 
                 return card;
@@ -471,6 +673,75 @@
                     this.showMessage(`Failed to control all switches: ${error.message}`, 'error');
                 } finally {
                     this.setLoading(false);
+                }
+            }
+
+            async controlGroup(groupName, state) {
+                try {
+                    this.setLoading(true);
+                    const response = await fetch(`${API_BASE_URL}/switch/${encodeURIComponent(groupName)}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            state: state ? 'on' : 'off'
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    const data = await response.json();
+                    
+                    if (data.status !== 'ok') {
+                        throw new Error(data.message || 'Failed to control group');
+                    }
+
+                    this.updateLastUpdated();
+                    this.showMessage(`Group ${groupName} turned ${state ? 'on' : 'off'}`, 'success');
+                    
+                    // Update the affected switches in the UI
+                    for (const switchName of this.groups[groupName].switches) {
+                        if (this.switches[switchName] !== state) {
+                            this.switches[switchName] = state;
+                            this.updateSwitchUI(switchName, state);
+                        }
+                    }
+                    
+                } catch (error) {
+                    console.error(`Failed to control group ${groupName}:`, error);
+                    this.showMessage(`Failed to control group ${groupName}: ${error.message}`, 'error');
+                    // Revert the toggle switch on error
+                    const safeId = this.getSafeId(groupName);
+                    const toggleCheckbox = document.getElementById(`group-toggle-${safeId}`);
+                    if (toggleCheckbox) {
+                        toggleCheckbox.checked = !state;
+                    }
+                } finally {
+                    this.setLoading(false);
+                }
+            }
+
+            updateGroupUI(groupName, groupData) {
+                const safeId = this.getSafeId(groupName);
+                const stateLabel = document.getElementById(`group-state-${safeId}`);
+                const switchesList = document.getElementById(`group-switches-${safeId}`);
+                const toggleCheckbox = document.getElementById(`group-toggle-${safeId}`);
+                
+                if (stateLabel) {
+                    const stateText = groupData.state.toUpperCase();
+                    stateLabel.textContent = stateText;
+                    stateLabel.className = `group-state ${groupData.state}`;
+                }
+                
+                if (switchesList) {
+                    switchesList.textContent = groupData.switches.join(', ');
+                }
+                
+                if (toggleCheckbox) {
+                    toggleCheckbox.checked = groupData.summary;
                 }
             }
 
