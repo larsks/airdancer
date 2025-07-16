@@ -5,7 +5,7 @@ listen-port = 9090
 driver = 'dummy'
 
 [collections.dummy-collection.driverconfig]
-switch_count = 5
+switch-count = 5
 
 [collections.piface-collection]
 driver = 'piface'

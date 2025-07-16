@@ -9,9 +9,9 @@ import (
 
 // TestConfig is a sample config struct for testing
 type TestConfig struct {
-	ConfigFile    string `mapstructure:"config_file"`
-	ListenAddress string `mapstructure:"listen_address"`
-	ListenPort    int    `mapstructure:"listen_port"`
+	ConfigFile    string `mapstructure:"config-file"`
+	ListenAddress string `mapstructure:"listen-address"`
+	ListenPort    int    `mapstructure:"listen-port"`
 	Debug         bool   `mapstructure:"debug"`
 }
 
@@ -203,7 +203,7 @@ debug = false
 func TestConfigLoader_FlagNameMapping(t *testing.T) {
 	// This test specifically validates the dummy.switch-count issue
 	type DummyTestConfig struct {
-		DummySwitchCount uint `mapstructure:"switch_count"`
+		DummySwitchCount uint `mapstructure:"switch-count"`
 	}
 
 	type TestConfig struct {
