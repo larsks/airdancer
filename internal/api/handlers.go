@@ -48,6 +48,13 @@ type (
 		State    switchState                `json:"state"`
 		Count    uint                       `json:"count"`
 		Switches map[string]*switchResponse `json:"switches"`
+		Groups   map[string]*groupResponse  `json:"groups,omitempty"`
+	}
+
+	groupResponse struct {
+		Switches []string    `json:"switches"`
+		Summary  bool        `json:"summary"`
+		State    switchState `json:"state"`
 	}
 )
 
@@ -456,11 +463,58 @@ func (s *Server) switchStatusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) getStatusForGroup(groupName string, group *SwitchGroup) (*groupResponse, error) {
+	// Get list of switch names in the group
+	switchNames := make([]string, 0, len(group.GetSwitches()))
+	for switchName := range group.GetSwitches() {
+		switchNames = append(switchNames, switchName)
+	}
+
+	// Calculate summary state (true if all switches in group are on)
+	allOn := true
+	for _, resolvedSwitch := range group.GetSwitches() {
+		currentState, err := resolvedSwitch.Switch.GetState()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get state for switch %s in group %s: %w", resolvedSwitch.Name, groupName, err)
+		}
+		if !currentState {
+			allOn = false
+			break
+		}
+	}
+
+	response := &groupResponse{
+		Switches: switchNames,
+		Summary:  allOn,
+		State:    switchStateOff,
+	}
+
+	if allOn {
+		response.State = switchStateOn
+	}
+
+	// Check for group-level activities
+	if blinker, ok := s.blinkers[groupName]; ok {
+		if blinker.IsRunning() {
+			response.State = switchStateBlink
+		}
+	}
+
+	if flipflopInstance, ok := s.flipflops[groupName]; ok {
+		if flipflopInstance.IsRunning() {
+			response.State = switchStateFlipflop
+		}
+	}
+
+	return response, nil
+}
+
 func (s *Server) handleAllSwitchesStatus(w http.ResponseWriter) {
 	switchCount := uint(len(s.switches))
 	response := multiSwitchResponse{
 		Count:    switchCount,
 		Switches: make(map[string]*switchResponse),
+		Groups:   make(map[string]*groupResponse),
 	}
 
 	// Calculate summary state (true if all defined switches are on)
@@ -491,6 +545,16 @@ func (s *Server) handleAllSwitchesStatus(w http.ResponseWriter) {
 		if blinker.IsRunning() {
 			response.State = switchStateBlink
 		}
+	}
+
+	// Populate group information
+	for groupName, group := range s.groups {
+		groupStatus, err := s.getStatusForGroup(groupName, group)
+		if err != nil {
+			s.sendError(w, fmt.Sprintf("Failed to get status for group %s: %v", groupName, err), http.StatusBadRequest)
+			return
+		}
+		response.Groups[groupName] = groupStatus
 	}
 
 	s.sendSuccess(w, response)

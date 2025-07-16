@@ -228,3 +228,167 @@ func TestSwitchStatusHandler_AllSwitches(t *testing.T) {
 		}
 	}
 }
+
+// createTestServerWithGroups creates a server instance with dummy switches and groups for testing
+func createTestServerWithGroups(t *testing.T, switchCount uint) *Server {
+	collections := map[string]switchcollection.SwitchCollection{
+		"test-collection": switchcollection.NewDummySwitchCollection(switchCount),
+	}
+
+	// Initialize the collection
+	if err := collections["test-collection"].Init(); err != nil {
+		t.Fatalf("Failed to initialize test switches: %v", err)
+	}
+
+	// Create some test switches
+	switches := make(map[string]*ResolvedSwitch)
+	for i := uint(0); i < switchCount; i++ {
+		switchName := fmt.Sprintf("switch%d", i)
+		sw, err := collections["test-collection"].GetSwitch(i)
+		if err != nil {
+			t.Fatalf("Failed to get switch %d: %v", i, err)
+		}
+
+		switches[switchName] = &ResolvedSwitch{
+			Name:       switchName,
+			Collection: collections["test-collection"],
+			Index:      i,
+			Switch:     sw,
+		}
+	}
+
+	// Create test groups
+	groups := make(map[string]*SwitchGroup)
+	if switchCount >= 4 {
+		// Create "red" group with switch0 and switch1
+		redSwitches := map[string]*ResolvedSwitch{
+			"switch0": switches["switch0"],
+			"switch1": switches["switch1"],
+		}
+		groups["red"] = NewSwitchGroup("red", redSwitches)
+
+		// Create "green" group with switch2 and switch3
+		greenSwitches := map[string]*ResolvedSwitch{
+			"switch2": switches["switch2"],
+			"switch3": switches["switch3"],
+		}
+		groups["green"] = NewSwitchGroup("green", greenSwitches)
+	}
+
+	return newServerWithCollections(collections, switches, groups, "", false)
+}
+
+func TestSwitchStatusHandler_AllSwitches_WithGroups(t *testing.T) {
+	server := createTestServerWithGroups(t, 4)
+	defer server.Close()
+
+	req := httptest.NewRequest("GET", "/switch/all", nil)
+
+	// Add chi route context
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("name", "all")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	w := httptest.NewRecorder()
+	server.switchStatusHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("switchStatusHandler() status = %v, want %v", w.Code, http.StatusOK)
+	}
+
+	var response APIResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Errorf("switchStatusHandler() response not valid JSON: %v", err)
+	}
+
+	if response.Status != "ok" {
+		t.Errorf("switchStatusHandler() status = %v, want ok", response.Status)
+	}
+
+	// Verify the response contains group information
+	data, ok := response.Data.(map[string]interface{})
+	if !ok {
+		t.Errorf("switchStatusHandler() response data is not a map")
+		return
+	}
+
+	groups, ok := data["groups"].(map[string]interface{})
+	if !ok {
+		t.Errorf("switchStatusHandler() groups field is not a map")
+		return
+	}
+
+	// Check that we have the expected groups
+	expectedGroups := []string{"red", "green"}
+	for _, expectedGroup := range expectedGroups {
+		if _, exists := groups[expectedGroup]; !exists {
+			t.Errorf("switchStatusHandler() missing expected group %s in response", expectedGroup)
+		}
+	}
+
+	// Verify each group has expected fields
+	for groupName, groupData := range groups {
+		groupInfo, ok := groupData.(map[string]interface{})
+		if !ok {
+			t.Errorf("switchStatusHandler() group %s data is not a map", groupName)
+			continue
+		}
+
+		if _, exists := groupInfo["switches"]; !exists {
+			t.Errorf("switchStatusHandler() group %s missing 'switches' field", groupName)
+		}
+
+		if _, exists := groupInfo["summary"]; !exists {
+			t.Errorf("switchStatusHandler() group %s missing 'summary' field", groupName)
+		}
+
+		if _, exists := groupInfo["state"]; !exists {
+			t.Errorf("switchStatusHandler() group %s missing 'state' field", groupName)
+		}
+
+		// Verify switches array
+		switches, ok := groupInfo["switches"].([]interface{})
+		if !ok {
+			t.Errorf("switchStatusHandler() group %s switches field is not an array", groupName)
+			continue
+		}
+
+		// Check that the correct switches are in each group
+		switch groupName {
+		case "red":
+			if len(switches) != 2 {
+				t.Errorf("switchStatusHandler() group %s should have 2 switches, got %d", groupName, len(switches))
+			}
+			expectedSwitches := map[string]bool{"switch0": false, "switch1": false}
+			for _, sw := range switches {
+				if swName, ok := sw.(string); ok {
+					if _, exists := expectedSwitches[swName]; exists {
+						expectedSwitches[swName] = true
+					}
+				}
+			}
+			for swName, found := range expectedSwitches {
+				if !found {
+					t.Errorf("switchStatusHandler() group %s missing expected switch %s", groupName, swName)
+				}
+			}
+		case "green":
+			if len(switches) != 2 {
+				t.Errorf("switchStatusHandler() group %s should have 2 switches, got %d", groupName, len(switches))
+			}
+			expectedSwitches := map[string]bool{"switch2": false, "switch3": false}
+			for _, sw := range switches {
+				if swName, ok := sw.(string); ok {
+					if _, exists := expectedSwitches[swName]; exists {
+						expectedSwitches[swName] = true
+					}
+				}
+			}
+			for swName, found := range expectedSwitches {
+				if !found {
+					t.Errorf("switchStatusHandler() group %s missing expected switch %s", groupName, swName)
+				}
+			}
+		}
+	}
+}
