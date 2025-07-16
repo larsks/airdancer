@@ -13,12 +13,6 @@ driver = 'dummy'
 [collections.backpanel.driverconfig]
 switch_count = 4
 
-[collections.gpiopanel]
-driver = 'gpio'
-
-[collections.gpiopanel.driverconfig]
-pins = ["GPIO18", "GPIO19", "GPIO20", "GPIO21"]
-
 [switches.lamp1]
 spec = "frontpanel.0"
 
@@ -27,12 +21,3 @@ spec = "frontpanel.3"
 
 [switches.lamp3]
 spec = "backpanel.0"
-
-[switches.airdancer]
-spec = "backpanel.1"
-
-[switches.gpio-switch1]
-spec = "gpiopanel.0"
-
-[switches.gpio-switch2]
-spec = "gpiopanel.1"

@@ -26,16 +26,12 @@ func TestNewConfig(t *testing.T) {
 		t.Errorf("NewConfig() ListenPort = %v, want 8080", config.ListenPort)
 	}
 
-	if config.Driver != "dummy" {
-		t.Errorf("NewConfig() Driver = %v, want dummy", config.Driver)
+	if len(config.Collections) != 0 {
+		t.Errorf("NewConfig() Collections = %v, want empty map", config.Collections)
 	}
 
-	if config.PiFaceConfig.SPIDev != "/dev/spidev0.0" {
-		t.Errorf("NewConfig() PiFaceConfig.SPIDev = %v, want /dev/spidev0.0", config.PiFaceConfig.SPIDev)
-	}
-
-	if config.DummyConfig.SwitchCount != 4 {
-		t.Errorf("NewConfig() DummyConfig.SwitchCount = %v, want 4", config.DummyConfig.SwitchCount)
+	if len(config.Switches) != 0 {
+		t.Errorf("NewConfig() Switches = %v, want empty map", config.Switches)
 	}
 }
 
@@ -50,27 +46,12 @@ func TestConfigAddFlags(t *testing.T) {
 		"config",
 		"listen-address",
 		"listen-port",
-		"driver",
-		"piface.spidev",
-		"gpio.pins",
-		"dummy.switch-count",
 	}
 
 	for _, flagName := range expectedFlags {
 		if flag := fs.Lookup(flagName); flag == nil {
 			t.Errorf("AddFlags() did not add flag %s", flagName)
 		}
-	}
-
-	// Test that help text includes all drivers
-	driverFlag := fs.Lookup("driver")
-	if driverFlag == nil {
-		t.Fatal("driver flag not found")
-	}
-
-	helpText := driverFlag.Usage
-	if helpText != "Driver to use (piface, gpio, or dummy)" {
-		t.Errorf("AddFlags() driver help = %q, want 'Driver to use (piface, gpio, or dummy)'", helpText)
 	}
 }
 
@@ -187,27 +168,32 @@ func TestEmbeddedConfigContent(t *testing.T) {
 		t.Errorf("Expected ListenPort to be 9090, got %d", config.ListenPort)
 	}
 
-	if config.Driver != "dummy" {
-		t.Errorf("Expected Driver to be 'dummy', got %q", config.Driver)
+	// Check collections
+	expectedCollections := 3
+	if len(config.Collections) != expectedCollections {
+		t.Errorf("Expected %d collections, got %d", expectedCollections, len(config.Collections))
 	}
 
-	if config.DummyConfig.SwitchCount != 5 {
-		t.Errorf("Expected DummyConfig.SwitchCount to be 5, got %d", config.DummyConfig.SwitchCount)
+	// Check switches
+	expectedSwitches := 4
+	if len(config.Switches) != expectedSwitches {
+		t.Errorf("Expected %d switches, got %d", expectedSwitches, len(config.Switches))
 	}
 
-	if config.PiFaceConfig.SPIDev != "/dev/spidev1.0" {
-		t.Errorf("Expected PiFaceConfig.SPIDev to be '/dev/spidev1.0', got %q", config.PiFaceConfig.SPIDev)
+	// Verify specific collection exists
+	dummyCollection, exists := config.Collections["dummy-collection"]
+	if !exists {
+		t.Error("Expected to find dummy-collection in collections")
+	} else if dummyCollection.Driver != "dummy" {
+		t.Errorf("Expected dummy-collection driver to be 'dummy', got %s", dummyCollection.Driver)
 	}
 
-	expectedGPIOPins := []string{"GPIO18", "GPIO19"}
-	if len(config.GPIOConfig.Pins) != len(expectedGPIOPins) {
-		t.Errorf("Expected GPIOConfig.Pins to have %d elements, got %d", len(expectedGPIOPins), len(config.GPIOConfig.Pins))
-	} else {
-		for i, expectedPin := range expectedGPIOPins {
-			if config.GPIOConfig.Pins[i] != expectedPin {
-				t.Errorf("Expected GPIOConfig.Pins[%d] to be %q, got %q", i, expectedPin, config.GPIOConfig.Pins[i])
-			}
-		}
+	// Verify specific switch exists
+	switch1, exists := config.Switches["switch1"]
+	if !exists {
+		t.Error("Expected to find switch1 in switches")
+	} else if switch1.Spec != "dummy-collection.0" {
+		t.Errorf("Expected switch1 spec to be 'dummy-collection.0', got %s", switch1.Spec)
 	}
 
 	// Verify that the embedded invalid TOML config content is non-empty

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -43,10 +42,10 @@ type (
 	}
 
 	multiSwitchResponse struct {
-		Summary  bool              `json:"summary"`
-		State    switchState       `json:"state"`
-		Count    uint              `json:"count"`
-		Switches []*switchResponse `json:"switches"`
+		Summary  bool                       `json:"summary"`
+		State    switchState                `json:"state"`
+		Count    uint                       `json:"count"`
+		Switches map[string]*switchResponse `json:"switches"`
 	}
 )
 
@@ -66,13 +65,12 @@ func (s *Server) sendResponse(w http.ResponseWriter, resp APIResponse, code int)
 }
 
 func (s *Server) switchHandler(w http.ResponseWriter, r *http.Request) {
-	switchID := chi.URLParam(r, "id")
+	switchName := chi.URLParam(r, "name")
 
-	if switchID == "all" {
+	if switchName == "all" {
 		s.handleAllSwitches(w, r)
 	} else {
-		id, _ := strconv.Atoi(switchID)
-		s.handleSingleSwitch(w, r, uint(id))
+		s.handleSingleSwitch(w, r, switchName)
 	}
 }
 
@@ -187,19 +185,29 @@ func (s *Server) handleAllSwitches(w http.ResponseWriter, r *http.Request) {
 		delete(s.blinkers, swid)
 	}
 
-	if err := s.handleSwitchHelper(w, &req, "all", s.switches); err != nil {
-		s.sendError(w, err.Error(), http.StatusBadRequest)
+	// Apply operation to all defined switches
+	var errors []error
+	for switchName, resolvedSwitch := range s.switches {
+		if err := s.handleSwitchHelper(w, &req, switchName, resolvedSwitch.Switch); err != nil {
+			errors = append(errors, fmt.Errorf("switch %s: %w", switchName, err))
+		}
+	}
+
+	if len(errors) > 0 {
+		s.sendError(w, fmt.Sprintf("errors applying to all switches: %v", errors), http.StatusBadRequest)
+		return
 	}
 	s.sendSuccess(w, req)
 }
 
-func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, id uint) {
+func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, switchName string) {
 	// Get validated request directly from context
 	req, _ := r.Context().Value(switchRequestKey).(switchRequest)
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock() //nolint:errcheck
 
+	// Cancel any "all switches" operations that might be running
 	if blinker, ok := s.blinkers["all"]; ok {
 		if blinker.IsRunning() {
 			log.Printf("cancelling blinker on all switches")
@@ -214,16 +222,22 @@ func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, id u
 	if timer, ok := s.timers["all"]; ok {
 		log.Printf("cancelling timer on all switches")
 		timer.timer.Stop()
-		if err := s.switches.TurnOff(); err != nil {
-			s.sendError(w, fmt.Sprintf("Failed to cancel timer on all: %v", err), http.StatusInternalServerError)
-			return
+		// Turn off all defined switches when cancelling "all" timer
+		for _, resolvedSwitch := range s.switches {
+			if err := resolvedSwitch.Switch.TurnOff(); err != nil {
+				log.Printf("Failed to turn off switch %s during all timer cancellation: %v", resolvedSwitch.Name, err)
+			}
 		}
 		delete(s.timers, "all")
 	}
 
-	sw, _ := s.switches.GetSwitch(id)
-	swid := sw.String()
-	if err := s.handleSwitchHelper(w, &req, swid, sw); err != nil {
+	resolvedSwitch, exists := s.switches[switchName]
+	if !exists {
+		s.sendError(w, fmt.Sprintf("Switch %s not found", switchName), http.StatusNotFound)
+		return
+	}
+
+	if err := s.handleSwitchHelper(w, &req, switchName, resolvedSwitch.Switch); err != nil {
 		s.sendError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -266,35 +280,46 @@ func (s *Server) getStatusForSwitch(sw switchcollection.Switch) (*switchResponse
 }
 
 func (s *Server) switchStatusHandler(w http.ResponseWriter, r *http.Request) {
-	switchIDStr := chi.URLParam(r, "id")
+	switchName := chi.URLParam(r, "name")
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock() //nolint:errcheck
 
-	if switchIDStr == "all" {
+	if switchName == "all" {
 		s.handleAllSwitchesStatus(w)
 	} else {
-		id, _ := strconv.Atoi(switchIDStr) // No error check needed, already validated
-		s.handleSingleSwitchStatus(w, uint(id), switchIDStr)
+		s.handleSingleSwitchStatus(w, switchName)
 	}
 }
 
 func (s *Server) handleAllSwitchesStatus(w http.ResponseWriter) {
+	switchCount := uint(len(s.switches))
 	response := multiSwitchResponse{
-		Count:    s.switches.CountSwitches(),
-		Switches: make([]*switchResponse, s.switches.CountSwitches()),
+		Count:    switchCount,
+		Switches: make(map[string]*switchResponse),
 	}
 
-	// Get summary state (true if all switches are on)
-	summary, err := s.switches.GetState()
-	if err != nil {
-		log.Printf("failed to get summary switch state: %v", err)
-		s.sendError(w, "Failed to get switch state", http.StatusInternalServerError)
-		return
+	// Calculate summary state (true if all defined switches are on)
+	allOn := true
+
+	for switchName, resolvedSwitch := range s.switches {
+		switchStatus, err := s.getStatusForSwitch(resolvedSwitch.Switch)
+		if err != nil {
+			s.sendError(w, fmt.Sprintf("Failed to get status for switch %s: %v", switchName, err), http.StatusBadRequest)
+			return
+		}
+
+		// Store switch status with its name as the key
+		response.Switches[switchName] = switchStatus
+
+		if !switchStatus.CurrentState {
+			allOn = false
+		}
 	}
-	response.Summary = summary
+
+	response.Summary = allOn
 	response.State = switchStateOff
-	if summary {
+	if allOn {
 		response.State = switchStateOn
 	}
 
@@ -304,33 +329,21 @@ func (s *Server) handleAllSwitchesStatus(w http.ResponseWriter) {
 		}
 	}
 
-	for i := range s.switches.CountSwitches() {
-		sw, err := s.switches.GetSwitch(i)
-		if err != nil {
-			s.sendError(w, fmt.Sprintf("Failed to get lookup switch %d: %v", i, err), http.StatusInternalServerError)
-			return
-		}
-
-		response.Switches[i], err = s.getStatusForSwitch(sw)
-		if err != nil {
-			s.sendError(w, fmt.Sprintf("Failed to get status for switch %s: %v", sw, err), http.StatusBadRequest)
-		}
-	}
-
 	s.sendSuccess(w, response)
 }
 
-func (s *Server) handleSingleSwitchStatus(w http.ResponseWriter, id uint, idStr string) {
+func (s *Server) handleSingleSwitchStatus(w http.ResponseWriter, switchName string) {
 	// Check if switch exists
-	sw, err := s.switches.GetSwitch(id)
-	if err != nil {
-		s.sendError(w, "Switch not found", http.StatusNotFound)
+	resolvedSwitch, exists := s.switches[switchName]
+	if !exists {
+		s.sendError(w, fmt.Sprintf("Switch %s not found", switchName), http.StatusNotFound)
 		return
 	}
 
-	response, err := s.getStatusForSwitch(sw)
+	response, err := s.getStatusForSwitch(resolvedSwitch.Switch)
 	if err != nil {
-		s.sendError(w, fmt.Sprintf("Failed to get status for switch: %v", err), http.StatusBadRequest)
+		s.sendError(w, fmt.Sprintf("Failed to get status for switch %s: %v", switchName, err), http.StatusBadRequest)
+		return
 	}
 
 	s.sendSuccess(w, response)
