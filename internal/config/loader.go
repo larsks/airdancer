@@ -84,9 +84,9 @@ func (cl *ConfigLoader) LoadConfig(config any) error {
 	// Only override with flags that were explicitly set by the user
 	// This preserves the precedence: defaults < config file < explicit flags
 	pflag.CommandLine.Visit(func(flag *pflag.Flag) {
-		// Convert flag names to viper keys: hyphens become underscores, but keep dots
-		// This handles cases like --dummy.switch-count -> dummy.switch_count
-		viperKey := strings.ReplaceAll(flag.Name, "-", "_")
+		// Keep flag names as-is since we now use hyphens in mapstructure tags
+		// This handles cases like --dummy.switch-count -> dummy.switch-count
+		viperKey := flag.Name
 
 		// Get the actual value rather than string representation
 		// This handles different flag types properly (int, uint, bool, etc.)

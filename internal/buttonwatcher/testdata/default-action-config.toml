@@ -1,18 +1,18 @@
 # Configuration with default actions
-default_action = "echo 'Global default action executed'"
+default-action = "echo 'Global default action executed'"
 
 [[buttons]]
 name = "Button 1"
 driver = "event"
 spec = "/dev/input/event0:EV_KEY:115"
-click_action = "echo 'Button 1 clicked'"
+click-action = "echo 'Button 1 clicked'"
 # This button has specific click action but will use default for other actions
 
 [[buttons]]
 name = "Button 2"
 driver = "event"
 spec = "/dev/input/event1:EV_KEY:114"
-default_action = "echo 'Button 2 default action'"
+default-action = "echo 'Button 2 default action'"
 # This button has its own default action that overrides global default
 
 [[buttons]]

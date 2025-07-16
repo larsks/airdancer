@@ -1,35 +1,35 @@
 # Global defaults that apply to all buttons unless overridden
-click_interval = "300ms"
-short_press_duration = "500ms"
-long_press_duration = "2s"
+click-interval = "300ms"
+short-press-duration = "500ms"
+long-press-duration = "2s"
 timeout = "8s"
 
 [[buttons]]
 name = "Button 1"
 driver = "event"
 spec = "/dev/input/event0:EV_KEY:115"
-click_action = "echo 'Button 1 clicked'"
-short_press_action = "echo 'Button 1 short press'"
-long_press_action = "echo 'Button 1 long press'"
+click-action = "echo 'Button 1 clicked'"
+short-press-action = "echo 'Button 1 short press'"
+long-press-action = "echo 'Button 1 long press'"
 # This button will use global defaults for all timing values
 
 [[buttons]]
 name = "Button 2"
 driver = "event"
 spec = "/dev/input/event1:EV_KEY:114"
-click_action = "echo 'Button 2 clicked'"
-short_press_action = "echo 'Button 2 short press'"
-long_press_action = "echo 'Button 2 long press'"
+click-action = "echo 'Button 2 clicked'"
+short-press-action = "echo 'Button 2 short press'"
+long-press-action = "echo 'Button 2 long press'"
 # Override only the click interval, use global defaults for others
-click_interval = "800ms"
+click-interval = "800ms"
 
 [[buttons]]
 name = "Button 3"
 driver = "gpio"
 spec = "GPIO16:active-low:pull-up"
-click_action = "echo 'Button 3 clicked'"
+click-action = "echo 'Button 3 clicked'"
 # Override timing values completely
-click_interval = "200ms"
-short_press_duration = "1s"
-long_press_duration = "3s"
+click-interval = "200ms"
+short-press-duration = "1s"
+long-press-duration = "3s"
 timeout = "10s"

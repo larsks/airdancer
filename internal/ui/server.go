@@ -54,9 +54,9 @@ func (c *Config) LoadConfig() error {
 
 	// Set default values
 	loader.SetDefaults(map[string]any{
-		"listen_address": "",
-		"listen_port":    8081,
-		"api_base_url":   "http://localhost:8080",
+		"listen-address": "",
+		"listen-port":    8081,
+		"api-base-url":   "http://localhost:8080",
 	})
 
 	return loader.LoadConfig(c)
