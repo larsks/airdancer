@@ -260,7 +260,8 @@
 
         class SwitchController {
             constructor() {
-                this.switches = [];
+                this.switches = {}; // Changed to object to store switch names and states
+                this.switchNames = []; // Array of switch names for iteration
                 this.isLoading = false;
                 this.updateInterval = null;
                 this.init();
@@ -289,7 +290,15 @@
                     }
 
                     switchCount = data.data.count;
-                    this.switches = data.data.switches.map(sw => sw.currentState);
+                    this.switches = {};
+                    this.switchNames = [];
+                    
+                    // Convert new map-based response to our internal structure
+                    for (const [switchName, switchData] of Object.entries(data.data.switches)) {
+                        this.switches[switchName] = switchData.currentState;
+                        this.switchNames.push(switchName);
+                    }
+                    
                     this.renderSwitches();
                     this.updateLastUpdated();
                     this.showMessage('Switches loaded successfully', 'success');
@@ -315,20 +324,28 @@
 
                     this.updateConnectionStatus('Connected');
                     const newCount = data.data.count;
-                    const newSwitches = data.data.switches.map(sw => sw.currentState);
+                    const newSwitchNames = Object.keys(data.data.switches);
                     
-                    // Check if the number of switches has changed
-                    if (newCount !== switchCount) {
+                    // Check if the switch configuration has changed
+                    if (newCount !== switchCount || !this.arraysEqual(newSwitchNames.sort(), this.switchNames.sort())) {
                         switchCount = newCount;
-                        this.switches = newSwitches;
+                        this.switches = {};
+                        this.switchNames = [];
+                        
+                        // Reload all switches
+                        for (const [switchName, switchData] of Object.entries(data.data.switches)) {
+                            this.switches[switchName] = switchData.currentState;
+                            this.switchNames.push(switchName);
+                        }
+                        
                         this.renderSwitches();
                         this.showMessage(`Switch configuration changed: now ${switchCount} switches available`, 'success');
                     } else {
                         // Update individual switch states
-                        for (let i = 0; i < newSwitches.length; i++) {
-                            if (this.switches[i] !== newSwitches[i]) {
-                                this.switches[i] = newSwitches[i];
-                                this.updateSwitchUI(i, newSwitches[i]);
+                        for (const [switchName, switchData] of Object.entries(data.data.switches)) {
+                            if (this.switches[switchName] !== switchData.currentState) {
+                                this.switches[switchName] = switchData.currentState;
+                                this.updateSwitchUI(switchName, switchData.currentState);
                             }
                         }
                     }
@@ -343,40 +360,45 @@
                 const container = document.getElementById('switches-container');
                 container.innerHTML = '';
 
-                for (let i = 0; i < switchCount; i++) {
-                    const switchCard = this.createSwitchCard(i, this.switches[i]);
+                for (const switchName of this.switchNames) {
+                    const switchCard = this.createSwitchCard(switchName, this.switches[switchName]);
                     container.appendChild(switchCard);
                 }
             }
+            
+            arraysEqual(a, b) {
+                return a.length === b.length && a.every((val, index) => val === b[index]);
+            }
 
-            createSwitchCard(id, state) {
+            createSwitchCard(switchName, state) {
                 const card = document.createElement('div');
                 card.className = 'switch-card';
+                const safeId = this.getSafeId(switchName);
                 card.innerHTML = `
                     <div class="switch-header">
-                        <div class="switch-name">Switch ${id}</div>
-                        <div class="switch-state ${state ? 'on' : 'off'}" id="state-${id}">
+                        <div class="switch-name">${this.escapeHtml(switchName)}</div>
+                        <div class="switch-state ${state ? 'on' : 'off'}" id="state-${safeId}">
                             ${state ? 'ON' : 'OFF'}
                         </div>
                     </div>
                     <label class="toggle-switch">
-                        <input type="checkbox" id="switch-${id}" ${state ? 'checked' : ''}>
+                        <input type="checkbox" id="switch-${safeId}" ${state ? 'checked' : ''}>
                         <span class="slider"></span>
                     </label>
                 `;
 
-                const checkbox = card.querySelector(`#switch-${id}`);
+                const checkbox = card.querySelector(`#switch-${safeId}`);
                 checkbox.addEventListener('change', (e) => {
-                    this.toggleSwitch(id, e.target.checked);
+                    this.toggleSwitch(switchName, e.target.checked);
                 });
 
                 return card;
             }
 
-            async toggleSwitch(id, state) {
+            async toggleSwitch(switchName, state) {
                 try {
                     this.setLoading(true);
-                    const response = await fetch(`${API_BASE_URL}/switch/${id}`, {
+                    const response = await fetch(`${API_BASE_URL}/switch/${encodeURIComponent(switchName)}`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -396,14 +418,15 @@
                         throw new Error(data.message || 'Failed to toggle switch');
                     }
 
-                    this.switches[id] = state;
-                    this.updateSwitchUI(id, state);
+                    this.switches[switchName] = state;
+                    this.updateSwitchUI(switchName, state);
                     this.updateLastUpdated();
                     
                 } catch (error) {
-                    console.error(`Failed to toggle switch ${id}:`, error);
-                    this.showMessage(`Failed to toggle switch ${id}: ${error.message}`, 'error');
-                    const checkbox = document.getElementById(`switch-${id}`);
+                    console.error(`Failed to toggle switch ${switchName}:`, error);
+                    this.showMessage(`Failed to toggle switch ${switchName}: ${error.message}`, 'error');
+                    const safeId = this.getSafeId(switchName);
+                    const checkbox = document.getElementById(`switch-${safeId}`);
                     if (checkbox) {
                         checkbox.checked = !state;
                     }
@@ -435,9 +458,9 @@
                         throw new Error(data.message || 'Failed to control all switches');
                     }
 
-                    for (let i = 0; i < this.switches.length; i++) {
-                        this.switches[i] = state;
-                        this.updateSwitchUI(i, state);
+                    for (const switchName of this.switchNames) {
+                        this.switches[switchName] = state;
+                        this.updateSwitchUI(switchName, state);
                     }
                     
                     this.updateLastUpdated();
@@ -451,9 +474,10 @@
                 }
             }
 
-            updateSwitchUI(id, state) {
-                const checkbox = document.getElementById(`switch-${id}`);
-                const stateLabel = document.getElementById(`state-${id}`);
+            updateSwitchUI(switchName, state) {
+                const safeId = this.getSafeId(switchName);
+                const checkbox = document.getElementById(`switch-${safeId}`);
+                const stateLabel = document.getElementById(`state-${safeId}`);
                 
                 if (checkbox) {
                     checkbox.checked = state;
@@ -507,6 +531,23 @@
                 lastUpdated = new Date();
                 document.getElementById('last-updated').textContent = 
                     `Last updated: ${lastUpdated.toLocaleTimeString()}`;
+            }
+
+            // Helper function to create safe DOM IDs from switch names
+            getSafeId(switchName) {
+                return switchName.replace(/[^a-zA-Z0-9-_]/g, '_');
+            }
+
+            // Helper function to escape HTML content
+            escapeHtml(text) {
+                const map = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                };
+                return text.replace(/[&<>"']/g, function(m) { return map[m]; });
             }
         }
 

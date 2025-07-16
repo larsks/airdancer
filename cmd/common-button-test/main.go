@@ -17,9 +17,9 @@ import (
 
 func main() {
 	var (
-		debounceMs   = flag.Int("debounce", 50, "Debounce delay in milliseconds (GPIO only)")
-		pullMode     = flag.String("pull", "auto", "Default pull resistor mode: none, up, down, auto (GPIO only)")
-		showHelp     = flag.Bool("help", false, "Show help message")
+		debounceMs = flag.Int("debounce", 50, "Debounce delay in milliseconds (GPIO only)")
+		pullMode   = flag.String("pull", "auto", "Default pull resistor mode: none, up, down, auto (GPIO only)")
+		showHelp   = flag.Bool("help", false, "Show help message")
 	)
 	flag.Parse()
 
@@ -74,7 +74,7 @@ func main() {
 
 	// Parse and create drivers for each button spec
 	drivers := make(map[string]common.ButtonDriver)
-	
+
 	for _, spec := range buttonSpecs {
 		spec = strings.TrimSpace(spec)
 		if spec == "" {
@@ -143,7 +143,7 @@ func main() {
 		for event := range eventChan {
 			timestamp := event.Timestamp.Format("15:04:05.000")
 			fmt.Printf("[%s] Button '%s' on %s: %s\n", timestamp, event.Source, event.Device, event.Type)
-			
+
 			// Show metadata if available
 			if len(event.Metadata) > 0 {
 				fmt.Printf("         Metadata: %v\n", event.Metadata)

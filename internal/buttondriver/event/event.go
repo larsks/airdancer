@@ -136,7 +136,6 @@ func (d *EventButtonDriver) GetButtons() []string {
 	return buttonNames
 }
 
-
 // monitorDevice monitors a single input device for events
 func (d *EventButtonDriver) monitorDevice(device string, buttonSpecs []*EventButtonSpec) {
 	defer d.wg.Done()

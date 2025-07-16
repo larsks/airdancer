@@ -597,7 +597,7 @@ func TestEmailMonitorProcessMessage(t *testing.T) {
 
 			// Create a mailbox configuration for the test
 			mailbox := compiledMailbox{
-				mailbox: "INBOX",
+				mailbox:  "INBOX",
 				triggers: monitor.mailboxes[0].triggers,
 			}
 			err = monitor.processMessageInMailbox(tt.message, mailbox)

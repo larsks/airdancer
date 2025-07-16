@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/larsks/airdancer/internal/api"
 	"github.com/larsks/airdancer/internal/buttonwatcher"
@@ -75,6 +77,27 @@ func main() {
 	fmt.Printf("✓ Configuration file %s is valid for %s\n", *configFile, *configType)
 }
 
+// validateSwitchSpec validates a switch spec format (collection.index)
+func validateSwitchSpec(spec string, collectionNames map[string]bool) error {
+	parts := strings.Split(spec, ".")
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid spec format '%s' (expected format: collection.index)", spec)
+	}
+
+	collectionName := parts[0]
+	indexStr := parts[1]
+
+	if !collectionNames[collectionName] {
+		return fmt.Errorf("references unknown collection '%s'", collectionName)
+	}
+
+	if _, err := strconv.ParseUint(indexStr, 10, 32); err != nil {
+		return fmt.Errorf("invalid switch index '%s' (must be a non-negative integer)", indexStr)
+	}
+
+	return nil
+}
+
 func usage() {
 	fmt.Fprintf(os.Stderr, "Usage: %s --type TYPE --config FILE\n\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "A tool for validating Airdancer configuration files.\n\n")
@@ -115,12 +138,10 @@ func validateAPIConfig(configFile string) error {
 
 	// Set the same defaults as the API config
 	loader.SetDefaults(map[string]any{
-		"listen-address":     "",
-		"listen-port":        8080,
-		"driver":             "dummy",
-		"piface.spidev":      "/dev/spidev0.0",
-		"gpio.pins":          []string{},
-		"dummy.switch_count": 4,
+		"listen-address": "",
+		"listen-port":    8080,
+		"collections":    make(map[string]api.CollectionConfig),
+		"switches":       make(map[string]api.SwitchConfig),
 	})
 
 	// Use the config loader directly to get strict validation
@@ -128,32 +149,73 @@ func validateAPIConfig(configFile string) error {
 		return fmt.Errorf("failed to load API configuration: %v", err)
 	}
 
-	// Validate required fields and reasonable values
-	if cfg.Driver == "" {
-		return fmt.Errorf("driver is required")
-	}
-
-	if cfg.Driver != "dummy" && cfg.Driver != "piface" && cfg.Driver != "gpio" {
-		return fmt.Errorf("driver must be 'dummy', 'piface', or 'gpio', got '%s'", cfg.Driver)
-	}
-
+	// Validate basic configuration
 	if cfg.ListenPort <= 0 || cfg.ListenPort > 65535 {
 		return fmt.Errorf("listen port must be between 1 and 65535, got %d", cfg.ListenPort)
 	}
 
-	// Driver-specific validation
-	switch cfg.Driver {
-	case "dummy":
-		if cfg.DummyConfig.SwitchCount == 0 {
-			return fmt.Errorf("dummy driver requires switch_count > 0")
+	// Validate collections
+	collectionNames := make(map[string]bool)
+	for collectionName, collection := range cfg.Collections {
+		if collectionName == "" {
+			return fmt.Errorf("collection name cannot be empty")
 		}
-	case "piface":
-		if cfg.PiFaceConfig.SPIDev == "" {
-			return fmt.Errorf("piface driver requires spidev to be set")
+
+		collectionNames[collectionName] = true
+
+		if collection.Driver == "" {
+			return fmt.Errorf("collection %s: driver is required", collectionName)
 		}
-	case "gpio":
-		if len(cfg.GPIOConfig.Pins) == 0 {
-			return fmt.Errorf("gpio driver requires at least one pin to be specified")
+
+		if collection.Driver != "dummy" && collection.Driver != "piface" && collection.Driver != "gpio" {
+			return fmt.Errorf("collection %s: driver must be 'dummy', 'piface', or 'gpio', got '%s'", collectionName, collection.Driver)
+		}
+
+		// Driver-specific validation
+		switch collection.Driver {
+		case "dummy":
+			if driverConfig := collection.DriverConfig; driverConfig != nil {
+				if switchCount, ok := driverConfig["switch_count"]; ok {
+					if count, ok := switchCount.(int); ok && count <= 0 {
+						return fmt.Errorf("collection %s: dummy driver requires switch_count > 0", collectionName)
+					}
+				}
+			}
+		case "piface":
+			if driverConfig := collection.DriverConfig; driverConfig != nil {
+				if spidev, ok := driverConfig["spidev"]; ok {
+					if spidevStr, ok := spidev.(string); ok && spidevStr == "" {
+						return fmt.Errorf("collection %s: piface driver requires non-empty spidev", collectionName)
+					}
+				}
+			}
+		case "gpio":
+			if driverConfig := collection.DriverConfig; driverConfig != nil {
+				if pins, ok := driverConfig["pins"]; ok {
+					if pinsList, ok := pins.([]interface{}); ok && len(pinsList) == 0 {
+						return fmt.Errorf("collection %s: gpio driver requires at least one pin", collectionName)
+					}
+				}
+			}
+		}
+	}
+
+	// Validate switches
+	switchNames := make(map[string]bool)
+	for switchName, sw := range cfg.Switches {
+		if switchName == "" {
+			return fmt.Errorf("switch name cannot be empty")
+		}
+
+		switchNames[switchName] = true
+
+		if sw.Spec == "" {
+			return fmt.Errorf("switch %s: spec is required", switchName)
+		}
+
+		// Validate spec format (collection.index)
+		if err := validateSwitchSpec(sw.Spec, collectionNames); err != nil {
+			return fmt.Errorf("switch %s: %v", switchName, err)
 		}
 	}
 

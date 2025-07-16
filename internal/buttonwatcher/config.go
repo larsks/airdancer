@@ -25,9 +25,9 @@ type ButtonConfig struct {
 }
 
 type Config struct {
-	ConfigFile         string         `mapstructure:"config-file"`
-	Buttons            []ButtonConfig `mapstructure:"buttons"`
-	
+	ConfigFile string         `mapstructure:"config-file"`
+	Buttons    []ButtonConfig `mapstructure:"buttons"`
+
 	// Global defaults for timing-related settings
 	ClickInterval      *time.Duration `mapstructure:"click_interval"`
 	ShortPressDuration *time.Duration `mapstructure:"short_press_duration"`

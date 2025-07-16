@@ -1,0 +1,3 @@
+GOTEST=spectest
+
+include Makefile

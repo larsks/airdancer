@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -27,40 +29,56 @@ type timerData struct {
 	duration time.Duration
 }
 
+// ResolvedSwitch represents a switch that has been resolved to a specific collection and index.
+type ResolvedSwitch struct {
+	Name       string
+	Collection switchcollection.SwitchCollection
+	Index      uint
+	Switch     switchcollection.Switch
+}
+
 // Server represents the API server.
 type Server struct {
-	listenAddr string
-	switches   switchcollection.SwitchCollection
-	mutex      sync.Mutex
-	timers     map[string]*timerData
-	blinkers   map[string]*blink.Blink
-	router     *chi.Mux
+	listenAddr  string
+	collections map[string]switchcollection.SwitchCollection
+	switches    map[string]*ResolvedSwitch
+	mutex       sync.Mutex
+	timers      map[string]*timerData
+	blinkers    map[string]*blink.Blink
+	router      *chi.Mux
 }
 
 // Config holds the configuration for the API server.
 
 type (
-	PiFaceConfig struct {
+	PiFaceDriverConfig struct {
 		SPIDev      string `mapstructure:"spidev"`
 		MaxSwitches uint   `mapstructure:"max-switches"`
 	}
 
-	GPIOConfig struct {
+	GPIODriverConfig struct {
 		Pins []string `mapstructure:"pins"`
 	}
 
-	DummyConfig struct {
+	DummyDriverConfig struct {
 		SwitchCount uint `mapstructure:"switch_count"`
 	}
 
+	CollectionConfig struct {
+		Driver       string                 `mapstructure:"driver"`
+		DriverConfig map[string]interface{} `mapstructure:"driverconfig"`
+	}
+
+	SwitchConfig struct {
+		Spec string `mapstructure:"spec"`
+	}
+
 	Config struct {
-		ListenAddress string       `mapstructure:"listen-address"`
-		ListenPort    int          `mapstructure:"listen-port"`
-		ConfigFile    string       `mapstructure:"config-file"`
-		Driver        string       `mapstructure:"driver"`
-		GPIOConfig    GPIOConfig   `mapstructure:"gpio"`
-		PiFaceConfig  PiFaceConfig `mapstructure:"piface"`
-		DummyConfig   DummyConfig  `mapstructure:"dummy"`
+		ListenAddress string                      `mapstructure:"listen-address"`
+		ListenPort    int                         `mapstructure:"listen-port"`
+		ConfigFile    string                      `mapstructure:"config-file"`
+		Collections   map[string]CollectionConfig `mapstructure:"collections"`
+		Switches      map[string]SwitchConfig     `mapstructure:"switches"`
 	}
 )
 
@@ -70,13 +88,8 @@ func NewConfig() *Config {
 	return &Config{
 		ListenAddress: "",
 		ListenPort:    8080,
-		Driver:        "dummy",
-		PiFaceConfig: PiFaceConfig{
-			SPIDev: "/dev/spidev0.0",
-		},
-		DummyConfig: DummyConfig{
-			SwitchCount: 4,
-		},
+		Collections:   make(map[string]CollectionConfig),
+		Switches:      make(map[string]SwitchConfig),
 	}
 }
 
@@ -86,11 +99,6 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&c.ConfigFile, "config", "", "Config file to use")
 	fs.StringVar(&c.ListenAddress, "listen-address", c.ListenAddress, "Listen address for http server")
 	fs.IntVar(&c.ListenPort, "listen-port", c.ListenPort, "Listen port for http server")
-	fs.StringVar(&c.Driver, "driver", c.Driver, "Driver to use (piface, gpio, or dummy)")
-	fs.StringVar(&c.PiFaceConfig.SPIDev, "piface.spidev", c.PiFaceConfig.SPIDev, "SPI device to use")
-	fs.UintVar(&c.PiFaceConfig.MaxSwitches, "piface.max-switches", c.PiFaceConfig.MaxSwitches, "Max number of switches to expose in the API")
-	fs.StringSliceVar(&c.GPIOConfig.Pins, "gpio.pins", c.GPIOConfig.Pins, "GPIO pins to use (for gpio driver)")
-	fs.UintVar(&c.DummyConfig.SwitchCount, "dummy.switch-count", c.DummyConfig.SwitchCount, "Number of switches for dummy driver")
 }
 
 // LoadConfig loads the configuration from a file and binds it to the Config struct.
@@ -101,57 +109,191 @@ func (c *Config) LoadConfig() error {
 
 	// Set default values
 	loader.SetDefaults(map[string]any{
-		"listen_address":     "",
-		"listen_port":        8080,
-		"driver":             "dummy",
-		"piface.spidev":      "/dev/spidev0.0",
-		"gpio.pins":          []string{},
-		"dummy.switch_count": 4,
+		"listen_address": "",
+		"listen_port":    8080,
+		"collections":    make(map[string]CollectionConfig),
+		"switches":       make(map[string]SwitchConfig),
 	})
 
 	return loader.LoadConfig(c)
 }
 
-// NewServer creates a new Server instance.
-
-func NewServer(cfg *Config) (*Server, error) {
-	var switches switchcollection.SwitchCollection
-	var err error
-
-	switch cfg.Driver {
+// createSwitchCollection creates a switch collection based on the driver and config.
+func createSwitchCollection(collectionName string, collectionCfg CollectionConfig) (switchcollection.SwitchCollection, error) {
+	switch collectionCfg.Driver {
 	case "piface":
-		switches, err = piface.NewPiFace(true, cfg.PiFaceConfig.SPIDev, cfg.PiFaceConfig.MaxSwitches)
-		if err != nil {
-			return nil, fmt.Errorf("%w on %s: %v", ErrPiFaceInitFailed, cfg.PiFaceConfig.SPIDev, err)
+		var pfCfg PiFaceDriverConfig
+		if err := mapConfigToStruct(collectionCfg.DriverConfig, &pfCfg); err != nil {
+			return nil, fmt.Errorf("failed to parse piface config for collection %s: %w", collectionName, err)
 		}
+
+		spidev := pfCfg.SPIDev
+		if spidev == "" {
+			spidev = "/dev/spidev0.0"
+		}
+
+		sc, err := piface.NewPiFace(true, spidev, pfCfg.MaxSwitches)
+		if err != nil {
+			return nil, fmt.Errorf("%w on %s for collection %s: %v", ErrPiFaceInitFailed, spidev, collectionName, err)
+		}
+		return sc, nil
+
 	case "gpio":
-		switches, err = gpio.NewGPIOSwitchCollection(true, cfg.GPIOConfig.Pins)
-		if err != nil {
-			return nil, fmt.Errorf("%w with pins %v: %v", ErrGPIOInitFailed, cfg.GPIOConfig.Pins, err)
+		var gpioCfg GPIODriverConfig
+		if err := mapConfigToStruct(collectionCfg.DriverConfig, &gpioCfg); err != nil {
+			return nil, fmt.Errorf("failed to parse gpio config for collection %s: %w", collectionName, err)
 		}
+
+		sc, err := gpio.NewGPIOSwitchCollection(true, gpioCfg.Pins)
+		if err != nil {
+			return nil, fmt.Errorf("%w with pins %v for collection %s: %v", ErrGPIOInitFailed, gpioCfg.Pins, collectionName, err)
+		}
+		return sc, nil
+
 	case "dummy":
-		switches = switchcollection.NewDummySwitchCollection(cfg.DummyConfig.SwitchCount)
+		var dummyCfg DummyDriverConfig
+		if err := mapConfigToStruct(collectionCfg.DriverConfig, &dummyCfg); err != nil {
+			return nil, fmt.Errorf("failed to parse dummy config for collection %s: %w", collectionName, err)
+		}
+
+		if dummyCfg.SwitchCount == 0 {
+			dummyCfg.SwitchCount = 4
+		}
+
+		return switchcollection.NewDummySwitchCollection(dummyCfg.SwitchCount), nil
+
 	default:
-		return nil, fmt.Errorf("%w: %s", ErrUnknownDriver, cfg.Driver)
+		return nil, fmt.Errorf("%w: %s for collection %s", ErrUnknownDriver, collectionCfg.Driver, collectionName)
+	}
+}
+
+// mapConfigToStruct converts a map[string]interface{} to a specific struct type.
+func mapConfigToStruct(configMap map[string]interface{}, target interface{}) error {
+	// This is a simple implementation. For a more robust solution, you might want to use
+	// a library like mapstructure, but this handles the basic cases we need.
+	switch t := target.(type) {
+	case *PiFaceDriverConfig:
+		if spidev, ok := configMap["spidev"].(string); ok {
+			t.SPIDev = spidev
+		}
+		if maxSwitches, ok := configMap["max-switches"].(uint); ok {
+			t.MaxSwitches = maxSwitches
+		} else if maxSwitches, ok := configMap["max-switches"].(int); ok {
+			t.MaxSwitches = uint(maxSwitches)
+		}
+	case *GPIODriverConfig:
+		if pins, ok := configMap["pins"].([]interface{}); ok {
+			t.Pins = make([]string, len(pins))
+			for i, pin := range pins {
+				if pinStr, ok := pin.(string); ok {
+					t.Pins[i] = pinStr
+				}
+			}
+		} else if pins, ok := configMap["pins"].([]string); ok {
+			t.Pins = pins
+		}
+	case *DummyDriverConfig:
+		if switchCount, ok := configMap["switch_count"].(uint); ok {
+			t.SwitchCount = switchCount
+		} else if switchCount, ok := configMap["switch_count"].(int); ok {
+			t.SwitchCount = uint(switchCount)
+		}
+	}
+	return nil
+}
+
+// NewServer creates a new Server instance.
+func NewServer(cfg *Config) (*Server, error) {
+	collections := make(map[string]switchcollection.SwitchCollection)
+	switches := make(map[string]*ResolvedSwitch)
+
+	// Create all switch collections
+	for collectionName, collectionCfg := range cfg.Collections {
+		if collectionName == "" {
+			return nil, fmt.Errorf("collection name cannot be empty")
+		}
+
+		sc, err := createSwitchCollection(collectionName, collectionCfg)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := sc.Init(); err != nil {
+			return nil, fmt.Errorf("%w for collection %s: %v", ErrDriverInitFailed, collectionName, err)
+		}
+
+		collections[collectionName] = sc
 	}
 
-	if err := switches.Init(); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrDriverInitFailed, err)
+	// Resolve all switch configurations
+	for switchName, switchCfg := range cfg.Switches {
+		if switchName == "" {
+			return nil, fmt.Errorf("switch name cannot be empty")
+		}
+
+		resolved, err := resolveSwitch(switchName, switchCfg, collections)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve switch %s: %w", switchName, err)
+		}
+
+		switches[switchName] = resolved
 	}
 
 	listenAddr := fmt.Sprintf("%s:%d", cfg.ListenAddress, cfg.ListenPort)
-	return newServerWithSwitches(switches, listenAddr, true), nil
+	return newServerWithCollections(collections, switches, listenAddr, true), nil
 }
 
-// newServerWithSwitches creates a new Server instance with the given switches.
+// resolveSwitch parses a switch spec and resolves it to a specific switch in a collection.
+func resolveSwitch(switchName string, switchCfg SwitchConfig, collections map[string]switchcollection.SwitchCollection) (*ResolvedSwitch, error) {
+	// Parse spec format: "collection_name.index"
+	parts := strings.Split(switchCfg.Spec, ".")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid switch spec format: %s (expected format: collection.index)", switchCfg.Spec)
+	}
+
+	collectionName := parts[0]
+	indexStr := parts[1]
+
+	collection, exists := collections[collectionName]
+	if !exists {
+		return nil, fmt.Errorf("collection %s not found for switch %s", collectionName, switchName)
+	}
+
+	index, err := strconv.ParseUint(indexStr, 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid switch index %s for switch %s: %w", indexStr, switchName, err)
+	}
+
+	switchIndex := uint(index)
+	if switchIndex >= collection.CountSwitches() {
+		return nil, fmt.Errorf("switch index %d out of range for collection %s (max: %d) for switch %s",
+			switchIndex, collectionName, collection.CountSwitches()-1, switchName)
+	}
+
+	sw, err := collection.GetSwitch(switchIndex)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get switch %d from collection %s for switch %s: %w",
+			switchIndex, collectionName, switchName, err)
+	}
+
+	return &ResolvedSwitch{
+		Name:       switchName,
+		Collection: collection,
+		Index:      switchIndex,
+		Switch:     sw,
+	}, nil
+}
+
+// newServerWithCollections creates a new Server instance with the given collections and switches.
 // If addProductionMiddleware is true, adds logger and CORS middleware.
-func newServerWithSwitches(switches switchcollection.SwitchCollection, listenAddr string, addProductionMiddleware bool) *Server {
+func newServerWithCollections(collections map[string]switchcollection.SwitchCollection, switches map[string]*ResolvedSwitch, listenAddr string, addProductionMiddleware bool) *Server {
 	s := &Server{
-		listenAddr: listenAddr,
-		switches:   switches,
-		timers:     make(map[string]*timerData),
-		blinkers:   make(map[string]*blink.Blink),
-		router:     chi.NewRouter(),
+		listenAddr:  listenAddr,
+		collections: collections,
+		switches:    switches,
+		timers:      make(map[string]*timerData),
+		blinkers:    make(map[string]*blink.Blink),
+		router:      chi.NewRouter(),
 	}
 
 	if addProductionMiddleware {
@@ -176,29 +318,31 @@ func (s *Server) setupRoutes() {
 
 	// Set up routes with validation middleware
 	s.router.Route("/switch", func(r chi.Router) {
-		// GET endpoints for status queries - only need basic ID validation for status
+		// GET endpoints for status queries - only need basic name validation for status
 		r.With(
 			s.validateJSONRequest,
-			s.validateSwitchID,
+			s.validateSwitchName,
 			s.validateSwitchExists,
-		).Get("/{id}", s.switchStatusHandler)
+		).Get("/{name}", s.switchStatusHandler)
 
 		// POST endpoints for switch control - restore full validation middleware chain
 		r.With(
 			s.validateJSONRequest,
-			s.validateSwitchID,
+			s.validateSwitchName,
 			s.validateSwitchExists,
 			s.validateSwitchRequest,
-		).Post("/{id}", s.switchHandler)
+		).Post("/{name}", s.switchHandler)
 	})
 }
 
 // Start starts the API server.
 
 func (s *Server) Start() error {
-	// Initialize all switches to off
-	if err := s.switches.TurnOff(); err != nil {
-		return fmt.Errorf("%w: %v", ErrSwitchInitFailed, err)
+	// Initialize all switch collections to off
+	for name, collection := range s.collections {
+		if err := collection.TurnOff(); err != nil {
+			return fmt.Errorf("%w for collection %s: %v", ErrSwitchInitFailed, name, err)
+		}
 	}
 
 	srv := &http.Server{
@@ -230,10 +374,20 @@ func (s *Server) Start() error {
 	return nil
 }
 
-// Close closes the PiFace connection.
+// Close closes all switch collection connections.
 
 func (s *Server) Close() error {
-	return s.switches.Close()
+	var errors []error
+	for name, collection := range s.collections {
+		if err := collection.Close(); err != nil {
+			errors = append(errors, fmt.Errorf("failed to close collection %s: %w", name, err))
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("errors closing collections: %v", errors)
+	}
+	return nil
 }
 
 func (s *Server) ListRoutes() [][]string {

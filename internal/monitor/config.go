@@ -61,7 +61,7 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&c.IMAP.Username, "imap.username", c.IMAP.Username, "IMAP username")
 	fs.StringVar(&c.IMAP.Password, "imap.password", c.IMAP.Password, "IMAP password")
 	fs.BoolVar(&c.IMAP.UseSSL, "imap.use-ssl", c.IMAP.UseSSL, "Use SSL for IMAP connection")
-	
+
 	// Global check interval flag
 	if c.CheckInterval != nil {
 		fs.IntVar(c.CheckInterval, "check-interval", *c.CheckInterval, "Global interval in seconds to check for new emails")
@@ -75,12 +75,12 @@ func (c *Config) LoadConfig(configFile string) error {
 
 	// Set default values
 	loader.SetDefaults(map[string]any{
-		"imap.server":             c.IMAP.Server,
-		"imap.port":               c.IMAP.Port,
-		"imap.username":           c.IMAP.Username,
-		"imap.password":           c.IMAP.Password,
-		"imap.use_ssl":            c.IMAP.UseSSL,
-		"check_interval_seconds":  30,
+		"imap.server":            c.IMAP.Server,
+		"imap.port":              c.IMAP.Port,
+		"imap.username":          c.IMAP.Username,
+		"imap.password":          c.IMAP.Password,
+		"imap.use_ssl":           c.IMAP.UseSSL,
+		"check_interval_seconds": 30,
 	})
 
 	return loader.LoadConfig(c)
@@ -94,12 +94,12 @@ func (c *Config) LoadConfigFromStruct() error {
 
 	// Set default values using the struct defaults
 	loader.SetDefaults(map[string]any{
-		"imap.server":             "",
-		"imap.port":               993,
-		"imap.username":           "",
-		"imap.password":           "",
-		"imap.use_ssl":            true,
-		"check_interval_seconds":  30,
+		"imap.server":            "",
+		"imap.port":              993,
+		"imap.username":          "",
+		"imap.password":          "",
+		"imap.use_ssl":           true,
+		"check_interval_seconds": 30,
 	})
 
 	return loader.LoadConfig(c)
