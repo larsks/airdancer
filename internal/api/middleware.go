@@ -61,8 +61,8 @@ func (s *Server) validateSwitchRequest(next http.Handler) http.Handler {
 		}
 
 		// Validate state field
-		if req.State != switchStateOn && req.State != switchStateOff && req.State != switchStateBlink && req.State != switchStateToggle {
-			s.sendError(w, "State must be 'on', 'off', 'toggle', or 'blink'", http.StatusBadRequest)
+		if req.State != switchStateOn && req.State != switchStateOff && req.State != switchStateBlink && req.State != switchStateToggle && req.State != switchStateFlipflop {
+			s.sendError(w, "State must be 'on', 'off', 'toggle', 'blink', or 'flipflop'", http.StatusBadRequest)
 			return
 		}
 
@@ -72,9 +72,9 @@ func (s *Server) validateSwitchRequest(next http.Handler) http.Handler {
 			return
 		}
 
-		if req.State == "blink" {
+		if req.State == "blink" || req.State == "flipflop" {
 			if req.Period == nil {
-				s.sendError(w, "Period is required for blink state", http.StatusBadRequest)
+				s.sendError(w, fmt.Sprintf("Period is required for %s state", req.State), http.StatusBadRequest)
 				return
 			}
 			if *req.Period <= 0 {
@@ -84,6 +84,19 @@ func (s *Server) validateSwitchRequest(next http.Handler) http.Handler {
 
 			if req.DutyCycle != nil && (*req.DutyCycle < 0 || *req.DutyCycle > 1) {
 				s.sendError(w, "DutyCycle must be between 0 and 1", http.StatusBadRequest)
+				return
+			}
+		}
+
+		// Additional validation for flipflop - must be used on groups only
+		if req.State == "flipflop" {
+			switchName := chi.URLParam(r, "name")
+			if switchName == "all" {
+				s.sendError(w, "Flipflop state is not supported for 'all' switches", http.StatusBadRequest)
+				return
+			}
+			if _, exists := s.switches[switchName]; exists {
+				s.sendError(w, "Flipflop state is only supported for switch groups, not individual switches", http.StatusBadRequest)
 				return
 			}
 		}
