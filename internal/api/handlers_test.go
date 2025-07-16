@@ -42,7 +42,8 @@ func createTestServer(t *testing.T, switchCount uint) *Server {
 	}
 
 	// Use the shared constructor without production middleware and no listen address for tests
-	return newServerWithCollections(collections, switches, "", false)
+	groups := make(map[string]*SwitchGroup)
+	return newServerWithCollections(collections, switches, groups, "", false)
 }
 
 func TestSendResponse(t *testing.T) {

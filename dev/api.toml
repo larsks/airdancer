@@ -21,3 +21,12 @@ spec = "frontpanel.3"
 
 [switches.lamp3]
 spec = "backpanel.0"
+
+[switches.sw4]
+spec = "backpanel.1"
+
+[groups.red]
+switches = ["sw1", "sw2"]
+
+[groups.green]
+switches = ["sw3", "sw4"]

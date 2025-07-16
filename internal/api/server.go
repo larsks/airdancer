@@ -42,6 +42,7 @@ type Server struct {
 	listenAddr  string
 	collections map[string]switchcollection.SwitchCollection
 	switches    map[string]*ResolvedSwitch
+	groups      map[string]*SwitchGroup
 	mutex       sync.Mutex
 	timers      map[string]*timerData
 	blinkers    map[string]*blink.Blink
@@ -73,12 +74,17 @@ type (
 		Spec string `mapstructure:"spec"`
 	}
 
+	GroupConfig struct {
+		Switches []string `mapstructure:"switches"`
+	}
+
 	Config struct {
 		ListenAddress string                      `mapstructure:"listen-address"`
 		ListenPort    int                         `mapstructure:"listen-port"`
 		ConfigFile    string                      `mapstructure:"config-file"`
 		Collections   map[string]CollectionConfig `mapstructure:"collections"`
 		Switches      map[string]SwitchConfig     `mapstructure:"switches"`
+		Groups        map[string]GroupConfig      `mapstructure:"groups"`
 	}
 )
 
@@ -90,6 +96,7 @@ func NewConfig() *Config {
 		ListenPort:    8080,
 		Collections:   make(map[string]CollectionConfig),
 		Switches:      make(map[string]SwitchConfig),
+		Groups:        make(map[string]GroupConfig),
 	}
 }
 
@@ -113,6 +120,7 @@ func (c *Config) LoadConfig() error {
 		"listen_port":    8080,
 		"collections":    make(map[string]CollectionConfig),
 		"switches":       make(map[string]SwitchConfig),
+		"groups":         make(map[string]GroupConfig),
 	})
 
 	return loader.LoadConfig(c)
@@ -206,6 +214,7 @@ func mapConfigToStruct(configMap map[string]interface{}, target interface{}) err
 func NewServer(cfg *Config) (*Server, error) {
 	collections := make(map[string]switchcollection.SwitchCollection)
 	switches := make(map[string]*ResolvedSwitch)
+	groups := make(map[string]*SwitchGroup)
 
 	// Create all switch collections
 	for collectionName, collectionCfg := range cfg.Collections {
@@ -239,8 +248,26 @@ func NewServer(cfg *Config) (*Server, error) {
 		switches[switchName] = resolved
 	}
 
+	// Create switch groups
+	for groupName, groupCfg := range cfg.Groups {
+		if groupName == "" {
+			return nil, fmt.Errorf("group name cannot be empty")
+		}
+
+		groupSwitches := make(map[string]*ResolvedSwitch)
+		for _, switchName := range groupCfg.Switches {
+			resolvedSwitch, exists := switches[switchName]
+			if !exists {
+				return nil, fmt.Errorf("switch %s not found for group %s", switchName, groupName)
+			}
+			groupSwitches[switchName] = resolvedSwitch
+		}
+
+		groups[groupName] = NewSwitchGroup(groupName, groupSwitches)
+	}
+
 	listenAddr := fmt.Sprintf("%s:%d", cfg.ListenAddress, cfg.ListenPort)
-	return newServerWithCollections(collections, switches, listenAddr, true), nil
+	return newServerWithCollections(collections, switches, groups, listenAddr, true), nil
 }
 
 // resolveSwitch parses a switch spec and resolves it to a specific switch in a collection.
@@ -286,11 +313,12 @@ func resolveSwitch(switchName string, switchCfg SwitchConfig, collections map[st
 
 // newServerWithCollections creates a new Server instance with the given collections and switches.
 // If addProductionMiddleware is true, adds logger and CORS middleware.
-func newServerWithCollections(collections map[string]switchcollection.SwitchCollection, switches map[string]*ResolvedSwitch, listenAddr string, addProductionMiddleware bool) *Server {
+func newServerWithCollections(collections map[string]switchcollection.SwitchCollection, switches map[string]*ResolvedSwitch, groups map[string]*SwitchGroup, listenAddr string, addProductionMiddleware bool) *Server {
 	s := &Server{
 		listenAddr:  listenAddr,
 		collections: collections,
 		switches:    switches,
+		groups:      groups,
 		timers:      make(map[string]*timerData),
 		blinkers:    make(map[string]*blink.Blink),
 		router:      chi.NewRouter(),

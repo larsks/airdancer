@@ -69,6 +69,8 @@ func (s *Server) switchHandler(w http.ResponseWriter, r *http.Request) {
 
 	if switchName == "all" {
 		s.handleAllSwitches(w, r)
+	} else if group, exists := s.groups[switchName]; exists {
+		s.handleGroupSwitch(w, r, switchName, group)
 	} else {
 		s.handleSingleSwitch(w, r, switchName)
 	}
@@ -244,6 +246,27 @@ func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, swit
 	s.sendSuccess(w, req)
 }
 
+func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, groupName string, group *SwitchGroup) {
+	req, _ := r.Context().Value(switchRequestKey).(switchRequest)
+
+	s.mutex.Lock()
+	defer s.mutex.Unlock() //nolint:errcheck
+
+	// Apply operation to all switches in the group
+	var errors []error
+	for switchName, resolvedSwitch := range group.GetSwitches() {
+		if err := s.handleSwitchHelper(w, &req, switchName, resolvedSwitch.Switch); err != nil {
+			errors = append(errors, fmt.Errorf("switch %s: %w", switchName, err))
+		}
+	}
+
+	if len(errors) > 0 {
+		s.sendError(w, fmt.Sprintf("errors applying to group %s: %v", groupName, errors), http.StatusBadRequest)
+		return
+	}
+	s.sendSuccess(w, req)
+}
+
 func (s *Server) getStatusForSwitch(sw switchcollection.Switch) (*switchResponse, error) {
 	swid := sw.String()
 	currentState, err := sw.GetState()
@@ -287,6 +310,8 @@ func (s *Server) switchStatusHandler(w http.ResponseWriter, r *http.Request) {
 
 	if switchName == "all" {
 		s.handleAllSwitchesStatus(w)
+	} else if group, exists := s.groups[switchName]; exists {
+		s.handleGroupSwitchStatus(w, switchName, group)
 	} else {
 		s.handleSingleSwitchStatus(w, switchName)
 	}
@@ -324,6 +349,46 @@ func (s *Server) handleAllSwitchesStatus(w http.ResponseWriter) {
 	}
 
 	if blinker, ok := s.blinkers["all"]; ok {
+		if blinker.IsRunning() {
+			response.State = switchStateBlink
+		}
+	}
+
+	s.sendSuccess(w, response)
+}
+
+func (s *Server) handleGroupSwitchStatus(w http.ResponseWriter, groupName string, group *SwitchGroup) {
+	switchCount := group.CountSwitches()
+	response := multiSwitchResponse{
+		Count:    switchCount,
+		Switches: make(map[string]*switchResponse),
+	}
+
+	// Calculate summary state (true if all switches in group are on)
+	allOn := true
+
+	for switchName, resolvedSwitch := range group.GetSwitches() {
+		switchStatus, err := s.getStatusForSwitch(resolvedSwitch.Switch)
+		if err != nil {
+			s.sendError(w, fmt.Sprintf("Failed to get status for switch %s in group %s: %v", switchName, groupName, err), http.StatusBadRequest)
+			return
+		}
+
+		// Store switch status with its name as the key
+		response.Switches[switchName] = switchStatus
+
+		if !switchStatus.CurrentState {
+			allOn = false
+		}
+	}
+
+	response.Summary = allOn
+	response.State = switchStateOff
+	if allOn {
+		response.State = switchStateOn
+	}
+
+	if blinker, ok := s.blinkers[groupName]; ok {
 		if blinker.IsRunning() {
 			response.State = switchStateBlink
 		}

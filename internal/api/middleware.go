@@ -27,8 +27,10 @@ func (s *Server) validateSwitchName(next http.Handler) http.Handler {
 
 		if switchName != "all" {
 			if _, exists := s.switches[switchName]; !exists {
-				s.sendError(w, fmt.Sprintf("Unknown switch name: %s", switchName), http.StatusNotFound)
-				return
+				if _, exists := s.groups[switchName]; !exists {
+					s.sendError(w, fmt.Sprintf("Unknown switch or group name: %s", switchName), http.StatusNotFound)
+					return
+				}
 			}
 		}
 
@@ -99,8 +101,10 @@ func (s *Server) validateSwitchExists(next http.Handler) http.Handler {
 
 		if switchName != "all" {
 			if _, exists := s.switches[switchName]; !exists {
-				s.sendError(w, fmt.Sprintf("Switch %s not found", switchName), http.StatusNotFound)
-				return
+				if _, exists := s.groups[switchName]; !exists {
+					s.sendError(w, fmt.Sprintf("Switch or group %s not found", switchName), http.StatusNotFound)
+					return
+				}
 			}
 		}
 

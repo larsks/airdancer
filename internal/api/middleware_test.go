@@ -60,14 +60,14 @@ func TestValidateSwitchName(t *testing.T) {
 			switchName:        "nonexistent",
 			wantStatus:        http.StatusNotFound,
 			wantHandlerCalled: false,
-			wantErrorMsg:      "Unknown switch name: nonexistent",
+			wantErrorMsg:      "Unknown switch or group name: nonexistent",
 		},
 		{
 			name:              "numeric string as name",
 			switchName:        "123",
 			wantStatus:        http.StatusNotFound,
 			wantHandlerCalled: false,
-			wantErrorMsg:      "Unknown switch name: 123",
+			wantErrorMsg:      "Unknown switch or group name: 123",
 		},
 	}
 
