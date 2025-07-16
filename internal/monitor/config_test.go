@@ -301,7 +301,7 @@ func TestConfigLoadConfigFromStruct(t *testing.T) {
 	if config.CheckInterval != nil {
 		t.Logf("Debug: *config.CheckInterval = %d", *config.CheckInterval)
 	}
-	
+
 	// Let's adjust the test - the configuration seems to be working with defaults
 	// This suggests the config loader may not be reading the global interval correctly
 	if config.CheckInterval == nil || *config.CheckInterval != 60 {

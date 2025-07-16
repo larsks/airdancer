@@ -20,67 +20,68 @@ func (m *mockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func TestValidateSwitchID(t *testing.T) {
+func TestValidateSwitchName(t *testing.T) {
 	server := createTestServer(t, 3)
 
 	tests := []struct {
 		name              string
-		switchID          string
+		switchName        string
 		wantStatus        int
 		wantHandlerCalled bool
 		wantErrorMsg      string
 	}{
 		{
-			name:              "valid numeric ID",
-			switchID:          "1",
+			name:              "valid switch name",
+			switchName:        "switch1",
 			wantStatus:        http.StatusOK,
 			wantHandlerCalled: true,
 		},
 		{
-			name:              "valid all ID",
-			switchID:          "all",
+			name:              "valid all switch",
+			switchName:        "all",
 			wantStatus:        http.StatusOK,
 			wantHandlerCalled: true,
 		},
 		{
-			name:              "zero ID",
-			switchID:          "0",
+			name:              "valid switch0 name",
+			switchName:        "switch0",
 			wantStatus:        http.StatusOK,
 			wantHandlerCalled: true,
 		},
 		{
-			name:              "empty ID",
-			switchID:          "",
+			name:              "empty name",
+			switchName:        "",
 			wantStatus:        http.StatusBadRequest,
 			wantHandlerCalled: false,
-			wantErrorMsg:      "Switch ID is required",
+			wantErrorMsg:      "Switch name is required",
 		},
 		{
-			name:              "invalid non-numeric ID",
-			switchID:          "invalid",
-			wantStatus:        http.StatusBadRequest,
+			name:              "non-existent switch name",
+			switchName:        "nonexistent",
+			wantStatus:        http.StatusNotFound,
 			wantHandlerCalled: false,
-			wantErrorMsg:      "Invalid switch ID - must be an integer or 'all'",
+			wantErrorMsg:      "Unknown switch name: nonexistent",
 		},
 		{
-			name:              "negative ID",
-			switchID:          "-1",
-			wantStatus:        http.StatusBadRequest,
+			name:              "numeric string as name",
+			switchName:        "123",
+			wantStatus:        http.StatusNotFound,
 			wantHandlerCalled: false,
+			wantErrorMsg:      "Unknown switch name: 123",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockHandler := &mockHandler{}
-			middleware := server.validateSwitchID(mockHandler)
+			middleware := server.validateSwitchName(mockHandler)
 
-			req := httptest.NewRequest("GET", "/switch/"+tt.switchID, nil)
+			req := httptest.NewRequest("GET", "/switch/"+tt.switchName, nil)
 
 			// Add chi route context
 			rctx := chi.NewRouteContext()
-			if tt.switchID != "" {
-				rctx.URLParams.Add("id", tt.switchID)
+			if tt.switchName != "" {
+				rctx.URLParams.Add("name", tt.switchName)
 			}
 			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
@@ -88,16 +89,16 @@ func TestValidateSwitchID(t *testing.T) {
 			middleware.ServeHTTP(w, req)
 
 			if w.Code != tt.wantStatus {
-				t.Errorf("validateSwitchID() status = %v, want %v", w.Code, tt.wantStatus)
+				t.Errorf("validateSwitchName() status = %v, want %v", w.Code, tt.wantStatus)
 			}
 
 			if mockHandler.called != tt.wantHandlerCalled {
-				t.Errorf("validateSwitchID() handler called = %v, want %v", mockHandler.called, tt.wantHandlerCalled)
+				t.Errorf("validateSwitchName() handler called = %v, want %v", mockHandler.called, tt.wantHandlerCalled)
 			}
 
 			if tt.wantErrorMsg != "" {
 				if !strings.Contains(w.Body.String(), tt.wantErrorMsg) {
-					t.Errorf("validateSwitchID() error message should contain %q, got %q", tt.wantErrorMsg, w.Body.String())
+					t.Errorf("validateSwitchName() error message should contain %q, got %q", tt.wantErrorMsg, w.Body.String())
 				}
 			}
 		})
@@ -273,52 +274,52 @@ func TestValidateSwitchRequest(t *testing.T) {
 }
 
 func TestValidateSwitchExists(t *testing.T) {
-	server := createTestServer(t, 3) // Create server with 3 switches (IDs 0, 1, 2)
+	server := createTestServer(t, 3) // Create server with 3 switches (switch0, switch1, switch2)
 
 	tests := []struct {
 		name              string
-		switchID          string
+		switchName        string
 		wantStatus        int
 		wantHandlerCalled bool
 		wantErrorMsg      string
 	}{
 		{
-			name:              "existing switch ID 0",
-			switchID:          "0",
+			name:              "existing switch0",
+			switchName:        "switch0",
 			wantStatus:        http.StatusOK,
 			wantHandlerCalled: true,
 		},
 		{
-			name:              "existing switch ID 1",
-			switchID:          "1",
+			name:              "existing switch1",
+			switchName:        "switch1",
 			wantStatus:        http.StatusOK,
 			wantHandlerCalled: true,
 		},
 		{
-			name:              "existing switch ID 2",
-			switchID:          "2",
+			name:              "existing switch2",
+			switchName:        "switch2",
 			wantStatus:        http.StatusOK,
 			wantHandlerCalled: true,
 		},
 		{
 			name:              "all switches",
-			switchID:          "all",
+			switchName:        "all",
 			wantStatus:        http.StatusOK,
 			wantHandlerCalled: true,
 		},
 		{
-			name:              "non-existing switch ID",
-			switchID:          "99",
+			name:              "non-existing switch name",
+			switchName:        "nonexistent",
 			wantStatus:        http.StatusNotFound,
 			wantHandlerCalled: false,
-			wantErrorMsg:      "Switch not found",
+			wantErrorMsg:      "not found",
 		},
 		{
-			name:              "negative switch ID",
-			switchID:          "-1",
+			name:              "numeric switch name",
+			switchName:        "99",
 			wantStatus:        http.StatusNotFound,
 			wantHandlerCalled: false,
-			wantErrorMsg:      "Switch not found",
+			wantErrorMsg:      "not found",
 		},
 	}
 
@@ -327,11 +328,11 @@ func TestValidateSwitchExists(t *testing.T) {
 			mockHandler := &mockHandler{}
 			middleware := server.validateSwitchExists(mockHandler)
 
-			req := httptest.NewRequest("GET", "/switch/"+tt.switchID, nil)
+			req := httptest.NewRequest("GET", "/switch/"+tt.switchName, nil)
 
 			// Add chi route context
 			rctx := chi.NewRouteContext()
-			rctx.URLParams.Add("id", tt.switchID)
+			rctx.URLParams.Add("name", tt.switchName)
 			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
 			w := httptest.NewRecorder()
@@ -423,7 +424,7 @@ func TestMiddlewareChain(t *testing.T) {
 	handler := &mockHandler{}
 
 	// Chain middleware in the same order as the real server
-	chainedHandler := server.validateSwitchID(
+	chainedHandler := server.validateSwitchName(
 		server.validateSwitchExists(
 			server.validateJSONRequest(
 				server.validateSwitchRequest(handler),
@@ -433,7 +434,7 @@ func TestMiddlewareChain(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		switchID          string
+		switchName        string
 		contentType       string
 		requestBody       string
 		wantStatus        int
@@ -441,23 +442,15 @@ func TestMiddlewareChain(t *testing.T) {
 	}{
 		{
 			name:              "all middleware passes",
-			switchID:          "1",
+			switchName:        "switch1",
 			contentType:       "application/json",
 			requestBody:       `{"state":"on"}`,
 			wantStatus:        http.StatusOK,
 			wantHandlerCalled: true,
 		},
 		{
-			name:              "fails at switch ID validation",
-			switchID:          "invalid",
-			contentType:       "application/json",
-			requestBody:       `{"state":"on"}`,
-			wantStatus:        http.StatusBadRequest,
-			wantHandlerCalled: false,
-		},
-		{
-			name:              "fails at switch exists validation",
-			switchID:          "99",
+			name:              "fails at switch name validation",
+			switchName:        "nonexistent",
 			contentType:       "application/json",
 			requestBody:       `{"state":"on"}`,
 			wantStatus:        http.StatusNotFound,
@@ -465,7 +458,7 @@ func TestMiddlewareChain(t *testing.T) {
 		},
 		{
 			name:              "fails at JSON validation",
-			switchID:          "1",
+			switchName:        "switch1",
 			contentType:       "text/plain",
 			requestBody:       `{"state":"on"}`,
 			wantStatus:        http.StatusBadRequest,
@@ -473,7 +466,7 @@ func TestMiddlewareChain(t *testing.T) {
 		},
 		{
 			name:              "fails at request validation",
-			switchID:          "1",
+			switchName:        "switch1",
 			contentType:       "application/json",
 			requestBody:       `{"state":"invalid"}`,
 			wantStatus:        http.StatusBadRequest,
@@ -485,14 +478,14 @@ func TestMiddlewareChain(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			handler.called = false // Reset for each test
 
-			req := httptest.NewRequest("POST", "/switch/"+tt.switchID, strings.NewReader(tt.requestBody))
+			req := httptest.NewRequest("POST", "/switch/"+tt.switchName, strings.NewReader(tt.requestBody))
 			if tt.contentType != "" {
 				req.Header.Set("Content-Type", tt.contentType)
 			}
 
 			// Add chi route context
 			rctx := chi.NewRouteContext()
-			rctx.URLParams.Add("id", tt.switchID)
+			rctx.URLParams.Add("name", tt.switchName)
 			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
 			w := httptest.NewRecorder()

@@ -147,4 +147,3 @@ func (spec *GPIOButtonSpec) String() string {
 
 // Ensure GPIOButtonSpec implements the common.ButtonSpec interface
 var _ common.ButtonSpec = (*GPIOButtonSpec)(nil)
-

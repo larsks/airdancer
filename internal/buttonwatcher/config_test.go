@@ -228,20 +228,20 @@ func TestGlobalDefaults(t *testing.T) {
 
 		// Check buttons are loaded correctly
 		require.Len(t, config.Buttons, 3, "Should load 3 buttons")
-		
+
 		// Button 1 has no timing overrides
 		assert.Nil(t, config.Buttons[0].ClickInterval)
 		assert.Nil(t, config.Buttons[0].ShortPressDuration)
 		assert.Nil(t, config.Buttons[0].LongPressDuration)
 		assert.Nil(t, config.Buttons[0].Timeout)
-		
+
 		// Button 2 has click_interval override
 		assert.NotNil(t, config.Buttons[1].ClickInterval)
 		assert.Equal(t, 800*time.Millisecond, *config.Buttons[1].ClickInterval)
 		assert.Nil(t, config.Buttons[1].ShortPressDuration)
 		assert.Nil(t, config.Buttons[1].LongPressDuration)
 		assert.Nil(t, config.Buttons[1].Timeout)
-		
+
 		// Button 3 has all timing overrides
 		assert.NotNil(t, config.Buttons[2].ClickInterval)
 		assert.Equal(t, 200*time.Millisecond, *config.Buttons[2].ClickInterval)
@@ -276,16 +276,16 @@ func TestDefaultActionConfig(t *testing.T) {
 
 		// Check buttons are loaded correctly
 		require.Len(t, config.Buttons, 3, "Should load 3 buttons")
-		
+
 		// Button 1 has click_action but no default_action
 		assert.NotNil(t, config.Buttons[0].ClickAction)
 		assert.Equal(t, "echo 'Button 1 clicked'", *config.Buttons[0].ClickAction)
 		assert.Nil(t, config.Buttons[0].DefaultAction)
-		
+
 		// Button 2 has its own default_action
 		assert.NotNil(t, config.Buttons[1].DefaultAction)
 		assert.Equal(t, "echo 'Button 2 default action'", *config.Buttons[1].DefaultAction)
-		
+
 		// Button 3 has no actions at all
 		assert.Nil(t, config.Buttons[2].ClickAction)
 		assert.Nil(t, config.Buttons[2].DefaultAction)

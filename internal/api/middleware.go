@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -16,30 +15,19 @@ type (
 
 const switchRequestKey contextKey = "switchRequest"
 
-// validateSwitchID validates that the switch ID parameter is either "all" or a valid switch id
-func (s *Server) validateSwitchID(next http.Handler) http.Handler {
+// validateSwitchName validates that the switch name parameter is either "all" or a valid switch name
+func (s *Server) validateSwitchName(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switchIDStr := chi.URLParam(r, "id")
+		switchName := chi.URLParam(r, "name")
 
-		if switchIDStr == "" {
-			s.sendError(w, "Switch ID is required", http.StatusBadRequest)
+		if switchName == "" {
+			s.sendError(w, "Switch name is required", http.StatusBadRequest)
 			return
 		}
 
-		if switchIDStr != "all" {
-			val, err := strconv.Atoi(switchIDStr)
-			if err != nil {
-				s.sendError(w, "Invalid switch ID - must be an integer or 'all'", http.StatusBadRequest)
-				return
-			}
-
-			if val < 0 {
-				s.sendError(w, "Invalid switch ID -- must be >= 0", http.StatusBadRequest)
-				return
-			}
-
-			if val >= int(s.switches.CountSwitches()) {
-				s.sendError(w, fmt.Sprintf("Unknown switch ID -- must be < %d", s.switches.CountSwitches()), http.StatusNotFound)
+		if switchName != "all" {
+			if _, exists := s.switches[switchName]; !exists {
+				s.sendError(w, fmt.Sprintf("Unknown switch name: %s", switchName), http.StatusNotFound)
 				return
 			}
 		}
@@ -107,12 +95,11 @@ func (s *Server) validateSwitchRequest(next http.Handler) http.Handler {
 // validateSwitchExists validates that the requested switch(es) exist
 func (s *Server) validateSwitchExists(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switchIDStr := chi.URLParam(r, "id")
+		switchName := chi.URLParam(r, "name")
 
-		if switchIDStr != "all" {
-			id, _ := strconv.Atoi(switchIDStr) // Already validated by validateSwitchID
-			if _, err := s.switches.GetSwitch(uint(id)); err != nil {
-				s.sendError(w, "Switch not found", http.StatusNotFound)
+		if switchName != "all" {
+			if _, exists := s.switches[switchName]; !exists {
+				s.sendError(w, fmt.Sprintf("Switch %s not found", switchName), http.StatusNotFound)
 				return
 			}
 		}

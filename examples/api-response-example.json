@@ -1,0 +1,25 @@
+{
+  "status": "ok",
+  "data": {
+    "summary": false,
+    "state": "off", 
+    "count": 3,
+    "switches": {
+      "lamp1": {
+        "state": "off",
+        "currentState": false
+      },
+      "lamp2": {
+        "state": "on",
+        "currentState": true,
+        "duration": 30
+      },
+      "airdancer": {
+        "state": "blink",
+        "currentState": true,
+        "period": 2.0,
+        "dutyCycle": 0.5
+      }
+    }
+  }
+}

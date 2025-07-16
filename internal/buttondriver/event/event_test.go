@@ -194,7 +194,7 @@ func TestParseEventButtonSpec(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := ParseEventButtonSpec(tt.input)
-			
+
 			if tt.expectedErr != "" {
 				if err == nil {
 					t.Errorf("expected error containing %q, got nil", tt.expectedErr)
@@ -203,12 +203,12 @@ func TestParseEventButtonSpec(t *testing.T) {
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 				return
 			}
-			
+
 			if result.Name != tt.expected.Name {
 				t.Errorf("expected Name %q, got %q", tt.expected.Name, result.Name)
 			}
@@ -233,27 +233,27 @@ func TestParseEventButtonSpec(t *testing.T) {
 
 func TestNewEventButtonDriver(t *testing.T) {
 	driver := NewEventButtonDriver()
-	
+
 	if driver == nil {
 		t.Fatal("expected non-nil driver")
 	}
-	
+
 	if driver.buttons == nil {
 		t.Error("expected buttons map to be initialized")
 	}
-	
+
 	if driver.files == nil {
 		t.Error("expected files map to be initialized")
 	}
-	
+
 	if driver.eventChan == nil {
 		t.Error("expected event channel to be initialized")
 	}
-	
+
 	if driver.stopChan == nil {
 		t.Error("expected stop channel to be initialized")
 	}
-	
+
 	if driver.started {
 		t.Error("expected started to be false initially")
 	}
@@ -262,11 +262,11 @@ func TestNewEventButtonDriver(t *testing.T) {
 func TestEventButtonDriver_Events(t *testing.T) {
 	driver := NewEventButtonDriver()
 	eventChan := driver.Events()
-	
+
 	if eventChan == nil {
 		t.Error("expected non-nil event channel")
 	}
-	
+
 	// Verify it's read-only
 	select {
 	case <-eventChan:
@@ -278,7 +278,7 @@ func TestEventButtonDriver_Events(t *testing.T) {
 
 func TestEventButtonDriver_AddButton(t *testing.T) {
 	driver := NewEventButtonDriver()
-	
+
 	tests := []struct {
 		name        string
 		buttonSpec  interface{}
@@ -311,11 +311,11 @@ func TestEventButtonDriver_AddButton(t *testing.T) {
 			expectedErr: "invalid button specification: button name is required",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := driver.AddButton(tt.buttonSpec)
-			
+
 			if tt.expectedErr != "" {
 				if err == nil {
 					t.Errorf("expected error containing %q, got nil", tt.expectedErr)
@@ -333,13 +333,13 @@ func TestEventButtonDriver_AddButton(t *testing.T) {
 
 func TestEventButtonDriver_GetButtons(t *testing.T) {
 	driver := NewEventButtonDriver()
-	
+
 	// Initially empty
 	buttons := driver.GetButtons()
 	if len(buttons) != 0 {
 		t.Errorf("expected 0 buttons, got %d", len(buttons))
 	}
-	
+
 	// Add buttons
 	spec1 := &EventButtonSpec{
 		Name:      "button1",
@@ -349,7 +349,7 @@ func TestEventButtonDriver_GetButtons(t *testing.T) {
 		LowValue:  0,
 		HighValue: 1,
 	}
-	
+
 	spec2 := &EventButtonSpec{
 		Name:      "button2",
 		Device:    "/dev/input/event0",
@@ -358,21 +358,21 @@ func TestEventButtonDriver_GetButtons(t *testing.T) {
 		LowValue:  0,
 		HighValue: 1,
 	}
-	
+
 	driver.AddButton(spec1)
 	driver.AddButton(spec2)
-	
+
 	buttons = driver.GetButtons()
 	if len(buttons) != 2 {
 		t.Errorf("expected 2 buttons, got %d", len(buttons))
 	}
-	
+
 	// Check button names are present
 	buttonNames := make(map[string]bool)
 	for _, name := range buttons {
 		buttonNames[name] = true
 	}
-	
+
 	if !buttonNames["button1"] {
 		t.Error("expected button1 to be present")
 	}
@@ -383,13 +383,13 @@ func TestEventButtonDriver_GetButtons(t *testing.T) {
 
 func TestEventButtonDriver_StartStop(t *testing.T) {
 	driver := NewEventButtonDriver()
-	
+
 	// Test starting with no buttons
 	err := driver.Start()
 	if err == nil {
 		t.Error("expected error when starting with no buttons")
 	}
-	
+
 	// Add a button (we won't actually open the device file in this test)
 	spec := &EventButtonSpec{
 		Name:      "test-button",
@@ -400,14 +400,14 @@ func TestEventButtonDriver_StartStop(t *testing.T) {
 		HighValue: 1,
 	}
 	driver.AddButton(spec)
-	
+
 	// Test double start
 	// Note: This test will fail trying to open the device file, but that's expected
 	// in a unit test environment. The important thing is testing the state management.
-	
+
 	// Test stop without start
 	driver.Stop() // Should not panic
-	
+
 	// Test multiple stops
 	driver.Stop() // Should not panic
 	driver.Stop() // Should not panic
@@ -415,7 +415,7 @@ func TestEventButtonDriver_StartStop(t *testing.T) {
 
 func TestEventButtonDriver_handleButtonEvent(t *testing.T) {
 	driver := NewEventButtonDriver()
-	
+
 	spec := &EventButtonSpec{
 		Name:      "test-button",
 		Device:    "/dev/input/event0",
@@ -424,20 +424,20 @@ func TestEventButtonDriver_handleButtonEvent(t *testing.T) {
 		LowValue:  0,
 		HighValue: 1,
 	}
-	
+
 	// Test high value (button pressed)
 	driver.handleButtonEvent(spec, 1, "/dev/input/event0")
-	
+
 	// Test low value (button released)
 	driver.handleButtonEvent(spec, 0, "/dev/input/event0")
-	
+
 	// Test invalid value (should be ignored)
 	driver.handleButtonEvent(spec, 999, "/dev/input/event0")
-	
+
 	// Check that we got the expected events
 	eventCount := 0
 	timeout := time.After(100 * time.Millisecond)
-	
+
 	for {
 		select {
 		case event := <-driver.eventChan:

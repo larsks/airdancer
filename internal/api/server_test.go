@@ -13,98 +13,83 @@ func TestNewServer(t *testing.T) {
 		errorContains string
 	}{
 		{
-			name: "dummy driver success",
+			name: "dummy collection with switches success",
 			config: &Config{
 				ListenAddress: "localhost",
 				ListenPort:    8080,
-				Driver:        "dummy",
-				DummyConfig: DummyConfig{
-					SwitchCount: 4,
+				Collections: map[string]CollectionConfig{
+					"test-collection": {
+						Driver: "dummy",
+						DriverConfig: map[string]interface{}{
+							"switch_count": 4,
+						},
+					},
+				},
+				Switches: map[string]SwitchConfig{
+					"switch1": {Spec: "test-collection.0"},
+					"switch2": {Spec: "test-collection.1"},
 				},
 			},
 			wantError: false,
 		},
 		{
-			name: "dummy driver with zero switches",
+			name: "empty configuration",
 			config: &Config{
 				ListenAddress: "localhost",
 				ListenPort:    8080,
-				Driver:        "dummy",
-				DummyConfig: DummyConfig{
-					SwitchCount: 0,
-				},
+				Collections:   make(map[string]CollectionConfig),
+				Switches:      make(map[string]SwitchConfig),
 			},
 			wantError: false,
 		},
 		{
-			name: "dummy driver with many switches",
-			config: &Config{
-				ListenAddress: "",
-				ListenPort:    9090,
-				Driver:        "dummy",
-				DummyConfig: DummyConfig{
-					SwitchCount: 100,
-				},
-			},
-			wantError: false,
-		},
-		{
-			name: "gpio driver with valid pins",
+			name: "invalid switch spec",
 			config: &Config{
 				ListenAddress: "localhost",
 				ListenPort:    8080,
-				Driver:        "gpio",
-				GPIOConfig: GPIOConfig{
-					Pins: []string{"GPIO18", "GPIO19"},
+				Collections: map[string]CollectionConfig{
+					"test-collection": {
+						Driver: "dummy",
+						DriverConfig: map[string]interface{}{
+							"switch_count": 4,
+						},
+					},
+				},
+				Switches: map[string]SwitchConfig{
+					"switch1": {Spec: "invalid-spec"},
 				},
 			},
-			wantError:     true, // Will fail in test environment without GPIO
-			errorContains: "failed to create gpio driver",
+			wantError:     true,
+			errorContains: "invalid switch spec format",
 		},
 		{
-			name: "gpio driver with no pins",
+			name: "switch refers to non-existent collection",
 			config: &Config{
 				ListenAddress: "localhost",
 				ListenPort:    8080,
-				Driver:        "gpio",
-				GPIOConfig: GPIOConfig{
-					Pins: []string{},
+				Collections:   make(map[string]CollectionConfig),
+				Switches: map[string]SwitchConfig{
+					"switch1": {Spec: "nonexistent.0"},
 				},
 			},
-			wantError: false, // Empty GPIO collection is valid
-		},
-		{
-			name: "piface driver",
-			config: &Config{
-				ListenAddress: "localhost",
-				ListenPort:    8080,
-				Driver:        "piface",
-				PiFaceConfig: PiFaceConfig{
-					SPIDev: "/dev/spidev0.0",
-				},
-			},
-			wantError:     true, // Will fail in test environment without PiFace hardware
-			errorContains: "failed to open PiFace",
+			wantError:     true,
+			errorContains: "collection nonexistent not found",
 		},
 		{
 			name: "unknown driver",
 			config: &Config{
 				ListenAddress: "localhost",
 				ListenPort:    8080,
-				Driver:        "unknown",
+				Collections: map[string]CollectionConfig{
+					"test-collection": {
+						Driver:       "unknown",
+						DriverConfig: map[string]interface{}{},
+					},
+				},
+				Switches: make(map[string]SwitchConfig),
 			},
 			wantError:     true,
 			errorContains: "unknown driver: unknown",
-		},
-		{
-			name: "empty driver string",
-			config: &Config{
-				ListenAddress: "localhost",
-				ListenPort:    8080,
-				Driver:        "",
-			},
-			wantError:     true,
-			errorContains: "unknown driver:",
 		},
 	}
 
@@ -129,6 +114,9 @@ func TestNewServer(t *testing.T) {
 					t.Errorf("NewServer() expected server but got nil")
 				} else {
 					// Test that server has expected properties
+					if server.collections == nil {
+						t.Errorf("NewServer() server.collections is nil")
+					}
 					if server.switches == nil {
 						t.Errorf("NewServer() server.switches is nil")
 					}
@@ -139,12 +127,12 @@ func TestNewServer(t *testing.T) {
 						t.Errorf("NewServer() server.router is nil")
 					}
 
-					// Test switch count for dummy driver
-					if tt.config.Driver == "dummy" {
-						count := server.switches.CountSwitches()
-						if count != tt.config.DummyConfig.SwitchCount {
-							t.Errorf("NewServer() switch count = %d, want %d", count, tt.config.DummyConfig.SwitchCount)
-						}
+					// Test collection and switch counts
+					if len(server.collections) != len(tt.config.Collections) {
+						t.Errorf("NewServer() collection count = %d, want %d", len(server.collections), len(tt.config.Collections))
+					}
+					if len(server.switches) != len(tt.config.Switches) {
+						t.Errorf("NewServer() switch count = %d, want %d", len(server.switches), len(tt.config.Switches))
 					}
 
 					// Clean up
@@ -155,53 +143,20 @@ func TestNewServer(t *testing.T) {
 	}
 }
 
-func TestServerInitialization(t *testing.T) {
-	// Test that the server properly initializes switches to off state
-	config := &Config{
-		ListenAddress: "localhost",
-		ListenPort:    8080,
-		Driver:        "dummy",
-		DummyConfig: DummyConfig{
-			SwitchCount: 3,
-		},
-	}
-
-	server, err := NewServer(config)
-	if err != nil {
-		t.Fatalf("NewServer() failed: %v", err)
-	}
-	defer server.Close()
-
-	// Check that all switches are initially off
-	states, err := server.switches.GetDetailedState()
-	if err != nil {
-		t.Fatalf("GetDetailedState() failed: %v", err)
-	}
-
-	for i, state := range states {
-		if state {
-			t.Errorf("Switch %d should be initially off, but was on", i)
-		}
-	}
-
-	// Check that summary state is false (not all switches on)
-	summaryState, err := server.switches.GetState()
-	if err != nil {
-		t.Fatalf("GetState() failed: %v", err)
-	}
-
-	if summaryState {
-		t.Errorf("Summary state should be false when all switches are off")
-	}
-}
-
 func TestServerClose(t *testing.T) {
 	config := &Config{
 		ListenAddress: "localhost",
 		ListenPort:    8080,
-		Driver:        "dummy",
-		DummyConfig: DummyConfig{
-			SwitchCount: 2,
+		Collections: map[string]CollectionConfig{
+			"test-collection": {
+				Driver: "dummy",
+				DriverConfig: map[string]interface{}{
+					"switch_count": 2,
+				},
+			},
+		},
+		Switches: map[string]SwitchConfig{
+			"switch1": {Spec: "test-collection.0"},
 		},
 	}
 

@@ -1,12 +1,32 @@
 listen-address = "127.0.0.1"
 listen-port = 9090
-driver = "dummy"
 
-[dummy]
+[collections.dummy-collection]
+driver = 'dummy'
+
+[collections.dummy-collection.driverconfig]
 switch_count = 5
 
-[piface]
+[collections.piface-collection]
+driver = 'piface'
+
+[collections.piface-collection.driverconfig]
 spidev = "/dev/spidev1.0"
 
-[gpio]
-pins = ["GPIO18", "GPIO19"] 
+[collections.gpio-collection]
+driver = 'gpio'
+
+[collections.gpio-collection.driverconfig]
+pins = ["GPIO18", "GPIO19"]
+
+[switches.switch1]
+spec = "dummy-collection.0"
+
+[switches.switch2]
+spec = "dummy-collection.1"
+
+[switches.piface-switch]
+spec = "piface-collection.0"
+
+[switches.gpio-switch]
+spec = "gpio-collection.0"

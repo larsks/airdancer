@@ -32,14 +32,14 @@ const (
 
 // ButtonDriver manages GPIO button monitoring with debouncing
 type ButtonDriver struct {
-	pins          map[string]*ButtonPin
-	eventChannel  chan common.ButtonEvent
-	stopChannel   chan struct{}
-	wg            sync.WaitGroup
-	debounceDelay time.Duration
+	pins            map[string]*ButtonPin
+	eventChannel    chan common.ButtonEvent
+	stopChannel     chan struct{}
+	wg              sync.WaitGroup
+	debounceDelay   time.Duration
 	defaultPullMode PullMode
-	started       bool
-	mutex         sync.RWMutex
+	started         bool
+	mutex           sync.RWMutex
 }
 
 // ButtonPin represents a single GPIO pin configured as a button
