@@ -96,6 +96,11 @@ func (c *Config) LoadConfig(configFile string) error {
 // LoadConfigFromStruct loads configuration with proper precedence using the common pattern.
 // This is the preferred method that follows the same pattern as API and UI.
 func (c *Config) LoadConfigFromStruct() error {
+	return c.LoadConfigWithFlagSet(pflag.CommandLine)
+}
+
+// LoadConfigWithFlagSet loads configuration with proper precedence using a custom flag set (for testing).
+func (c *Config) LoadConfigWithFlagSet(fs *pflag.FlagSet) error {
 	loader := config.NewConfigLoader()
 	loader.SetConfigFile(c.ConfigFile)
 
@@ -110,7 +115,7 @@ func (c *Config) LoadConfigFromStruct() error {
 		"check-interval-seconds":      30,
 	})
 
-	return loader.LoadConfig(c)
+	return loader.LoadConfigWithFlagSet(c, fs)
 }
 
 // Validate checks that required configuration values are set
