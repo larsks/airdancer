@@ -28,6 +28,10 @@ func TestNewConfig(t *testing.T) {
 		t.Errorf("Expected default check interval to be 30, got %v", config.CheckInterval)
 	}
 
+	if config.IMAP.RetryIntervalSeconds == nil || *config.IMAP.RetryIntervalSeconds != 30 {
+		t.Errorf("Expected default retry interval to be 30, got %v", config.IMAP.RetryIntervalSeconds)
+	}
+
 	// Test that optional fields are empty by default
 	if config.IMAP.Server != "" {
 		t.Errorf("Expected IMAP server to be empty by default, got %q", config.IMAP.Server)
@@ -56,6 +60,7 @@ func TestConfigAddFlags(t *testing.T) {
 		"imap.username",
 		"imap.password",
 		"imap.use-ssl",
+		"imap.retry-interval-seconds",
 		"check-interval",
 	}
 
@@ -493,6 +498,45 @@ func TestGetEffectiveCheckInterval(t *testing.T) {
 			}
 
 			result := config.GetEffectiveCheckInterval(mailbox)
+			if result != tt.expectedInterval {
+				t.Errorf("Expected %d, got %d", tt.expectedInterval, result)
+			}
+		})
+	}
+}
+
+func TestGetEffectiveRetryInterval(t *testing.T) {
+	tests := []struct {
+		name             string
+		retryInterval    *int
+		expectedInterval int
+	}{
+		{
+			name:             "uses configured retry interval",
+			retryInterval:    intPtr(60),
+			expectedInterval: 60,
+		},
+		{
+			name:             "uses default when not set",
+			retryInterval:    nil,
+			expectedInterval: 30,
+		},
+		{
+			name:             "uses zero when explicitly set",
+			retryInterval:    intPtr(0),
+			expectedInterval: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &Config{
+				IMAP: IMAPConfig{
+					RetryIntervalSeconds: tt.retryInterval,
+				},
+			}
+
+			result := config.GetEffectiveRetryInterval()
 			if result != tt.expectedInterval {
 				t.Errorf("Expected %d, got %d", tt.expectedInterval, result)
 			}

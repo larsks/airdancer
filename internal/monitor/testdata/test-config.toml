@@ -4,6 +4,7 @@ port = 143
 username = "testuser"
 password = "testpass"
 use-ssl = false
+retry-interval-seconds = 45
 
 check-interval-seconds = 60
 

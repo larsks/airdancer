@@ -9,11 +9,12 @@ import (
 
 // IMAPConfig holds IMAP server configuration
 type IMAPConfig struct {
-	Server   string `mapstructure:"server"`
-	Port     int    `mapstructure:"port"`
-	Username string `mapstructure:"username"`
-	Password string `mapstructure:"password"`
-	UseSSL   bool   `mapstructure:"use-ssl"`
+	Server              string `mapstructure:"server"`
+	Port                int    `mapstructure:"port"`
+	Username            string `mapstructure:"username"`
+	Password            string `mapstructure:"password"`
+	UseSSL              bool   `mapstructure:"use-ssl"`
+	RetryIntervalSeconds *int   `mapstructure:"retry-interval-seconds"`
 }
 
 // TriggerConfig holds trigger configuration
@@ -40,10 +41,12 @@ type Config struct {
 // NewConfig creates a new Config with default values
 func NewConfig() *Config {
 	defaultCheckInterval := 30
+	defaultRetryInterval := 30
 	return &Config{
 		IMAP: IMAPConfig{
-			Port:   993,
-			UseSSL: true,
+			Port:                 993,
+			UseSSL:               true,
+			RetryIntervalSeconds: &defaultRetryInterval,
 		},
 		CheckInterval: &defaultCheckInterval,
 		Monitor:       []MailboxConfig{},
@@ -61,6 +64,9 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&c.IMAP.Username, "imap.username", c.IMAP.Username, "IMAP username")
 	fs.StringVar(&c.IMAP.Password, "imap.password", c.IMAP.Password, "IMAP password")
 	fs.BoolVar(&c.IMAP.UseSSL, "imap.use-ssl", c.IMAP.UseSSL, "Use SSL for IMAP connection")
+	if c.IMAP.RetryIntervalSeconds != nil {
+		fs.IntVar(c.IMAP.RetryIntervalSeconds, "imap.retry-interval-seconds", *c.IMAP.RetryIntervalSeconds, "Retry interval in seconds when IMAP connection fails")
+	}
 
 	// Global check interval flag
 	if c.CheckInterval != nil {
@@ -75,12 +81,13 @@ func (c *Config) LoadConfig(configFile string) error {
 
 	// Set default values
 	loader.SetDefaults(map[string]any{
-		"imap.server":            c.IMAP.Server,
-		"imap.port":              c.IMAP.Port,
-		"imap.username":          c.IMAP.Username,
-		"imap.password":          c.IMAP.Password,
-		"imap.use-ssl":           c.IMAP.UseSSL,
-		"check-interval-seconds": 30,
+		"imap.server":                    c.IMAP.Server,
+		"imap.port":                      c.IMAP.Port,
+		"imap.username":                  c.IMAP.Username,
+		"imap.password":                  c.IMAP.Password,
+		"imap.use-ssl":                   c.IMAP.UseSSL,
+		"imap.retry-interval-seconds":    30,
+		"check-interval-seconds":         30,
 	})
 
 	return loader.LoadConfig(c)
@@ -94,12 +101,13 @@ func (c *Config) LoadConfigFromStruct() error {
 
 	// Set default values using the struct defaults
 	loader.SetDefaults(map[string]any{
-		"imap.server":            "",
-		"imap.port":              993,
-		"imap.username":          "",
-		"imap.password":          "",
-		"imap.use-ssl":           true,
-		"check-interval-seconds": 30,
+		"imap.server":                    "",
+		"imap.port":                      993,
+		"imap.username":                  "",
+		"imap.password":                  "",
+		"imap.use-ssl":                   true,
+		"imap.retry-interval-seconds":    30,
+		"check-interval-seconds":         30,
 	})
 
 	return loader.LoadConfig(c)
@@ -140,6 +148,14 @@ func (c *Config) GetEffectiveCheckInterval(mailbox *MailboxConfig) int {
 	}
 	if c.CheckInterval != nil {
 		return *c.CheckInterval
+	}
+	return 30 // Default fallback
+}
+
+// GetEffectiveRetryInterval returns the effective retry interval for IMAP connections
+func (c *Config) GetEffectiveRetryInterval() int {
+	if c.IMAP.RetryIntervalSeconds != nil {
+		return *c.IMAP.RetryIntervalSeconds
 	}
 	return 30 // Default fallback
 }

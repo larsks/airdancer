@@ -1,0 +1,16 @@
+[imap]
+server = "imap"
+port = 31143
+username = "dancer"
+password = "password"
+use-ssl = false
+
+retry-interval-seconds = 2
+check-interval-seconds = 10
+
+[[monitor]]
+mailbox = "INBOX"
+
+[[monitor.triggers]]
+regex-pattern = 'blink switch'
+command = "curl -sSf airdancer-api:8080/switch/green -H content-type:application/json -d '{\"state\": \"blink\", \"duration\": 20, \"period\": 5}'"
