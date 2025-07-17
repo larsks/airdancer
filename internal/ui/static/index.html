@@ -292,6 +292,11 @@
             color: #856404;
         }
 
+        .switch-state.blink {
+            background: #fff3cd;
+            color: #856404;
+        }
+
         .group-state.flipflop {
             background: #d1ecf1;
             color: #0c5460;
@@ -406,7 +411,7 @@
                     
                     // Convert new map-based response to our internal structure
                     for (const [switchName, switchData] of Object.entries(data.data.switches)) {
-                        this.switches[switchName] = switchData.currentState;
+                        this.switches[switchName] = switchData;
                         this.switchNames.push(switchName);
                     }
                     
@@ -459,7 +464,7 @@
                         
                         // Reload all switches
                         for (const [switchName, switchData] of Object.entries(data.data.switches)) {
-                            this.switches[switchName] = switchData.currentState;
+                            this.switches[switchName] = switchData;
                             this.switchNames.push(switchName);
                         }
                         
@@ -477,9 +482,9 @@
                     } else {
                         // Update individual switch states
                         for (const [switchName, switchData] of Object.entries(data.data.switches)) {
-                            if (this.switches[switchName] !== switchData.currentState) {
-                                this.switches[switchName] = switchData.currentState;
-                                this.updateSwitchUI(switchName, switchData.currentState);
+                            if (JSON.stringify(this.switches[switchName]) !== JSON.stringify(switchData)) {
+                                this.switches[switchName] = switchData;
+                                this.updateSwitchUI(switchName, switchData);
                             }
                         }
                         
@@ -532,19 +537,20 @@
                 return a.length === b.length && a.every((val, index) => val === b[index]);
             }
 
-            createSwitchCard(switchName, state) {
+            createSwitchCard(switchName, switchData) {
                 const card = document.createElement('div');
                 card.className = 'switch-card';
                 const safeId = this.getSafeId(switchName);
+                const stateText = switchData.state.toUpperCase();
                 card.innerHTML = `
                     <div class="switch-header">
                         <div class="switch-name">${this.escapeHtml(switchName)}</div>
-                        <div class="switch-state ${state ? 'on' : 'off'}" id="state-${safeId}">
-                            ${state ? 'ON' : 'OFF'}
+                        <div class="switch-state ${switchData.state}" id="state-${safeId}">
+                            ${stateText}
                         </div>
                     </div>
                     <label class="toggle-switch">
-                        <input type="checkbox" id="switch-${safeId}" ${state ? 'checked' : ''}>
+                        <input type="checkbox" id="switch-${safeId}" ${switchData.currentState ? 'checked' : ''}>
                         <span class="slider"></span>
                     </label>
                 `;
@@ -620,8 +626,13 @@
                         throw new Error(data.message || 'Failed to toggle switch');
                     }
 
-                    this.switches[switchName] = state;
-                    this.updateSwitchUI(switchName, state);
+                    // Create a switch data object for UI update
+                    const switchData = {
+                        state: state ? 'on' : 'off',
+                        currentState: state
+                    };
+                    this.switches[switchName] = switchData;
+                    this.updateSwitchUI(switchName, switchData);
                     this.updateLastUpdated();
                     
                 } catch (error) {
@@ -661,8 +672,12 @@
                     }
 
                     for (const switchName of this.switchNames) {
-                        this.switches[switchName] = state;
-                        this.updateSwitchUI(switchName, state);
+                        const switchData = {
+                            state: state ? 'on' : 'off',
+                            currentState: state
+                        };
+                        this.switches[switchName] = switchData;
+                        this.updateSwitchUI(switchName, switchData);
                     }
                     
                     this.updateLastUpdated();
@@ -704,9 +719,13 @@
                     
                     // Update the affected switches in the UI
                     for (const switchName of this.groups[groupName].switches) {
-                        if (this.switches[switchName] !== state) {
-                            this.switches[switchName] = state;
-                            this.updateSwitchUI(switchName, state);
+                        const switchData = {
+                            state: state ? 'on' : 'off',
+                            currentState: state
+                        };
+                        if (JSON.stringify(this.switches[switchName]) !== JSON.stringify(switchData)) {
+                            this.switches[switchName] = switchData;
+                            this.updateSwitchUI(switchName, switchData);
                         }
                     }
                     
@@ -745,18 +764,19 @@
                 }
             }
 
-            updateSwitchUI(switchName, state) {
+            updateSwitchUI(switchName, switchData) {
                 const safeId = this.getSafeId(switchName);
                 const checkbox = document.getElementById(`switch-${safeId}`);
                 const stateLabel = document.getElementById(`state-${safeId}`);
                 
                 if (checkbox) {
-                    checkbox.checked = state;
+                    checkbox.checked = switchData.currentState;
                 }
                 
                 if (stateLabel) {
-                    stateLabel.textContent = state ? 'ON' : 'OFF';
-                    stateLabel.className = `switch-state ${state ? 'on' : 'off'}`;
+                    const stateText = switchData.state.toUpperCase();
+                    stateLabel.textContent = stateText;
+                    stateLabel.className = `switch-state ${switchData.state}`;
                 }
             }
 
