@@ -60,6 +60,12 @@ func (cl *ConfigLoader) SetStrictMode(strict bool) {
 // LoadConfig loads configuration with proper precedence: defaults < config file < explicit flags.
 // The config parameter should be a pointer to the configuration struct to populate.
 func (cl *ConfigLoader) LoadConfig(config any) error {
+	return cl.LoadConfigWithFlagSet(config, pflag.CommandLine)
+}
+
+// LoadConfigWithFlagSet loads configuration with proper precedence using a custom flag set.
+// The config parameter should be a pointer to the configuration struct to populate.
+func (cl *ConfigLoader) LoadConfigWithFlagSet(config any, fs *pflag.FlagSet) error {
 	// Store configFile if we need to preserve it (for structs that have ConfigFile field)
 	var originalConfigFile string
 	if cl.preserveFile && cl.configFile != "" {
@@ -83,7 +89,7 @@ func (cl *ConfigLoader) LoadConfig(config any) error {
 
 	// Only override with flags that were explicitly set by the user
 	// This preserves the precedence: defaults < config file < explicit flags
-	pflag.CommandLine.Visit(func(flag *pflag.Flag) {
+	fs.Visit(func(flag *pflag.Flag) {
 		// Keep flag names as-is since we now use hyphens in mapstructure tags
 		// This handles cases like --dummy.switch-count -> dummy.switch-count
 		viperKey := flag.Name
