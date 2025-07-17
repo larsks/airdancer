@@ -29,7 +29,7 @@ GO_SOURCES = $(shell go list -f '{{$$dir := .Dir}}{{range .GoFiles}}{{$$dir}}/{{
 GO_MOD_FILES = go.mod go.sum
 
 VERSION = $(shell git describe --tags --exact-match 2> /dev/null || echo dev)
-COMMIT = $(shell git rev-parse --short=10 HEAD)
+COMMIT = $(shell git rev-parse --short=10 HEAD 2> /dev/null || echo unknown)
 DATE = $(shell date -u +"%Y-%m-%dT%H:%M:%S")
 
 # Main targets

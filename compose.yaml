@@ -1,0 +1,47 @@
+services:
+  imap:
+    image: docker.io/dovecot/dovecot
+    ports:
+      - "127.0.0.1:31143:31143"
+      - "127.0.0.1:31993:31993"
+      - "127.0.0.1:31024:31024"
+      - "127.0.0.1:38080:8080"
+    volumes:
+      - "./dev/dovecot:/etc/dovecot:z"
+    environment:
+      DOVEADM_PASSWORD: "${DOVEADM_PASSWORD:-secret}"
+      USER_PASSWORD: "${USER_PASSWORD:-password}"
+  airdancer-api:
+    build:
+      context: .
+      dockerfile: Containerfile
+    volumes:
+      - './dev:/config:z'
+    command:
+    - airdancer-api
+    - --config
+    - /config/api.toml
+    ports:
+      - "127.0.0.1:8080:8080"
+  airdancer-ui:
+    build:
+      context: .
+      dockerfile: Containerfile
+    volumes:
+      - './dev:/config:z'
+    command:
+    - airdancer-ui
+    - --config
+    - /config/ui.toml
+    ports:
+      - "127.0.0.1:8081:8081"
+  airdancer-monitor:
+    build:
+      context: .
+      dockerfile: Containerfile
+    volumes:
+      - './dev:/config:z'
+    command:
+    - airdancer-monitor
+    - --config
+    - /config/monitor.toml

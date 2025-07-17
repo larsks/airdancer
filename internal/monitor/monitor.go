@@ -110,12 +110,13 @@ func (em *EmailMonitor) Start() {
 
 		err := em.connect()
 		if err != nil {
-			em.logger.Printf("connection failed: %v. Retrying in 30 seconds...", err)
+			retryInterval := em.config.GetEffectiveRetryInterval()
+			em.logger.Printf("connection failed: %v. Retrying in %d seconds...", err, retryInterval)
 			select {
 			case <-em.stopCh:
 				em.logger.Println("email monitor stopped during reconnect wait")
 				return
-			case <-time.After(30 * time.Second):
+			case <-time.After(time.Duration(retryInterval) * time.Second):
 			}
 			continue
 		}
