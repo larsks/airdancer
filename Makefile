@@ -45,6 +45,7 @@ BINS = $(BIN_DIR)/airdancer-api \
 	$(BIN_DIR)/airdancer-monitor \
 	$(BIN_DIR)/airdancer-ui \
 	$(BIN_DIR)/airdancer-buttons \
+	$(BIN_DIR)/dancerctl \
 	$(BIN_DIR)/gpiotest \
 	$(BIN_DIR)/pfctl \
 	$(BIN_DIR)/configvalidate
@@ -107,6 +108,8 @@ help:
 	@echo "  airdancer-api    - Build airdancer-api binary"
 	@echo "  airdancer-monitor - Build airdancer-monitor binary"
 	@echo "  airdancer-ui     - Build airdancer-ui binary"
+	@echo "  airdancer-buttons - Build airdancer-buttons binary"
+	@echo "  dancerctl        - Build dancerctl binary"
 	@echo "  gpiotest         - Build gpiotest binary"
 	@echo "  pfctl            - Build pfctl binary"
 	@echo "  configvalidate   - Build configvalidate binary"
@@ -143,6 +146,10 @@ $(BIN_DIR)/airdancer-ui: $(GO_SOURCES) $(GO_MOD_FILES) | $(BIN_DIR)
 	$(SAY) "Compiling airdancer-ui"
 	$(Q)$(GO) build $(GOFLAGS) -o $@ ./cmd/airdancer-ui
 
+$(BIN_DIR)/dancerctl: $(GO_SOURCES) $(GO_MOD_FILES) | $(BIN_DIR)
+	$(SAY) "Compiling dancerctl"
+	$(Q)$(GO) build $(GOFLAGS) -o $@ ./cmd/dancerctl
+
 $(BIN_DIR)/gpiotest: $(GO_SOURCES) $(GO_MOD_FILES) | $(BIN_DIR)
 	$(SAY) "Compiling gpiotest"
 	$(Q)$(GO) build $(GOFLAGS) -o $@ ./cmd/gpiotest
@@ -156,10 +163,12 @@ $(BIN_DIR)/configvalidate: $(GO_SOURCES) $(GO_MOD_FILES) | $(BIN_DIR)
 	$(Q)$(GO) build $(GOFLAGS) -o $@ ./cmd/configvalidate
 
 # Convenience targets for individual binaries
-.PHONY: airdancer-api airdancer-monitor airdancer-ui gpiotest pfctl configvalidate
+.PHONY: airdancer-api airdancer-monitor airdancer-ui airdancer-buttons dancerctl gpiotest pfctl configvalidate
 airdancer-api: $(BIN_DIR)/airdancer-api
 airdancer-monitor: $(BIN_DIR)/airdancer-monitor
 airdancer-ui: $(BIN_DIR)/airdancer-ui
+airdancer-buttons: $(BIN_DIR)/airdancer-buttons
+dancerctl: $(BIN_DIR)/dancerctl
 gpiotest: $(BIN_DIR)/gpiotest
 pfctl: $(BIN_DIR)/pfctl
 configvalidate: $(BIN_DIR)/configvalidate
@@ -170,6 +179,8 @@ install:
 	$(GO) install $(GOFLAGS) ./cmd/airdancer-api
 	$(GO) install $(GOFLAGS) ./cmd/airdancer-monitor
 	$(GO) install $(GOFLAGS) ./cmd/airdancer-ui
+	$(GO) install $(GOFLAGS) ./cmd/airdancer-buttons
+	$(GO) install $(GOFLAGS) ./cmd/dancerctl
 	$(GO) install $(GOFLAGS) ./cmd/gpiotest
 	$(GO) install $(GOFLAGS) ./cmd/pfctl
 	$(GO) install $(GOFLAGS) ./cmd/configvalidate 

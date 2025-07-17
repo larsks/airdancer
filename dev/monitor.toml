@@ -12,5 +12,5 @@ check-interval-seconds = 10
 mailbox = "INBOX"
 
 [[monitor.triggers]]
+command = "dancerctl --server-url http://airdancer-api:8080 blink green --period 5 --duration 20"
 regex-pattern = 'blink switch'
-command = "curl -sSf airdancer-api:8080/switch/green -H content-type:application/json -d '{\"state\": \"blink\", \"duration\": 20, \"period\": 5}'"
