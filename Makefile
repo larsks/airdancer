@@ -2,6 +2,7 @@
 PKG ?= github.com/larsks/airdancer
 GO ?= go
 GOTEST ?= go test
+COMPOSE ?= docker compose
 
 # Verbosity control
 ifeq ($(V),1)
@@ -10,6 +11,13 @@ ifeq ($(V),1)
 else
   Q = @
   SAY = @echo
+endif
+
+# Compose control
+ifeq ($(DETACH),1)
+  DETACH_FLAG="-d"
+else
+  DETACH_FLAG=
 endif
 
 GOLDFLAGS ?= \
@@ -87,6 +95,10 @@ debug: all
 .PHONY: rebuild
 rebuild: clean all
 
+.PHONY: run
+run:
+	$(COMPOSE) up --build $(DETACH_FLAG)
+
 # Help target - show available targets
 .PHONY: help
 help:
@@ -104,6 +116,7 @@ help:
 	@echo "  race             - Build with race detection"
 	@echo "  debug            - Build with debug symbols"
 	@echo "  rebuild          - Force rebuild of all binaries"
+	@echo "  run              - Start docker compose dev environment"
 	@echo "  help             - Show this help message"
 	@echo ""
 	@echo "Dependencies:"
