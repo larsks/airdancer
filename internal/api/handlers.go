@@ -366,6 +366,83 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 		return
 	}
 
+	// Handle blink specially since it operates on the group as a whole
+	if req.State == switchStateBlink {
+		// Cancel any existing timer for this group
+		if timer, ok := s.timers[groupName]; ok {
+			log.Printf("cancelling timer on group %s", groupName)
+			timer.timer.Stop()
+			delete(s.timers, groupName)
+		}
+
+		// Stop any running blinker for this group
+		if blinker, ok := s.blinkers[groupName]; ok {
+			if blinker.IsRunning() {
+				log.Printf("cancelling blinker on group %s", groupName)
+				if err := blinker.Stop(); err != nil {
+					s.sendError(w, fmt.Sprintf("failed to cancel blinker on group %s: %v", groupName, err), http.StatusInternalServerError)
+					return
+				}
+			}
+			delete(s.blinkers, groupName)
+		}
+
+		// Stop any running flipflop for this group
+		if flipflopInstance, ok := s.flipflops[groupName]; ok {
+			if flipflopInstance.IsRunning() {
+				log.Printf("cancelling flipflop on group %s", groupName)
+				if err := flipflopInstance.Stop(); err != nil {
+					s.sendError(w, fmt.Sprintf("failed to cancel flipflop on group %s: %v", groupName, err), http.StatusInternalServerError)
+					return
+				}
+			}
+			delete(s.flipflops, groupName)
+		}
+
+		dutyCycle := 0.5
+		if req.DutyCycle != nil {
+			dutyCycle = *req.DutyCycle
+		}
+
+		newBlinker, err := blink.NewBlink(group, *req.Period, dutyCycle)
+		if err != nil {
+			s.sendError(w, fmt.Sprintf("failed to create blinker for group %s: %v", groupName, err), http.StatusBadRequest)
+			return
+		}
+
+		s.blinkers[groupName] = newBlinker
+		log.Printf("start blinker on group %s", groupName)
+		if err := newBlinker.Start(); err != nil {
+			s.sendError(w, fmt.Sprintf("failed to start blinker for group %s: %v", groupName, err), http.StatusBadRequest)
+			return
+		}
+
+		// Set up auto-off timer if duration specified
+		if req.Duration != nil {
+			duration := time.Duration(*req.Duration) * time.Second
+			log.Printf("start timer on group %s for %v", groupName, duration)
+			s.timers[groupName] = &timerData{
+				duration: duration,
+				timer: time.AfterFunc(duration, func() {
+					s.mutex.Lock()
+					defer s.mutex.Unlock() //nolint:errcheck
+					delete(s.timers, groupName)
+
+					if blinker, ok := s.blinkers[groupName]; ok {
+						if err := blinker.Stop(); err != nil {
+							log.Printf("timer failed to stop blinker on group %s: %v", groupName, err)
+						}
+						delete(s.blinkers, groupName)
+					}
+					log.Printf("timer expired for group %s after %s", groupName, duration)
+				}),
+			}
+		}
+
+		s.sendSuccess(w, req)
+		return
+	}
+
 	// For all other states, first cancel any group-level activities
 	// Cancel any existing timer for this group
 	if timer, ok := s.timers[groupName]; ok {
