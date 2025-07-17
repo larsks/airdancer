@@ -97,9 +97,9 @@ func TestParseArgs(t *testing.T) {
 			wantErr:     false,
 		},
 		{
-			name:        "switches command",
-			args:        []string{"switches"},
-			wantCommand: "switches",
+			name:        "status command with no args",
+			args:        []string{"status"},
+			wantCommand: "status",
 			wantErr:     false,
 		},
 		{
@@ -110,8 +110,8 @@ func TestParseArgs(t *testing.T) {
 		},
 		{
 			name:        "server-url flag",
-			args:        []string{"--server-url", "http://example.com:8080", "switches"},
-			wantCommand: "switches",
+			args:        []string{"--server-url", "http://example.com:8080", "status"},
+			wantCommand: "status",
 			wantErr:     false,
 		},
 		{
@@ -156,7 +156,7 @@ func TestParseArgsWithConfig(t *testing.T) {
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
 
-	args := []string{"--config", configFile, "switches"}
+	args := []string{"--config", configFile, "status"}
 	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
 	fs.Usage = func() {} // Suppress usage output
 
@@ -171,7 +171,7 @@ func TestParseArgsWithConfig(t *testing.T) {
 }
 
 func TestParseArgsWithNonExistentConfig(t *testing.T) {
-	args := []string{"--config", "/nonexistent/config.toml", "switches"}
+	args := []string{"--config", "/nonexistent/config.toml", "status"}
 	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
 	fs.Usage = func() {} // Suppress usage output
 
@@ -201,9 +201,9 @@ func TestCLIExecute(t *testing.T) {
 			wantOutput: "dancerctl - Command line tool",
 		},
 		{
-			name: "switches command success",
+			name: "status command with no args (acts like switches)",
 			cmdArgs: &CommandArgs{
-				Command: "switches",
+				Command: "status",
 				Config:  &Config{ServerURL: "http://test.com"},
 			},
 			setupMock: func(m *MockHTTPClient) {
@@ -287,7 +287,7 @@ func TestCLIExecute(t *testing.T) {
 		{
 			name: "API error response",
 			cmdArgs: &CommandArgs{
-				Command: "switches",
+				Command: "status",
 				Config:  &Config{ServerURL: "http://test.com"},
 			},
 			setupMock: func(m *MockHTTPClient) {
@@ -359,14 +359,14 @@ func TestCLICommandValidation(t *testing.T) {
 			errMsg:  "exactly one switch argument",
 		},
 		{
-			name: "switches with args",
+			name: "status with too many args",
 			cmdArgs: &CommandArgs{
-				Command: "switches",
-				Args:    []string{"extra"},
+				Command: "status",
+				Args:    []string{"sw1", "extra"},
 				Config:  &Config{ServerURL: "http://test.com"},
 			},
 			wantErr: true,
-			errMsg:  "takes no arguments",
+			errMsg:  "zero or one switch argument",
 		},
 	}
 
@@ -420,9 +420,9 @@ func TestCLIHTTPRequests(t *testing.T) {
 			wantServerURL: "http://custom.com:8080",
 		},
 		{
-			name: "switches request",
+			name: "status request with no args",
 			cmdArgs: &CommandArgs{
-				Command: "switches",
+				Command: "status",
 				Config:  &Config{ServerURL: "http://localhost:9090"},
 			},
 			setupMock: func(m *MockHTTPClient) {

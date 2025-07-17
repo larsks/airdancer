@@ -211,8 +211,6 @@ func (c *CLI) Execute(cmdArgs *CommandArgs) error {
 	case "help":
 		c.showHelp()
 		return nil
-	case "switches":
-		return c.cmdSwitches(cmdArgs.Args)
 	case "blink":
 		return c.cmdBlink(cmdArgs.Args, cmdArgs.Period, cmdArgs.Duration, cmdArgs.DutyCycle)
 	case "flipflop":
@@ -237,13 +235,12 @@ func (c *CLI) showHelp() {
 Usage: dancerctl [flags] <command> [arguments]
 
 Commands:
-  switches                    List all switches
   blink <switch>              Blink a switch
   flipflop <switch_or_group>  Flipflop a switch group
   on <switch>                 Turn on a switch
   off <switch>                Turn off a switch
   toggle <switch>             Toggle a switch
-  status <switch>             Get status of a switch
+  status [switch]             Get status of a switch or list all switches
   help                        Show this help
   version                     Show version information
 
@@ -419,8 +416,12 @@ func (c *CLI) cmdToggle(args []string) error {
 }
 
 func (c *CLI) cmdStatus(args []string) error {
+	if len(args) == 0 {
+		return c.cmdSwitches(args)
+	}
+
 	if len(args) != 1 {
-		return fmt.Errorf("status command requires exactly one switch argument")
+		return fmt.Errorf("status command requires zero or one switch argument")
 	}
 
 	switchName := args[0]
