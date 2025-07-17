@@ -490,8 +490,8 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 	s.sendSuccess(w, req)
 }
 
-func (s *Server) getStatusForSwitch(sw switchcollection.Switch) (*switchResponse, error) {
-	swid := sw.String()
+func (s *Server) getStatusForSwitch(switchName string, sw switchcollection.Switch) (*switchResponse, error) {
+	swid := switchName
 	currentState, err := sw.GetState()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get state for switch %s: %w", sw, err)
@@ -598,7 +598,7 @@ func (s *Server) handleAllSwitchesStatus(w http.ResponseWriter) {
 	allOn := true
 
 	for switchName, resolvedSwitch := range s.switches {
-		switchStatus, err := s.getStatusForSwitch(resolvedSwitch.Switch)
+		switchStatus, err := s.getStatusForSwitch(switchName, resolvedSwitch.Switch)
 		if err != nil {
 			s.sendError(w, fmt.Sprintf("Failed to get status for switch %s: %v", switchName, err), http.StatusBadRequest)
 			return
@@ -648,7 +648,7 @@ func (s *Server) handleGroupSwitchStatus(w http.ResponseWriter, groupName string
 	allOn := true
 
 	for switchName, resolvedSwitch := range group.GetSwitches() {
-		switchStatus, err := s.getStatusForSwitch(resolvedSwitch.Switch)
+		switchStatus, err := s.getStatusForSwitch(switchName, resolvedSwitch.Switch)
 		if err != nil {
 			s.sendError(w, fmt.Sprintf("Failed to get status for switch %s in group %s: %v", switchName, groupName, err), http.StatusBadRequest)
 			return
@@ -691,7 +691,7 @@ func (s *Server) handleSingleSwitchStatus(w http.ResponseWriter, switchName stri
 		return
 	}
 
-	response, err := s.getStatusForSwitch(resolvedSwitch.Switch)
+	response, err := s.getStatusForSwitch(switchName, resolvedSwitch.Switch)
 	if err != nil {
 		s.sendError(w, fmt.Sprintf("Failed to get status for switch %s: %v", switchName, err), http.StatusBadRequest)
 		return
