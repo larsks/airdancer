@@ -9,11 +9,11 @@ import (
 
 // IMAPConfig holds IMAP server configuration
 type IMAPConfig struct {
-	Server              string `mapstructure:"server"`
-	Port                int    `mapstructure:"port"`
-	Username            string `mapstructure:"username"`
-	Password            string `mapstructure:"password"`
-	UseSSL              bool   `mapstructure:"use-ssl"`
+	Server               string `mapstructure:"server"`
+	Port                 int    `mapstructure:"port"`
+	Username             string `mapstructure:"username"`
+	Password             string `mapstructure:"password"`
+	UseSSL               bool   `mapstructure:"use-ssl"`
 	RetryIntervalSeconds *int   `mapstructure:"retry-interval-seconds"`
 }
 
@@ -81,13 +81,13 @@ func (c *Config) LoadConfig(configFile string) error {
 
 	// Set default values
 	loader.SetDefaults(map[string]any{
-		"imap.server":                    c.IMAP.Server,
-		"imap.port":                      c.IMAP.Port,
-		"imap.username":                  c.IMAP.Username,
-		"imap.password":                  c.IMAP.Password,
-		"imap.use-ssl":                   c.IMAP.UseSSL,
-		"imap.retry-interval-seconds":    30,
-		"check-interval-seconds":         30,
+		"imap.server":                 c.IMAP.Server,
+		"imap.port":                   c.IMAP.Port,
+		"imap.username":               c.IMAP.Username,
+		"imap.password":               c.IMAP.Password,
+		"imap.use-ssl":                c.IMAP.UseSSL,
+		"imap.retry-interval-seconds": 30,
+		"check-interval-seconds":      30,
 	})
 
 	return loader.LoadConfig(c)
@@ -101,13 +101,13 @@ func (c *Config) LoadConfigFromStruct() error {
 
 	// Set default values using the struct defaults
 	loader.SetDefaults(map[string]any{
-		"imap.server":                    "",
-		"imap.port":                      993,
-		"imap.username":                  "",
-		"imap.password":                  "",
-		"imap.use-ssl":                   true,
-		"imap.retry-interval-seconds":    30,
-		"check-interval-seconds":         30,
+		"imap.server":                 "",
+		"imap.port":                   993,
+		"imap.username":               "",
+		"imap.password":               "",
+		"imap.use-ssl":                true,
+		"imap.retry-interval-seconds": 30,
+		"check-interval-seconds":      30,
 	})
 
 	return loader.LoadConfig(c)

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -80,6 +81,10 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 }
 
 func (c *Config) LoadConfig() error {
+	return c.LoadConfigWithFlagSet(pflag.CommandLine)
+}
+
+func (c *Config) LoadConfigWithFlagSet(fs *pflag.FlagSet) error {
 	// Check if config file was explicitly set by comparing with default
 	defaultConfigFile := getDefaultConfigFile()
 	c.explicitConfigFile = c.ConfigFile != defaultConfigFile
@@ -105,78 +110,129 @@ func (c *Config) LoadConfig() error {
 		"server-url": defaultServerURL,
 	})
 
-	return loader.LoadConfig(c)
+	return loader.LoadConfigWithFlagSet(c, fs)
 }
 
-var cfg *Config
+// HTTPClient interface for testing
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
 
-func main() {
+// CLI represents the command line interface
+type CLI struct {
+	config     *Config
+	httpClient HTTPClient
+	stdout     io.Writer
+	stderr     io.Writer
+}
+
+// NewCLI creates a new CLI instance
+func NewCLI(cfg *Config, httpClient HTTPClient, stdout, stderr io.Writer) *CLI {
+	return &CLI{
+		config:     cfg,
+		httpClient: httpClient,
+		stdout:     stdout,
+		stderr:     stderr,
+	}
+}
+
+// CommandArgs represents parsed command line arguments
+type CommandArgs struct {
+	Command   string
+	Args      []string
+	Period    float64
+	Duration  uint
+	DutyCycle float64
+	Config    *Config
+}
+
+// ParseArgs parses command line arguments using pflag.CommandLine
+func ParseArgs(args []string) (*CommandArgs, error) {
+	return ParseArgsWithFlagSet(args, pflag.CommandLine)
+}
+
+// ParseArgsWithFlagSet parses command line arguments with a custom flag set (for testing)
+func ParseArgsWithFlagSet(args []string, fs *pflag.FlagSet) (*CommandArgs, error) {
 	// Define flags
-	versionFlag := pflag.Bool("version", false, "Show version and exit")
-	helpFlag := pflag.BoolP("help", "h", false, "Show help")
+	versionFlag := fs.Bool("version", false, "Show version and exit")
+	helpFlag := fs.BoolP("help", "h", false, "Show help")
 
 	// Config flags
-	cfg = NewConfig()
-	cfg.AddFlags(pflag.CommandLine)
+	cfg := NewConfig()
+	cfg.AddFlags(fs)
 
 	// Command-specific flags
-	var (
-		period    = pflag.Float64P("period", "p", 1.0, "Period in seconds (for blink/flipflop)")
-		duration  = pflag.UintP("duration", "d", 0, "Duration in seconds (0 = indefinite)")
-		dutyCycle = pflag.Float64P("duty-cycle", "c", 0.5, "Duty cycle (0.0 to 1.0)")
-	)
+	period := fs.Float64P("period", "p", 1.0, "Period in seconds (for blink/flipflop)")
+	duration := fs.UintP("duration", "d", 0, "Duration in seconds (0 = indefinite)")
+	dutyCycle := fs.Float64P("duty-cycle", "c", 0.5, "Duty cycle (0.0 to 1.0)")
 
-	pflag.Parse()
+	// Parse arguments
+	if err := fs.Parse(args); err != nil {
+		return nil, fmt.Errorf("failed to parse flags: %w", err)
+	}
 
 	// Handle version flag
 	if *versionFlag {
-		version.ShowVersion()
-		os.Exit(0)
+		return &CommandArgs{Command: "version", Config: cfg}, nil
 	}
 
-	// Load configuration
-	if err := cfg.LoadConfig(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-		os.Exit(1)
+	// Handle help flag
+	if *helpFlag {
+		return &CommandArgs{Command: "help", Config: cfg}, nil
 	}
 
 	// Get command and arguments
-	args := pflag.Args()
-	if len(args) == 0 || *helpFlag {
-		showHelp()
-		os.Exit(0)
+	remainingArgs := fs.Args()
+	if len(remainingArgs) == 0 {
+		return &CommandArgs{Command: "help", Config: cfg}, nil
 	}
 
-	command := args[0]
-	commandArgs := args[1:]
+	// Load configuration using the same flag set
+	if err := cfg.LoadConfigWithFlagSet(fs); err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
+	}
 
-	// Execute command
-	switch command {
-	case "switches":
-		cmdSwitches(commandArgs)
-	case "blink":
-		cmdBlink(commandArgs, *period, *duration, *dutyCycle)
-	case "flipflop":
-		cmdFlipflop(commandArgs, *period, *duration, *dutyCycle)
-	case "on":
-		cmdOn(commandArgs, *duration)
-	case "off":
-		cmdOff(commandArgs, *duration)
-	case "toggle":
-		cmdToggle(commandArgs)
-	case "status":
-		cmdStatus(commandArgs)
+	return &CommandArgs{
+		Command:   remainingArgs[0],
+		Args:      remainingArgs[1:],
+		Period:    *period,
+		Duration:  *duration,
+		DutyCycle: *dutyCycle,
+		Config:    cfg,
+	}, nil
+}
+
+// Execute runs the specified command
+func (c *CLI) Execute(cmdArgs *CommandArgs) error {
+	switch cmdArgs.Command {
+	case "version":
+		version.ShowVersion()
+		return nil
 	case "help":
-		showHelp()
+		c.showHelp()
+		return nil
+	case "switches":
+		return c.cmdSwitches(cmdArgs.Args)
+	case "blink":
+		return c.cmdBlink(cmdArgs.Args, cmdArgs.Period, cmdArgs.Duration, cmdArgs.DutyCycle)
+	case "flipflop":
+		return c.cmdFlipflop(cmdArgs.Args, cmdArgs.Period, cmdArgs.Duration, cmdArgs.DutyCycle)
+	case "on":
+		return c.cmdOn(cmdArgs.Args, cmdArgs.Duration)
+	case "off":
+		return c.cmdOff(cmdArgs.Args, cmdArgs.Duration)
+	case "toggle":
+		return c.cmdToggle(cmdArgs.Args)
+	case "status":
+		return c.cmdStatus(cmdArgs.Args)
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", command)
-		showHelp()
-		os.Exit(1)
+		return fmt.Errorf("unknown command: %s", cmdArgs.Command)
 	}
 }
 
-func showHelp() {
-	fmt.Printf(`dancerctl - Command line tool for controlling airdancer switches
+func (c *CLI) showHelp() {
+	//nolint:errcheck
+	fmt.Fprintf(c.stdout, `dancerctl - Command line tool for controlling airdancer switches
 
 Usage: dancerctl [flags] <command> [arguments]
 
@@ -189,72 +245,74 @@ Commands:
   toggle <switch>             Toggle a switch
   status <switch>             Get status of a switch
   help                        Show this help
+  version                     Show version information
 
 Flags:
-`)
-	pflag.PrintDefaults()
+  --config string       Config file to use (default "%s")
+  -d, --duration uint   Duration in seconds (0 = indefinite)
+  -c, --duty-cycle float Duty cycle (0.0 to 1.0) (default 0.5)
+  -h, --help            Show help
+  -p, --period float    Period in seconds (for blink/flipflop) (default 1)
+  --server-url string   API server URL (default "%s")
+  --version             Show version and exit
+`, getDefaultConfigFile(), defaultServerURL)
 }
 
-func cmdSwitches(args []string) {
+func (c *CLI) cmdSwitches(args []string) error {
 	if len(args) > 0 {
-		fmt.Fprintf(os.Stderr, "switches command takes no arguments\n")
-		os.Exit(1)
+		return fmt.Errorf("switches command takes no arguments")
 	}
 
-	resp, err := makeAPIRequest("GET", "/switch/all", nil)
+	resp, err := c.makeAPIRequest("GET", "/switch/all", nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
 	var apiResp APIResponse
 	if err := json.Unmarshal(resp, &apiResp); err != nil {
-		fmt.Fprintf(os.Stderr, "Error parsing response: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("error parsing response: %w", err)
 	}
 
 	if apiResp.Status != "ok" {
-		fmt.Fprintf(os.Stderr, "API error: %s\n", apiResp.Message)
-		os.Exit(1)
+		return fmt.Errorf("API error: %s", apiResp.Message)
 	}
 
 	dataBytes, err := json.Marshal(apiResp.Data)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error marshaling data: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("error marshaling data: %w", err)
 	}
 
 	var multiResp MultiSwitchResponse
 	if err := json.Unmarshal(dataBytes, &multiResp); err != nil {
-		fmt.Fprintf(os.Stderr, "Error parsing switch data: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("error parsing switch data: %w", err)
 	}
 
-	fmt.Printf("Switches (%d total):\n", multiResp.Count)
+	fmt.Fprintf(c.stdout, "Switches (%d total):\n", multiResp.Count) //nolint:errcheck
 	for name, sw := range multiResp.Switches {
 		status := "off"
 		if sw.CurrentState {
 			status = "on"
 		}
-		fmt.Printf("  %s: %s (state: %s)\n", name, status, sw.State)
+		fmt.Fprintf(c.stdout, "  %s: %s (state: %s)\n", name, status, sw.State) //nolint:errcheck
 	}
 
 	if len(multiResp.Groups) > 0 {
-		fmt.Printf("\nGroups:\n")
+		fmt.Fprintf(c.stdout, "\nGroups:\n") //nolint:errcheck
 		for name, group := range multiResp.Groups {
 			status := "off"
 			if group.Summary {
 				status = "on"
 			}
-			fmt.Printf("  %s: %s (state: %s, switches: %s)\n", name, status, group.State, strings.Join(group.Switches, ", "))
+			fmt.Fprintf(c.stdout, "  %s: %s (state: %s, switches: %s)\n", name, status, group.State, strings.Join(group.Switches, ", ")) //nolint:errcheck
 		}
 	}
+
+	return nil
 }
 
-func cmdBlink(args []string, period float64, duration uint, dutyCycle float64) {
+func (c *CLI) cmdBlink(args []string, period float64, duration uint, dutyCycle float64) error {
 	if len(args) != 1 {
-		fmt.Fprintf(os.Stderr, "blink command requires exactly one switch argument\n")
-		os.Exit(1)
+		return fmt.Errorf("blink command requires exactly one switch argument")
 	}
 
 	switchName := args[0]
@@ -270,18 +328,17 @@ func cmdBlink(args []string, period float64, duration uint, dutyCycle float64) {
 		req.DutyCycle = &dutyCycle
 	}
 
-	if err := sendSwitchRequest(switchName, req); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+	if err := c.sendSwitchRequest(switchName, req); err != nil {
+		return err
 	}
 
-	fmt.Printf("Blink started for switch: %s\n", switchName)
+	fmt.Fprintf(c.stdout, "Blink started for switch: %s\n", switchName) //nolint:errcheck
+	return nil
 }
 
-func cmdFlipflop(args []string, period float64, duration uint, dutyCycle float64) {
+func (c *CLI) cmdFlipflop(args []string, period float64, duration uint, dutyCycle float64) error {
 	if len(args) != 1 {
-		fmt.Fprintf(os.Stderr, "flipflop command requires exactly one switch/group argument\n")
-		os.Exit(1)
+		return fmt.Errorf("flipflop command requires exactly one switch/group argument")
 	}
 
 	switchName := args[0]
@@ -297,18 +354,17 @@ func cmdFlipflop(args []string, period float64, duration uint, dutyCycle float64
 		req.DutyCycle = &dutyCycle
 	}
 
-	if err := sendSwitchRequest(switchName, req); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+	if err := c.sendSwitchRequest(switchName, req); err != nil {
+		return err
 	}
 
-	fmt.Printf("Flipflop started for switch/group: %s\n", switchName)
+	fmt.Fprintf(c.stdout, "Flipflop started for switch/group: %s\n", switchName) //nolint:errcheck
+	return nil
 }
 
-func cmdOn(args []string, duration uint) {
+func (c *CLI) cmdOn(args []string, duration uint) error {
 	if len(args) != 1 {
-		fmt.Fprintf(os.Stderr, "on command requires exactly one switch argument\n")
-		os.Exit(1)
+		return fmt.Errorf("on command requires exactly one switch argument")
 	}
 
 	switchName := args[0]
@@ -318,18 +374,17 @@ func cmdOn(args []string, duration uint) {
 		req.Duration = &duration
 	}
 
-	if err := sendSwitchRequest(switchName, req); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+	if err := c.sendSwitchRequest(switchName, req); err != nil {
+		return err
 	}
 
-	fmt.Printf("Switch turned on: %s\n", switchName)
+	fmt.Fprintf(c.stdout, "Switch turned on: %s\n", switchName) //nolint:errcheck
+	return nil
 }
 
-func cmdOff(args []string, duration uint) {
+func (c *CLI) cmdOff(args []string, duration uint) error {
 	if len(args) != 1 {
-		fmt.Fprintf(os.Stderr, "off command requires exactly one switch argument\n")
-		os.Exit(1)
+		return fmt.Errorf("off command requires exactly one switch argument")
 	}
 
 	switchName := args[0]
@@ -339,60 +394,54 @@ func cmdOff(args []string, duration uint) {
 		req.Duration = &duration
 	}
 
-	if err := sendSwitchRequest(switchName, req); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+	if err := c.sendSwitchRequest(switchName, req); err != nil {
+		return err
 	}
 
-	fmt.Printf("Switch turned off: %s\n", switchName)
+	fmt.Fprintf(c.stdout, "Switch turned off: %s\n", switchName) //nolint:errcheck
+	return nil
 }
 
-func cmdToggle(args []string) {
+func (c *CLI) cmdToggle(args []string) error {
 	if len(args) != 1 {
-		fmt.Fprintf(os.Stderr, "toggle command requires exactly one switch argument\n")
-		os.Exit(1)
+		return fmt.Errorf("toggle command requires exactly one switch argument")
 	}
 
 	switchName := args[0]
 	req := SwitchRequest{State: "toggle"}
 
-	if err := sendSwitchRequest(switchName, req); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+	if err := c.sendSwitchRequest(switchName, req); err != nil {
+		return err
 	}
 
-	fmt.Printf("Switch toggled: %s\n", switchName)
+	fmt.Fprintf(c.stdout, "Switch toggled: %s\n", switchName) //nolint:errcheck
+	return nil
 }
 
-func cmdStatus(args []string) {
+func (c *CLI) cmdStatus(args []string) error {
 	if len(args) != 1 {
-		fmt.Fprintf(os.Stderr, "status command requires exactly one switch argument\n")
-		os.Exit(1)
+		return fmt.Errorf("status command requires exactly one switch argument")
 	}
 
 	switchName := args[0]
 
-	resp, err := makeAPIRequest("GET", "/switch/"+switchName, nil)
+	resp, err := c.makeAPIRequest("GET", "/switch/"+switchName, nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
 	var apiResp APIResponse
 	if err := json.Unmarshal(resp, &apiResp); err != nil {
-		fmt.Fprintf(os.Stderr, "Error parsing response: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("error parsing response: %w", err)
 	}
 
 	if apiResp.Status != "ok" {
-		fmt.Fprintf(os.Stderr, "API error: %s\n", apiResp.Message)
-		os.Exit(1)
+		return fmt.Errorf("API error: %s", apiResp.Message)
 	}
 
 	dataBytes, err := json.Marshal(apiResp.Data)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error marshaling data: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("error marshaling data: %w", err)
 	}
 
 	// Try to parse as SwitchResponse first (for individual switches)
@@ -402,51 +451,52 @@ func cmdStatus(args []string) {
 		if switchResp.CurrentState {
 			status = "on"
 		}
-		fmt.Printf("Switch: %s\n", switchName)
-		fmt.Printf("Status: %s\n", status)
-		fmt.Printf("State: %s\n", switchResp.State)
+		fmt.Fprintf(c.stdout, "Switch: %s\n", switchName)      //nolint:errcheck
+		fmt.Fprintf(c.stdout, "Status: %s\n", status)          //nolint:errcheck
+		fmt.Fprintf(c.stdout, "State: %s\n", switchResp.State) //nolint:errcheck
 
 		if switchResp.Duration != nil {
-			fmt.Printf("Duration: %d seconds\n", *switchResp.Duration)
+			fmt.Fprintf(c.stdout, "Duration: %d seconds\n", *switchResp.Duration) //nolint:errcheck
 		}
 		if switchResp.Period != nil {
-			fmt.Printf("Period: %.2f seconds\n", *switchResp.Period)
+			fmt.Fprintf(c.stdout, "Period: %.2f seconds\n", *switchResp.Period) //nolint:errcheck
 		}
 		if switchResp.DutyCycle != nil {
-			fmt.Printf("Duty Cycle: %.2f\n", *switchResp.DutyCycle)
+			fmt.Fprintf(c.stdout, "Duty Cycle: %.2f\n", *switchResp.DutyCycle) //nolint:errcheck
 		}
 	} else {
 		// Try to parse as MultiSwitchResponse (for groups or "all")
 		var multiResp MultiSwitchResponse
 		if err := json.Unmarshal(dataBytes, &multiResp); err != nil {
-			fmt.Fprintf(os.Stderr, "Error parsing switch data: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("error parsing switch data: %w", err)
 		}
 
-		fmt.Printf("Switch/Group: %s\n", switchName)
-		fmt.Printf("Summary Status: %s\n", multiResp.State)
-		fmt.Printf("Count: %d\n", multiResp.Count)
+		fmt.Fprintf(c.stdout, "Switch/Group: %s\n", switchName)        //nolint:errcheck
+		fmt.Fprintf(c.stdout, "Summary Status: %s\n", multiResp.State) //nolint:errcheck
+		fmt.Fprintf(c.stdout, "Count: %d\n", multiResp.Count)          //nolint:errcheck
 
 		if len(multiResp.Switches) > 0 {
-			fmt.Printf("Switches:\n")
+			fmt.Fprintf(c.stdout, "Switches:\n") //nolint:errcheck
 			for name, sw := range multiResp.Switches {
 				status := "off"
 				if sw.CurrentState {
 					status = "on"
 				}
-				fmt.Printf("  %s: %s (state: %s)\n", name, status, sw.State)
+				fmt.Fprintf(c.stdout, "  %s: %s (state: %s)\n", name, status, sw.State) //nolint:errcheck
 			}
 		}
 	}
+
+	return nil
 }
 
-func sendSwitchRequest(switchName string, req SwitchRequest) error {
+func (c *CLI) sendSwitchRequest(switchName string, req SwitchRequest) error {
 	reqBody, err := json.Marshal(req)
 	if err != nil {
 		return fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	resp, err := makeAPIRequest("POST", "/switch/"+switchName, reqBody)
+	resp, err := c.makeAPIRequest("POST", "/switch/"+switchName, reqBody)
 	if err != nil {
 		return err
 	}
@@ -463,8 +513,8 @@ func sendSwitchRequest(switchName string, req SwitchRequest) error {
 	return nil
 }
 
-func makeAPIRequest(method, path string, body []byte) ([]byte, error) {
-	url := cfg.ServerURL + path
+func (c *CLI) makeAPIRequest(method, path string, body []byte) ([]byte, error) {
+	url := c.config.ServerURL + path
 
 	var req *http.Request
 	var err error
@@ -482,24 +532,16 @@ func makeAPIRequest(method, path string, body []byte) ([]byte, error) {
 		}
 	}
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
 	defer resp.Body.Close() //nolint:errcheck
 
-	// Read the response body first
-	respBody := make([]byte, 0)
-	buf := make([]byte, 1024)
-	for {
-		n, err := resp.Body.Read(buf)
-		if n > 0 {
-			respBody = append(respBody, buf[:n]...)
-		}
-		if err != nil {
-			break
-		}
+	// Read the response body
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	// Check for HTTP errors and try to parse API error message
@@ -516,3 +558,20 @@ func makeAPIRequest(method, path string, body []byte) ([]byte, error) {
 	return respBody, nil
 }
 
+func main() {
+	// Parse command line arguments
+	cmdArgs, err := ParseArgs(os.Args[1:])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err) //nolint:errcheck
+		os.Exit(1)
+	}
+
+	// Create CLI with parsed config
+	cli := NewCLI(cmdArgs.Config, &http.Client{}, os.Stdout, os.Stderr)
+
+	// Execute command
+	if err := cli.Execute(cmdArgs); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err) //nolint:errcheck
+		os.Exit(1)
+	}
+}
