@@ -109,9 +109,12 @@ func TestConfigLoadConfig(t *testing.T) {
 
 func TestConfigValidate(t *testing.T) {
 	t.Run("valid config", func(t *testing.T) {
+		clickAction := "echo 'click'"
+		defaultAction := "echo 'default'"
 		config := &Config{
+			DefaultAction: &defaultAction,
 			Buttons: []ButtonConfig{
-				{Name: "b1", Driver: "event", Spec: "/dev/input/event0:EV_KEY:115"},
+				{Name: "b1", Driver: "event", Spec: "/dev/input/event0:EV_KEY:115", ClickAction: &clickAction},
 				{Name: "b2", Driver: "gpio", Spec: "GPIO16"},
 			},
 		}
@@ -197,6 +200,40 @@ func TestConfigValidate(t *testing.T) {
 		err = config.Validate()
 		assert.Error(t, err, "Validation should fail for the loaded empty config")
 		assert.Equal(t, "no buttons configured", err.Error())
+	})
+
+	t.Run("button with no actions", func(t *testing.T) {
+		config := &Config{
+			Buttons: []ButtonConfig{
+				{Name: "b1", Driver: "event", Spec: "/dev/input/event0:EV_KEY:115"},
+			},
+		}
+		err := config.Validate()
+		assert.Error(t, err, "Validation should fail with button having no actions")
+		assert.Equal(t, "button 0 (b1): no actions configured (no global default-action or button-specific actions)", err.Error())
+	})
+
+	t.Run("button with global default action", func(t *testing.T) {
+		defaultAction := "echo 'default'"
+		config := &Config{
+			DefaultAction: &defaultAction,
+			Buttons: []ButtonConfig{
+				{Name: "b1", Driver: "event", Spec: "/dev/input/event0:EV_KEY:115"},
+			},
+		}
+		err := config.Validate()
+		assert.NoError(t, err, "Validation should pass with global default action")
+	})
+
+	t.Run("button with specific action", func(t *testing.T) {
+		clickAction := "echo 'click'"
+		config := &Config{
+			Buttons: []ButtonConfig{
+				{Name: "b1", Driver: "event", Spec: "/dev/input/event0:EV_KEY:115", ClickAction: &clickAction},
+			},
+		}
+		err := config.Validate()
+		assert.NoError(t, err, "Validation should pass with button-specific action")
 	})
 }
 

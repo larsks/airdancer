@@ -64,6 +64,19 @@ func (c *Config) Validate() error {
 		if button.Spec == "" {
 			return fmt.Errorf("button %d (%s): spec is required", i, button.Name)
 		}
+		
+		// Check that the button has at least one action configured
+		hasAction := button.ClickAction != nil ||
+			button.DoubleClickAction != nil ||
+			button.TripleClickAction != nil ||
+			button.ShortPressAction != nil ||
+			button.LongPressAction != nil ||
+			button.DefaultAction != nil ||
+			c.DefaultAction != nil
+		
+		if !hasAction {
+			return fmt.Errorf("button %d (%s): no actions configured (no global default-action or button-specific actions)", i, button.Name)
+		}
 	}
 	return nil
 }

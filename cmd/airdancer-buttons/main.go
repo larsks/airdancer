@@ -25,6 +25,10 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
+	if err := cfg.Validate(); err != nil {
+		log.Fatalf("Config validation failed: %v", err)
+	}
+
 	monitor := buttonwatcher.NewButtonMonitor()
 	defer monitor.Close() //nolint:errcheck
 
