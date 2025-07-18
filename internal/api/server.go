@@ -21,7 +21,7 @@ import (
 	"github.com/larsks/airdancer/internal/flipflop"
 	"github.com/larsks/airdancer/internal/piface"
 	"github.com/larsks/airdancer/internal/switchcollection"
-	"github.com/larsks/airdancer/internal/switchcollection/gpio"
+	gpio "github.com/larsks/airdancer/internal/switchcollection/gpio_warthog"
 	"github.com/spf13/pflag"
 )
 
