@@ -1,0 +1,12 @@
+[Unit]
+Description=Airdancer Soundboard
+PartOf=airdancer.target
+
+[Service]
+User=dancer
+ExecStart=/home/dancer/bin/airdancer-soundboard --config /etc/airdancer/airdancer-soundboard.toml
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=airdancer.target

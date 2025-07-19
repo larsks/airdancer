@@ -1,0 +1,17 @@
+listen-address = ""
+listen-port = 8082
+sound-directory = "./sounds"
+items-per-page = 20
+
+# Base URL when hosted behind a proxy (e.g., "/soundboard")
+# Leave empty for root path deployment
+base-url = ""
+
+# ALSA configuration for server-side playback
+# (Playback mode is selected in the UI)
+alsa-device = "default"
+alsa-card-name = ""
+
+# Directory scanning configuration
+# Interval in seconds to scan for sound directory changes (0 = disabled)
+scan-interval = 30
