@@ -2,3 +2,5 @@
 /*.toml
 bin/
 GNUmakefile
+.vscode/
+coverage.*

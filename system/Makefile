@@ -9,6 +9,7 @@ UNITS = \
 	airdancer-api.service \
 	airdancer-caddy.service \
 	airdancer-monitor.service \
+	airdancer-monitor@.service \
 	airdancer-ui.service \
 	airdancer-wifi-fallback.service \
 	airdancer-buttons.service \
@@ -17,7 +18,6 @@ UNITS = \
 CFGFILES = \
 	Caddyfile \
 	airdancer-wifi-fallback.conf
-	airdancer-buttons.toml
 
 SCRIPTS = \
 	airdancer-wifi-fallback.sh
@@ -47,9 +47,3 @@ install-scripts:
 install-nm-dispatch-scripts:
 	mkdir -p $(DESTDIR)$(nm_dispatch_dir)
 	for script in $(NM_DISPATCH_SCRIPTS); do $(INSTALL) -m 755 $$script $(DESTDIR)$(nm_dispatch_dir); done
-
-enable: install
-	for unit in $(SERVICES); do $(SYSTEMCTL) enable $$unit; done
-
-start: enable
-	$(SYSTEMCTL) start airdancer.target

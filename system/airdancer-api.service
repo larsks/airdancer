@@ -4,7 +4,7 @@ PartOf=airdancer.target
 
 [Service]
 User=dancer
-ExecStart=/home/dancer/airdancer-api --config /etc/airdancer/airdancer-api.toml
+ExecStart=/home/dancer/bin/airdancer-api --config /etc/airdancer/airdancer-api.toml
 Restart=on-failure
 RestartSec=5s
 
