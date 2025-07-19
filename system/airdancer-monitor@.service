@@ -4,6 +4,7 @@ PartOf=airdancer.target
 
 [Service]
 User=dancer
+EnvvironmentFile=-/home/airdancer/airdancer-monitor-%i.env
 ExecStart=/home/dancer/bin/airdancer-monitor --config /etc/airdancer/airdancer-monitor-%i.toml
 
 [Install]
