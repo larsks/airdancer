@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -85,6 +86,9 @@ func (cl *ConfigLoader) LoadConfigWithFlagSet(config any, fs *pflag.FlagSet) err
 		if err := v.ReadInConfig(); err != nil {
 			return fmt.Errorf("%w %s: %v", ErrConfigFileRead, cl.configFile, err)
 		}
+
+		// Apply environment variable substitution to config values
+		cl.expandEnvironmentVariables(v)
 	}
 
 	// Only override with flags that were explicitly set by the user
@@ -269,4 +273,67 @@ func StandardConfigPattern(config Configurable, configFile string, defaults map[
 // This is useful for the monitor pattern where configFile is passed as a parameter.
 func LoadConfigWithFile(config Configurable, configFile string, defaults map[string]any) error {
 	return StandardConfigPattern(config, configFile, defaults)
+}
+
+// expandEnvironmentVariables recursively processes all string values in viper configuration
+// and expands environment variable references using os.ExpandEnv
+func (cl *ConfigLoader) expandEnvironmentVariables(v *viper.Viper) {
+	// Get all settings as a map
+	settings := v.AllSettings()
+
+	// Process the settings recursively
+	cl.expandMapValues(settings)
+
+	// Set the expanded values back to viper
+	for key, value := range settings {
+		v.Set(key, value)
+	}
+}
+
+// expandMapValues recursively processes map values and expands environment variables in strings
+func (cl *ConfigLoader) expandMapValues(m map[string]any) {
+	for key, value := range m {
+		m[key] = cl.expandValue(value)
+	}
+}
+
+// expandValue processes a single value and expands environment variables if it's a string
+func (cl *ConfigLoader) expandValue(value any) any {
+	switch v := value.(type) {
+	case string:
+		// Custom expansion that preserves original value if env var is not set
+		return cl.expandString(v)
+	case map[string]any:
+		cl.expandMapValues(v)
+		return v
+	case []any:
+		for i, item := range v {
+			v[i] = cl.expandValue(item)
+		}
+		return v
+	case map[any]any:
+		// Convert to map[string]any and process
+		converted := make(map[string]any)
+		for k, val := range v {
+			if strKey, ok := k.(string); ok {
+				converted[strKey] = cl.expandValue(val)
+			} else {
+				converted[fmt.Sprintf("%v", k)] = cl.expandValue(val)
+			}
+		}
+		return converted
+	default:
+		return value
+	}
+}
+
+// expandString expands environment variables while preserving original text for unset variables
+func (cl *ConfigLoader) expandString(s string) string {
+	return os.Expand(s, func(key string) string {
+		if value := os.Getenv(key); value != "" {
+			return value
+		}
+		// Return the original ${VAR} format if environment variable is not set
+		return "${" + key + "}"
+	})
 }
