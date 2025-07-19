@@ -3,13 +3,13 @@ package gpio
 import (
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/larsks/airdancer/internal/buttondriver/common"
-	"periph.io/x/conn/v3/gpio"
-	"periph.io/x/conn/v3/gpio/gpioreg"
-	"periph.io/x/host/v3"
+	"github.com/warthog618/go-gpiocdev"
 )
 
 // Legacy ButtonEvent type for backward compatibility
@@ -32,6 +32,7 @@ const (
 
 // ButtonDriver manages GPIO button monitoring with debouncing
 type ButtonDriver struct {
+	chip            *gpiocdev.Chip
 	pins            map[string]*ButtonPin
 	eventChannel    chan common.ButtonEvent
 	stopChannel     chan struct{}
@@ -44,25 +45,28 @@ type ButtonDriver struct {
 
 // ButtonPin represents a single GPIO pin configured as a button
 type ButtonPin struct {
-	pin           gpio.PinIO
+	line          *gpiocdev.Line
 	name          string
 	pinName       string
 	lastState     bool
 	currentState  bool
 	lastDebounce  time.Time
 	stateReported bool
-	polarity      gpio.Level
+	polarity      int
 	driver        *ButtonDriver
 	mutex         sync.Mutex
 }
 
 // NewButtonDriver creates a new GPIO button driver
 func NewButtonDriver(debounceDelay time.Duration, defaultPullMode PullMode) (*ButtonDriver, error) {
-	if _, err := host.Init(); err != nil {
-		return nil, fmt.Errorf("failed to initialize periph.io: %w", err)
+	// Open GPIO chip
+	chip, err := gpiocdev.NewChip("gpiochip0")
+	if err != nil {
+		return nil, fmt.Errorf("failed to open GPIO chip: %w", err)
 	}
 
 	return &ButtonDriver{
+		chip:            chip,
 		pins:            make(map[string]*ButtonPin),
 		eventChannel:    make(chan common.ButtonEvent, 100),
 		stopChannel:     make(chan struct{}),
@@ -99,9 +103,10 @@ func (bd *ButtonDriver) AddButton(buttonSpec interface{}) error {
 		return fmt.Errorf("button %s already exists", spec.Name)
 	}
 
-	pin := gpioreg.ByName(spec.Pin)
-	if pin == nil {
-		return fmt.Errorf("pin %s not found", spec.Pin)
+	// Parse pin number from spec.Pin (e.g., "GPIO16" -> 16)
+	lineNum, err := bd.parseGPIOPin(spec.Pin)
+	if err != nil {
+		return fmt.Errorf("invalid pin %s: %w", spec.Pin, err)
 	}
 
 	// Determine pull resistor configuration
@@ -111,20 +116,34 @@ func (bd *ButtonDriver) AddButton(buttonSpec interface{}) error {
 	}
 
 	// Configure pin as input with pull resistor
-	pull := bd.getPullResistor(pullMode, spec.ActiveHigh)
-	if err := pin.In(pull, gpio.BothEdges); err != nil {
+	var lineOpts []gpiocdev.LineReqOption
+	lineOpts = append(lineOpts, gpiocdev.AsInput)
+	if pullMode == PullUp {
+		lineOpts = append(lineOpts, gpiocdev.WithPullUp)
+	} else if pullMode == PullDown {
+		lineOpts = append(lineOpts, gpiocdev.WithPullDown)
+	} else if pullMode == PullAuto {
+		if spec.ActiveHigh {
+			lineOpts = append(lineOpts, gpiocdev.WithPullDown)
+		} else {
+			lineOpts = append(lineOpts, gpiocdev.WithPullUp)
+		}
+	}
+
+	line, err := bd.chip.RequestLine(lineNum, lineOpts...)
+	if err != nil {
 		return fmt.Errorf("failed to configure pin %s as input: %w", spec.Pin, err)
 	}
 
 	// Determine polarity
-	polarity := gpio.High
+	polarity := 1
 	if !spec.ActiveHigh {
-		polarity = gpio.Low
+		polarity = 0
 	}
 
-	initialState := bd.readButtonState(pin, polarity)
+	initialState := bd.readButtonState(line, polarity)
 	buttonPin := &ButtonPin{
-		pin:           pin,
+		line:          line,
 		name:          spec.Name,
 		pinName:       spec.Pin,
 		driver:        bd,
@@ -185,6 +204,21 @@ func (bd *ButtonDriver) Stop() {
 
 	close(bd.stopChannel)
 	bd.wg.Wait()
+	
+	// Close all GPIO lines
+	for _, buttonPin := range bd.pins {
+		if err := buttonPin.line.Close(); err != nil {
+			log.Printf("Error closing GPIO line for button %s: %v", buttonPin.name, err)
+		}
+	}
+	
+	// Close the GPIO chip
+	if bd.chip != nil {
+		if err := bd.chip.Close(); err != nil {
+			log.Printf("Error closing GPIO chip: %v", err)
+		}
+	}
+	
 	close(bd.eventChannel)
 	bd.started = false
 	log.Printf("Stopped GPIO button monitoring")
@@ -228,7 +262,7 @@ func (bd *ButtonDriver) monitorPin(buttonPin *ButtonPin) {
 
 // checkPinState checks the current state of a pin and handles debouncing
 func (bd *ButtonDriver) checkPinState(buttonPin *ButtonPin) {
-	currentState := bd.readButtonState(buttonPin.pin, buttonPin.polarity)
+	currentState := bd.readButtonState(buttonPin.line, buttonPin.polarity)
 	now := time.Now()
 
 	buttonPin.mutex.Lock()
@@ -281,8 +315,12 @@ func (bd *ButtonDriver) checkPinState(buttonPin *ButtonPin) {
 }
 
 // readButtonState reads the current logical state of a button pin
-func (bd *ButtonDriver) readButtonState(pin gpio.PinIO, polarity gpio.Level) bool {
-	level := pin.Read()
+func (bd *ButtonDriver) readButtonState(line *gpiocdev.Line, polarity int) bool {
+	level, err := line.Value()
+	if err != nil {
+		log.Printf("Error reading pin state: %v", err)
+		return false
+	}
 	return level == polarity
 }
 
@@ -305,24 +343,22 @@ func (bd *ButtonDriver) SetDebounceDelay(delay time.Duration) {
 	bd.debounceDelay = delay
 }
 
-// getPullResistor returns the appropriate pull resistor configuration
-func (bd *ButtonDriver) getPullResistor(pullMode PullMode, activeHigh bool) gpio.Pull {
-	switch pullMode {
-	case PullUp:
-		return gpio.PullUp
-	case PullDown:
-		return gpio.PullDown
-	case PullAuto:
-		// Auto mode: choose pull resistor based on polarity
-		if activeHigh {
-			return gpio.PullDown // Active-high buttons need pull-down
-		}
-		return gpio.PullUp // Active-low buttons need pull-up
-	case PullNone:
-		fallthrough
-	default:
-		return gpio.PullNoChange
+// parseGPIOPin parses a GPIO pin name (e.g., "GPIO16") and returns the line number
+func (bd *ButtonDriver) parseGPIOPin(pinName string) (int, error) {
+	// Handle direct number format (e.g., "16")
+	if lineNum, err := strconv.Atoi(pinName); err == nil {
+		return lineNum, nil
 	}
+
+	// Handle GPIO prefix format (e.g., "GPIO16")
+	if strings.HasPrefix(strings.ToUpper(pinName), "GPIO") {
+		numStr := strings.TrimPrefix(strings.ToUpper(pinName), "GPIO")
+		if lineNum, err := strconv.Atoi(numStr); err == nil {
+			return lineNum, nil
+		}
+	}
+
+	return 0, fmt.Errorf("invalid GPIO pin format: %s (expected format: GPIO<number> or <number>)", pinName)
 }
 
 // getPullString returns a human-readable string for the pull resistor configuration
