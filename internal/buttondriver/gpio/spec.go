@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/larsks/airdancer/internal/buttondriver/common"
+	"github.com/larsks/airdancer/internal/gpio"
 )
 
 // GPIOButtonSpec represents a GPIO button specification
@@ -20,7 +21,7 @@ type GPIOButtonSpec struct {
 	ActiveHigh bool
 
 	// PullMode specifies the pull resistor configuration
-	PullMode PullMode
+	PullMode gpio.PullMode
 
 	// DebounceDelay is the debounce delay for this specific button
 	DebounceDelay *time.Duration // nil means use driver default
@@ -31,11 +32,11 @@ func NewGPIOButtonSpec(name, pin string) *GPIOButtonSpec {
 	return &GPIOButtonSpec{
 		Name:     name,
 		Pin:      pin,
-		PullMode: PullAuto,
+		PullMode: gpio.PullAuto,
 	}
 }
 
-func (b *GPIOButtonSpec) WithPullMode(pullMode PullMode) *GPIOButtonSpec {
+func (b *GPIOButtonSpec) WithPullMode(pullMode gpio.PullMode) *GPIOButtonSpec {
 	b.PullMode = pullMode
 	return b
 }
@@ -69,11 +70,16 @@ func ParseGPIOButtonSpec(spec string) (*GPIOButtonSpec, error) {
 		return nil, fmt.Errorf("GPIO pin cannot be empty")
 	}
 
-	// Default values
-	activeHigh := true
-	pullMode := PullAuto
+	// Parse GPIO pin specification using common GPIO package
+	pinSpec, err := gpio.ParsePin(pin)
+	if err != nil {
+		return nil, fmt.Errorf("invalid GPIO pin specification: %w", err)
+	}
 
-	// Parse optional parameters
+	activeHigh := pinSpec.Polarity == gpio.ActiveHigh
+	pullMode := pinSpec.PullMode
+
+	// Parse additional optional parameters (for backwards compatibility)
 	for i := 2; i < len(parts); i++ {
 		param := strings.ToLower(strings.TrimSpace(parts[i]))
 		switch param {
@@ -82,13 +88,13 @@ func ParseGPIOButtonSpec(spec string) (*GPIOButtonSpec, error) {
 		case "active-low":
 			activeHigh = false
 		case "pull-none":
-			pullMode = PullNone
+			pullMode = gpio.PullNone
 		case "pull-up":
-			pullMode = PullUp
+			pullMode = gpio.PullUp
 		case "pull-down":
-			pullMode = PullDown
+			pullMode = gpio.PullDown
 		case "pull-auto":
-			pullMode = PullAuto
+			pullMode = gpio.PullAuto
 		default:
 			return nil, fmt.Errorf("unknown parameter: %s", param)
 		}
@@ -130,17 +136,7 @@ func (spec *GPIOButtonSpec) String() string {
 		activeStr = "active-low"
 	}
 
-	var pullStr string
-	switch spec.PullMode {
-	case PullNone:
-		pullStr = "pull-none"
-	case PullUp:
-		pullStr = "pull-up"
-	case PullDown:
-		pullStr = "pull-down"
-	case PullAuto:
-		pullStr = "pull-auto"
-	}
+	pullStr := spec.PullMode.String()
 
 	return fmt.Sprintf("%s:%s:%s:%s", spec.Name, spec.Pin, activeStr, pullStr)
 }

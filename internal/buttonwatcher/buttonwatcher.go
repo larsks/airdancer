@@ -12,6 +12,7 @@ import (
 	"github.com/larsks/airdancer/internal/buttondriver/common"
 	"github.com/larsks/airdancer/internal/buttondriver/event"
 	"github.com/larsks/airdancer/internal/buttondriver/gpio"
+	gpiotypes "github.com/larsks/airdancer/internal/gpio"
 )
 
 // ButtonWrapper wraps a button driver with action handling functionality
@@ -75,16 +76,16 @@ func (bm *ButtonMonitor) createDriver(driverType string) (common.ButtonDriver, e
 }
 
 func (bm *ButtonMonitor) createGPIODriver() (common.ButtonDriver, error) {
-	var pullModeEnum gpio.PullMode
+	var pullModeEnum gpiotypes.PullMode
 	switch bm.pullMode {
 	case "none":
-		pullModeEnum = gpio.PullNone
+		pullModeEnum = gpiotypes.PullNone
 	case "up":
-		pullModeEnum = gpio.PullUp
+		pullModeEnum = gpiotypes.PullUp
 	case "down":
-		pullModeEnum = gpio.PullDown
+		pullModeEnum = gpiotypes.PullDown
 	case "auto":
-		pullModeEnum = gpio.PullAuto
+		pullModeEnum = gpiotypes.PullAuto
 	default:
 		return nil, fmt.Errorf("invalid pull mode: %s", bm.pullMode)
 	}

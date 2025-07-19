@@ -13,6 +13,7 @@ import (
 	"github.com/larsks/airdancer/internal/buttondriver/common"
 	"github.com/larsks/airdancer/internal/buttondriver/event"
 	"github.com/larsks/airdancer/internal/buttondriver/gpio"
+	gpiotypes "github.com/larsks/airdancer/internal/gpio"
 )
 
 func main() {
@@ -173,16 +174,16 @@ func createDriver(driverType string, debounceMs int, pullMode string) (common.Bu
 
 func createGPIODriver(debounceMs int, pullMode string) (common.ButtonDriver, error) {
 	// Parse pull mode
-	var pullModeEnum gpio.PullMode
+	var pullModeEnum gpiotypes.PullMode
 	switch strings.ToLower(pullMode) {
 	case "none":
-		pullModeEnum = gpio.PullNone
+		pullModeEnum = gpiotypes.PullNone
 	case "up":
-		pullModeEnum = gpio.PullUp
+		pullModeEnum = gpiotypes.PullUp
 	case "down":
-		pullModeEnum = gpio.PullDown
+		pullModeEnum = gpiotypes.PullDown
 	case "auto":
-		pullModeEnum = gpio.PullAuto
+		pullModeEnum = gpiotypes.PullAuto
 	default:
 		return nil, fmt.Errorf("invalid pull mode: %s. Valid options: none, up, down, auto", pullMode)
 	}
