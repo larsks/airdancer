@@ -1,18 +1,34 @@
-short_press_duration = "2s"
-long_press_duration = "5s"
+short-press-duration = "2s"
+long-press-duration = "5s"
 timeout = "10s"
 
 [[buttons]]
-name = "Blue"
+name = "green0"
 driver = "event"
-spec = "/dev/input/by-id/usb-Microntek_USB_Joystick-event-joystick:EV_KEY:288"
-click_action = "xh -I localhost:8080/switch/0 state=on duration:=10"
-short_press_action = "/home/dancer/pfctl blink 7:500ms:0.5 --duration 2s; sudo reboot"
-long_press_action = "/home/dancer/pfctl blink 7:250ms:0.2 --duration 2s; sudo poweroff"
+spec = "/dev/input/by-id/usb-Microntek_USB_Joystick-event-joystick:EV_KEY:296"
+click-action = "/home/dancer/bin/dancerctl toggle left1"
+double-click-action = "/home/dancer/bin/dancerctl blink left1 --period 2 --duration 10"
+short-press-action = "/home/dancer/bin/speak rebooting; sudo reboot"
+long-press-action = "/home/dancer/bin/speak power off; sudo poweroff"
 
 [[buttons]]
-name = "Green"
+name = "green1"
 driver = "event"
-spec = "/dev/input/by-id/usb-Microntek_USB_Joystick-event-joystick:EV_KEY:289"
-click_action = "xh -I localhost:8080/switch/1 state=on duration:=10"
-short_press_action = "sudo systemctl restart airdancer-wifi-fallback.service"
+spec = "/dev/input/by-id/usb-Microntek_USB_Joystick-event-joystick:EV_KEY:297"
+click-action = "/home/dancer/bin/dancerctl toggle left0"
+double-click-action = "/home/dancer/bin/dancerctl blink left0 --period 2 --duration 10"
+short-press-action = "/home/dancer/bin/speak-status"
+
+[[buttons]]
+name = "blue0"
+driver = "event"
+spec = "/dev/input/by-id/usb-Microntek_USB_Joystick-event-joystick:EV_KEY:298"
+click-action = "/home/dancer/bin/dancerctl toggle right0"
+double-click-action = "/home/dancer/bin/dancerctl blink right0 --period 2 --duration 10"
+
+[[buttons]]
+name = "blue1"
+driver = "event"
+spec = "/dev/input/by-id/usb-Microntek_USB_Joystick-event-joystick:EV_KEY:299"
+click-action = "/home/dancer/bin/dancerctl toggle right1"
+double-click-action = "/home/dancer/bin/dancerctl blink right1 --period 2 --duration 10"

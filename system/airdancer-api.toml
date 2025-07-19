@@ -1,0 +1,38 @@
+# Sample configuration for airdancer-api
+listen-address = "0.0.0.0"
+listen-port = 8080
+
+[collections.outlets]
+driver = 'gpio'
+
+[collections.outlets.driverconfig]
+pins = [
+  "GPIO23:active-low",
+  "GPIO24:active-low",
+  "GPIO27:active-low",
+  "GPIO22:active-low",
+]
+
+[switches.right0]
+spec = "outlets.0"
+
+[switches.right1]
+spec = "outlets.1"
+
+[switches.left0]
+spec = "outlets.2"
+
+[switches.left1]
+spec = "outlets.3"
+
+[groups.left]
+switches = ["left0", "left1"]
+
+[groups.right]
+switches = ["right0", "right1"]
+
+[groups.front]
+switches = ["right1", "left1"]
+
+[groups.rear]
+switches = ["right0", "left0"]

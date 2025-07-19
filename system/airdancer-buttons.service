@@ -4,7 +4,7 @@ PartOf=airdancer.target
 
 [Service]
 User=dancer
-ExecStart=/home/dancer/airdancer-buttons --config /etc/airdancer/airdancer-buttons.toml
+ExecStart=/home/dancer/bin/airdancer-buttons --config /etc/airdancer/airdancer-buttons.toml
 Restart=on-failure
 RestartSec=5s
 

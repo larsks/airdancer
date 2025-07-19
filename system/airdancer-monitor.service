@@ -4,7 +4,7 @@ PartOf=airdancer.target
 
 [Service]
 User=dancer
-ExecStart=/home/dancer/airdancer-monitor --config /etc/airdancer/airdancer-monitor.toml
+ExecStart=/home/dancer/bin/airdancer-monitor --config /etc/airdancer/airdancer-monitor.toml
 
 [Install]
 WantedBy=airdancer.target
