@@ -176,6 +176,14 @@ func (s *Server) handleSwitchHelper(w http.ResponseWriter, req *switchRequest, s
 				defer s.mutex.Unlock() //nolint:errcheck
 				delete(s.timers, swid)
 
+				// Stop any running blinker for this switch
+				if blinker, ok := s.blinkers[swid]; ok {
+					if err := blinker.Stop(); err != nil {
+						log.Printf("timer failed to stop blinker on switch %s: %v", swid, err)
+					}
+					delete(s.blinkers, swid)
+				}
+
 				if err := sw.TurnOff(); err != nil {
 					log.Printf("timer failed to turn off switch %s: %v", swid, err)
 				}
