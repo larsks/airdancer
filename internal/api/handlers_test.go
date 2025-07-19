@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/larsks/airdancer/internal/switchcollection"
@@ -390,5 +391,84 @@ func TestSwitchStatusHandler_AllSwitches_WithGroups(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestSwitchHandler_BlinkWithTimerExpiration(t *testing.T) {
+	server := createTestServer(t, 1)
+	defer server.Close()
+
+	// Test starting a blink operation with a short duration
+	reqBody := `{"state": "blink", "duration": 1, "period": 0.1}`
+	req := httptest.NewRequest("POST", "/switch/switch0", strings.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+
+	// Add chi route context
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("name", "switch0")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	// Parse request and add to context (simulate middleware)
+	var switchReq switchRequest
+	json.NewDecoder(strings.NewReader(reqBody)).Decode(&switchReq)
+	req = req.WithContext(context.WithValue(req.Context(), switchRequestKey, switchReq))
+
+	w := httptest.NewRecorder()
+	server.switchHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("switchHandler() status = %v, want %v, body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	// Verify the blinker was created and is running
+	server.mutex.Lock()
+	blinker, exists := server.blinkers["switch0"]
+	if !exists {
+		server.mutex.Unlock()
+		t.Fatal("Blinker should exist for switch0 after starting blink operation")
+	}
+	if !blinker.IsRunning() {
+		server.mutex.Unlock()
+		t.Fatal("Blinker should be running after starting blink operation")
+	}
+
+	// Verify timer was created
+	_, timerExists := server.timers["switch0"]
+	if !timerExists {
+		server.mutex.Unlock()
+		t.Fatal("Timer should exist for switch0 after starting timed blink operation")
+	}
+	server.mutex.Unlock()
+
+	// Wait for timer to expire (1 second + small buffer)
+	time.Sleep(1200 * time.Millisecond)
+
+	// Verify blinker was stopped and cleaned up after timer expiration
+	server.mutex.Lock()
+	defer server.mutex.Unlock()
+
+	// Check that blinker is cleaned up
+	if _, exists := server.blinkers["switch0"]; exists {
+		t.Error("Blinker should be cleaned up after timer expiration")
+	}
+
+	// Check that timer is cleaned up
+	if _, exists := server.timers["switch0"]; exists {
+		t.Error("Timer should be cleaned up after expiration")
+	}
+
+	// Verify the switch was turned off
+	resolvedSwitch := server.switches["switch0"]
+	state, err := resolvedSwitch.Switch.GetState()
+	if err != nil {
+		t.Errorf("Failed to get switch state: %v", err)
+	}
+	if state {
+		t.Error("Switch should be off after timer expiration")
+	}
+
+	// Additional verification: if blinker still existed, it should not be running
+	if blinker.IsRunning() {
+		t.Error("Blinker should not be running after timer expiration")
 	}
 }
