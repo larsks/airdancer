@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	_ "embed"
 	"io"
 	"net/http"
 	"os"
@@ -11,6 +12,12 @@ import (
 
 	"github.com/spf13/pflag"
 )
+
+//go:embed testdata/test-config.toml
+var testConfigTOML string
+
+//go:embed testdata/explicit-config.toml
+var explicitConfigTOML string
 
 // MockHTTPClient implements HTTPClient interface for testing
 type MockHTTPClient struct {
@@ -150,8 +157,7 @@ func TestParseArgsWithConfig(t *testing.T) {
 	configFile := filepath.Join(tempDir, "test-config.toml")
 
 	// Create test config file
-	configContent := `server-url = "http://test.example.com:9090"`
-	err := os.WriteFile(configFile, []byte(configContent), 0644)
+	err := os.WriteFile(configFile, []byte(testConfigTOML), 0644)
 	if err != nil {
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
@@ -537,8 +543,7 @@ func TestConfigLoadWithExplicitFile(t *testing.T) {
 	configFile := filepath.Join(tempDir, "explicit-config.toml")
 
 	// Create test config file
-	configContent := `server-url = "http://explicit.example.com:8080"`
-	err := os.WriteFile(configFile, []byte(configContent), 0644)
+	err := os.WriteFile(configFile, []byte(explicitConfigTOML), 0644)
 	if err != nil {
 		t.Fatalf("Failed to create test config file: %v", err)
 	}

@@ -1,11 +1,21 @@
 package config
 
 import (
+	_ "embed"
 	"os"
 	"testing"
 
 	"github.com/spf13/pflag"
 )
+
+//go:embed testdata/test-config.toml
+var testConfigTOML string
+
+//go:embed testdata/flag-precedence-config.toml
+var flagPrecedenceConfigTOML string
+
+//go:embed testdata/standard-config.toml
+var standardConfigTOML string
 
 // TestConfig is a sample config struct for testing
 type TestConfig struct {
@@ -24,18 +34,13 @@ func (c *TestConfig) AddFlags(fs *pflag.FlagSet) {
 
 func TestConfigLoader_LoadConfig(t *testing.T) {
 	// Create a temporary config file
-	configContent := `
-listen-address = "192.168.1.100"
-listen-port = 9090
-debug = true
-`
 	tmpFile, err := os.CreateTemp("", "test-config-*.toml")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer os.Remove(tmpFile.Name())
 
-	if _, err := tmpFile.WriteString(configContent); err != nil {
+	if _, err := tmpFile.WriteString(testConfigTOML); err != nil {
 		t.Fatalf("Failed to write config file: %v", err)
 	}
 	tmpFile.Close()
@@ -86,18 +91,13 @@ debug = true
 
 func TestConfigLoader_FlagPrecedence(t *testing.T) {
 	// Create a temporary config file
-	configContent := `
-listen-address = "192.168.1.100"
-listen-port = 9090
-debug = true
-`
 	tmpFile, err := os.CreateTemp("", "test-config-*.toml")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer os.Remove(tmpFile.Name())
 
-	if _, err := tmpFile.WriteString(configContent); err != nil {
+	if _, err := tmpFile.WriteString(flagPrecedenceConfigTOML); err != nil {
 		t.Fatalf("Failed to write config file: %v", err)
 	}
 	tmpFile.Close()
@@ -145,18 +145,13 @@ debug = true
 
 func TestStandardConfigPattern(t *testing.T) {
 	// Create a temporary config file
-	configContent := `
-listen-address = "10.0.0.1"
-listen-port = 5555
-debug = false
-`
 	tmpFile, err := os.CreateTemp("", "test-config-*.toml")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer os.Remove(tmpFile.Name())
 
-	if _, err := tmpFile.WriteString(configContent); err != nil {
+	if _, err := tmpFile.WriteString(standardConfigTOML); err != nil {
 		t.Fatalf("Failed to write config file: %v", err)
 	}
 	tmpFile.Close()
