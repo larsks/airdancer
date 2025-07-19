@@ -1,0 +1,24 @@
+# Example configuration with environment variable substitution for credentials
+# Set environment variables like:
+# export IMAP_USERNAME="your-username"
+# export IMAP_PASSWORD="your-password"
+
+[imap]
+server = "mail.example.com"
+port = 993
+username = "${IMAP_USERNAME}"
+password = "${IMAP_PASSWORD}"
+use-ssl = true
+retry-interval-seconds = 30
+
+check-interval-seconds = 60
+
+[[monitor]]
+mailbox = "INBOX"
+[[monitor.triggers]]
+regex-pattern = "urgent.*alert"
+command = "notify-send 'Email Alert'"
+
+[[monitor.triggers]]
+regex-pattern = "CRITICAL.*ERROR"
+command = "echo 'Critical alert received'"
