@@ -3,19 +3,16 @@ package gpio_warthog
 import (
 	"fmt"
 	"log"
-	"strconv"
-	"strings"
 
+	"github.com/larsks/airdancer/internal/gpio"
 	"github.com/larsks/airdancer/internal/switchcollection"
 	"github.com/warthog618/go-gpiocdev"
 )
 
 type (
-	Polarity int
-
 	WarthogGPIOSwitch struct {
 		line     *gpiocdev.Line
-		polarity Polarity
+		polarity gpio.Polarity
 		lineNum  int
 		state    bool // Track the logical state
 	}
@@ -27,38 +24,22 @@ type (
 	}
 )
 
-const (
-	ActiveHigh Polarity = iota
-	ActiveLow
-)
-
 type PinConfig struct {
 	LineNum  int
-	Polarity Polarity
+	Polarity gpio.Polarity
 }
 
 func ParsePinConfig(pinSpec string) (PinConfig, error) {
-	parts := strings.Split(pinSpec, ":")
-	if len(parts) == 1 {
-		lineNum, err := strconv.Atoi(parts[0])
-		if err != nil {
-			return PinConfig{}, fmt.Errorf("invalid line number: %s", parts[0])
-		}
-		return PinConfig{LineNum: lineNum, Polarity: ActiveHigh}, nil
-	}
-
-	lineNum, err := strconv.Atoi(parts[0])
+	// Use common GPIO package for parsing
+	parsedPin, err := gpio.ParsePin(pinSpec)
 	if err != nil {
-		return PinConfig{}, fmt.Errorf("invalid line number: %s", parts[0])
+		return PinConfig{}, fmt.Errorf("invalid GPIO pin specification: %w", err)
 	}
 
-	polarityStr := strings.ToLower(parts[1])
-	polarity := ActiveHigh
-	if polarityStr == "activelow" {
-		polarity = ActiveLow
-	}
-
-	return PinConfig{LineNum: lineNum, Polarity: polarity}, nil
+	return PinConfig{
+		LineNum:  parsedPin.LineNum,
+		Polarity: parsedPin.Polarity,
+	}, nil
 }
 
 func NewGPIOSwitchCollection(offOnClose bool, pins []string) (*WarthogGPIOSwitchCollection, error) {
@@ -235,14 +216,14 @@ func (s *WarthogGPIOSwitch) String() string {
 }
 
 func (s *WarthogGPIOSwitch) getOnLevel() int {
-	if s.polarity == ActiveHigh {
+	if s.polarity == gpio.ActiveHigh {
 		return 1
 	}
 	return 0
 }
 
 func (s *WarthogGPIOSwitch) getOffLevel() int {
-	if s.polarity == ActiveHigh {
+	if s.polarity == gpio.ActiveHigh {
 		return 0
 	}
 	return 1

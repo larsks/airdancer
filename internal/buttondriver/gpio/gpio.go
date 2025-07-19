@@ -3,12 +3,11 @@ package gpio
 import (
 	"fmt"
 	"log"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/larsks/airdancer/internal/buttondriver/common"
+	"github.com/larsks/airdancer/internal/gpio"
 	"github.com/warthog618/go-gpiocdev"
 )
 
@@ -20,15 +19,6 @@ type ButtonEvent struct {
 	Timestamp time.Time
 }
 
-// PullMode represents the pull resistor configuration
-type PullMode int
-
-const (
-	PullNone PullMode = iota
-	PullUp
-	PullDown
-	PullAuto // Automatically choose based on polarity
-)
 
 // ButtonDriver manages GPIO button monitoring with debouncing
 type ButtonDriver struct {
@@ -38,7 +28,7 @@ type ButtonDriver struct {
 	stopChannel     chan struct{}
 	wg              sync.WaitGroup
 	debounceDelay   time.Duration
-	defaultPullMode PullMode
+	defaultPullMode gpio.PullMode
 	started         bool
 	mutex           sync.RWMutex
 }
@@ -58,7 +48,7 @@ type ButtonPin struct {
 }
 
 // NewButtonDriver creates a new GPIO button driver
-func NewButtonDriver(debounceDelay time.Duration, defaultPullMode PullMode) (*ButtonDriver, error) {
+func NewButtonDriver(debounceDelay time.Duration, defaultPullMode gpio.PullMode) (*ButtonDriver, error) {
 	// Open GPIO chip
 	chip, err := gpiocdev.NewChip("gpiochip0")
 	if err != nil {
@@ -77,7 +67,7 @@ func NewButtonDriver(debounceDelay time.Duration, defaultPullMode PullMode) (*Bu
 
 // NewButtonDriverWithDefaults creates a new GPIO button driver with default settings
 func NewButtonDriverWithDefaults() (*ButtonDriver, error) {
-	return NewButtonDriver(50*time.Millisecond, PullAuto)
+	return NewButtonDriver(50*time.Millisecond, gpio.PullAuto)
 }
 
 // AddButton adds a button to be monitored (implements common.ButtonDriver interface)
@@ -104,25 +94,25 @@ func (bd *ButtonDriver) AddButton(buttonSpec interface{}) error {
 	}
 
 	// Parse pin number from spec.Pin (e.g., "GPIO16" -> 16)
-	lineNum, err := bd.parseGPIOPin(spec.Pin)
+	lineNum, err := gpio.ParsePinNumber(spec.Pin)
 	if err != nil {
 		return fmt.Errorf("invalid pin %s: %w", spec.Pin, err)
 	}
 
 	// Determine pull resistor configuration
 	pullMode := spec.PullMode
-	if pullMode == PullAuto {
+	if pullMode == gpio.PullAuto {
 		pullMode = bd.defaultPullMode
 	}
 
 	// Configure pin as input with pull resistor
 	var lineOpts []gpiocdev.LineReqOption
 	lineOpts = append(lineOpts, gpiocdev.AsInput)
-	if pullMode == PullUp {
+	if pullMode == gpio.PullUp {
 		lineOpts = append(lineOpts, gpiocdev.WithPullUp)
-	} else if pullMode == PullDown {
+	} else if pullMode == gpio.PullDown {
 		lineOpts = append(lineOpts, gpiocdev.WithPullDown)
-	} else if pullMode == PullAuto {
+	} else if pullMode == gpio.PullAuto {
 		if spec.ActiveHigh {
 			lineOpts = append(lineOpts, gpiocdev.WithPullDown)
 		} else {
@@ -343,37 +333,20 @@ func (bd *ButtonDriver) SetDebounceDelay(delay time.Duration) {
 	bd.debounceDelay = delay
 }
 
-// parseGPIOPin parses a GPIO pin name (e.g., "GPIO16") and returns the line number
-func (bd *ButtonDriver) parseGPIOPin(pinName string) (int, error) {
-	// Handle direct number format (e.g., "16")
-	if lineNum, err := strconv.Atoi(pinName); err == nil {
-		return lineNum, nil
-	}
-
-	// Handle GPIO prefix format (e.g., "GPIO16")
-	if strings.HasPrefix(strings.ToUpper(pinName), "GPIO") {
-		numStr := strings.TrimPrefix(strings.ToUpper(pinName), "GPIO")
-		if lineNum, err := strconv.Atoi(numStr); err == nil {
-			return lineNum, nil
-		}
-	}
-
-	return 0, fmt.Errorf("invalid GPIO pin format: %s (expected format: GPIO<number> or <number>)", pinName)
-}
 
 // getPullString returns a human-readable string for the pull resistor configuration
-func (bd *ButtonDriver) getPullString(pullMode PullMode, activeHigh bool) string {
+func (bd *ButtonDriver) getPullString(pullMode gpio.PullMode, activeHigh bool) string {
 	switch pullMode {
-	case PullUp:
+	case gpio.PullUp:
 		return "up"
-	case PullDown:
+	case gpio.PullDown:
 		return "down"
-	case PullAuto:
+	case gpio.PullAuto:
 		if activeHigh {
 			return "down (auto)"
 		}
 		return "up (auto)"
-	case PullNone:
+	case gpio.PullNone:
 		fallthrough
 	default:
 		return "none"
@@ -381,7 +354,7 @@ func (bd *ButtonDriver) getPullString(pullMode PullMode, activeHigh bool) string
 }
 
 // GetPullMode returns the current default pull resistor mode
-func (bd *ButtonDriver) GetPullMode() PullMode {
+func (bd *ButtonDriver) GetPullMode() gpio.PullMode {
 	return bd.defaultPullMode
 }
 
