@@ -18,7 +18,8 @@ UNITS = \
 
 CFGFILES = \
 	Caddyfile \
-	airdancer-wifi-fallback.conf
+	airdancer-wifi-fallback.conf \
+	airdancer.env
 
 SCRIPTS = \
 	airdancer-wifi-fallback.sh

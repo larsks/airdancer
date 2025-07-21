@@ -3,8 +3,13 @@ Description=Airdancer UI
 PartOf=airdancer.target
 
 [Service]
+EnvironmentFile=-/etc/airdancer/airdancer.env
 User=dancer
 ExecStart=/home/dancer/bin/airdancer-ui --config /etc/airdancer/airdancer-ui.toml
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
 
 [Install]
 WantedBy=airdancer.target

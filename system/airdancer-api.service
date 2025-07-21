@@ -3,10 +3,15 @@ Description=Airdancer API
 PartOf=airdancer.target
 
 [Service]
+EnvironmentFile=-/etc/airdancer/airdancer.env
 User=dancer
 ExecStart=/home/dancer/bin/airdancer-api --config /etc/airdancer/airdancer-api.toml
 Restart=on-failure
 RestartSec=5s
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
 
 [Install]
 WantedBy=airdancer.target
