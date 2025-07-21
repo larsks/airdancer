@@ -1,4 +1,4 @@
-package drivers
+package switchdrivers
 
 import (
 	"fmt"
@@ -15,8 +15,8 @@ type GPIOConfig struct {
 // GPIOFactory implements Factory for GPIO drivers
 type GPIOFactory struct{}
 
-// Create creates a new GPIO switch collection
-func (f *GPIOFactory) Create(config map[string]interface{}) (switchcollection.SwitchCollection, error) {
+// CreateDriver creates a new GPIO switch collection
+func (f *GPIOFactory) CreateDriver(config map[string]interface{}) (switchcollection.SwitchCollection, error) {
 	cfg, err := f.parseConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse GPIO config: %w", err)

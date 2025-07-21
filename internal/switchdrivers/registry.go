@@ -1,4 +1,4 @@
-package drivers
+package switchdrivers
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 
 // Factory creates a switch collection from configuration
 type Factory interface {
-	Create(config map[string]interface{}) (switchcollection.SwitchCollection, error)
+	CreateDriver(config map[string]interface{}) (switchcollection.SwitchCollection, error)
 	ValidateConfig(config map[string]interface{}) error
 }
 
@@ -49,7 +49,7 @@ func (r *Registry) Create(driverName string, config map[string]interface{}) (swi
 		return nil, fmt.Errorf("unknown driver: %s", driverName)
 	}
 
-	return factory.Create(config)
+	return factory.CreateDriver(config)
 }
 
 // ValidateConfig validates configuration for the specified driver

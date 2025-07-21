@@ -1,4 +1,4 @@
-package drivers
+package switchdrivers
 
 import (
 	"fmt"
@@ -14,8 +14,8 @@ type DummyConfig struct {
 // DummyFactory implements Factory for dummy drivers
 type DummyFactory struct{}
 
-// Create creates a new dummy switch collection
-func (f *DummyFactory) Create(config map[string]interface{}) (switchcollection.SwitchCollection, error) {
+// CreateDriver creates a new dummy switch collection
+func (f *DummyFactory) CreateDriver(config map[string]interface{}) (switchcollection.SwitchCollection, error) {
 	cfg, err := f.parseConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse dummy config: %w", err)

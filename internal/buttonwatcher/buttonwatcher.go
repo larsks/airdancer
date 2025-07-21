@@ -9,10 +9,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/larsks/airdancer/internal/buttondriver"
 	"github.com/larsks/airdancer/internal/buttondriver/common"
-	"github.com/larsks/airdancer/internal/buttondriver/event"
-	"github.com/larsks/airdancer/internal/buttondriver/gpio"
-	gpiotypes "github.com/larsks/airdancer/internal/gpio"
+	
+	// Import button driver factories to register them
+	_ "github.com/larsks/airdancer/internal/buttondriver"
 )
 
 // ButtonWrapper wraps a button driver with action handling functionality
@@ -65,33 +66,16 @@ func (bm *ButtonMonitor) SetGlobalConfig(config *Config) {
 }
 
 func (bm *ButtonMonitor) createDriver(driverType string) (common.ButtonDriver, error) {
-	switch driverType {
-	case "gpio":
-		return bm.createGPIODriver()
-	case "event":
-		return event.NewEventButtonDriver(), nil
-	default:
-		return nil, fmt.Errorf("unsupported driver type: %s", driverType)
+	// Prepare driver-specific configuration
+	config := make(map[string]interface{})
+	
+	// Add GPIO-specific configuration if this is a GPIO driver
+	if driverType == "gpio" {
+		config["pull-mode"] = bm.pullMode
+		config["debounce-ms"] = bm.debounceMs
 	}
-}
-
-func (bm *ButtonMonitor) createGPIODriver() (common.ButtonDriver, error) {
-	var pullModeEnum gpiotypes.PullMode
-	switch bm.pullMode {
-	case "none":
-		pullModeEnum = gpiotypes.PullNone
-	case "up":
-		pullModeEnum = gpiotypes.PullUp
-	case "down":
-		pullModeEnum = gpiotypes.PullDown
-	case "auto":
-		pullModeEnum = gpiotypes.PullAuto
-	default:
-		return nil, fmt.Errorf("invalid pull mode: %s", bm.pullMode)
-	}
-
-	debounceDelay := time.Duration(bm.debounceMs) * time.Millisecond
-	return gpio.NewButtonDriver(debounceDelay, pullModeEnum)
+	
+	return buttondriver.CreateDriver(driverType, config)
 }
 
 func (bm *ButtonMonitor) AddButtonFromConfig(config ButtonConfig) error {
@@ -108,22 +92,10 @@ func (bm *ButtonMonitor) AddButtonFromConfig(config ButtonConfig) error {
 	}
 
 	// Parse the button spec and add to driver
-	var buttonSpec interface{}
-	var err error
-
 	fullSpec := config.Name + ":" + config.Spec
-
-	switch driverType {
-	case "gpio":
-		buttonSpec, err = gpio.ParseGPIOButtonSpec(fullSpec)
-	case "event":
-		buttonSpec, err = event.ParseEventButtonSpec(fullSpec)
-	default:
-		return fmt.Errorf("unsupported driver type: %s", driverType)
-	}
-
+	buttonSpec, err := buttondriver.ParseButtonSpec(driverType, fullSpec)
 	if err != nil {
-		return fmt.Errorf("failed to parse button spec for %s: %v", config.Name, err)
+		return fmt.Errorf("failed to parse button spec for %s: %w", config.Name, err)
 	}
 
 	if err := driver.AddButton(buttonSpec); err != nil {
