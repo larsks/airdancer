@@ -6,13 +6,13 @@ Wants=NetworkManager.service
 PartOf=airdancer.target
 
 [Service]
+EnvironmentFile=-/etc/airdancer/airdancer.env
+Environment=AIRDANCER_LOG_LEVEL=INFO
+EnvironmentFile=-/etc/airdancer/wifi-fallback.conf
+
 Type=exec
 User=root
 ExecStart=/usr/local/libexec/airdancer-wifi-fallback.sh
-
-# Environment
-Environment=AIRDANCER_LOG_LEVEL=INFO
-EnvironmentFile=-/etc/airdancer/wifi-fallback.conf
 
 # Security settings
 NoNewPrivileges=true

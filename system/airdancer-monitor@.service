@@ -3,9 +3,14 @@ Description=Airdancer Monitor (%i)
 PartOf=airdancer.target
 
 [Service]
+EnvironmentFile=-/etc/airdancer/airdancer.env
+EnvironmentFile=-/etc/airdancer/airdancer-monitor-%i.env
 User=dancer
-EnvvironmentFile=-/home/airdancer/airdancer-monitor-%i.env
 ExecStart=/home/dancer/bin/airdancer-monitor --config /etc/airdancer/airdancer-monitor-%i.toml
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
 
 [Install]
 WantedBy=airdancer.target
