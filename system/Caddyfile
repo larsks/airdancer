@@ -1,4 +1,8 @@
 http://:80 {
+  handle /sounds/* {
+    reverse_proxy localhost:8082
+  }
+
 	handle_path /api/* {
 		reverse_proxy localhost:8080
 	}
