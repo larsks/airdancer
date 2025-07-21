@@ -9,7 +9,6 @@ ExecStart=/home/dancer/bin/airdancer-buttons --config /etc/airdancer/airdancer-b
 Restart=on-failure
 RestartSec=5s
 
-NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 
