@@ -45,9 +45,13 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 }
 
 func (c *Config) LoadConfig() error {
+	return c.LoadConfigWithFlagSet(pflag.CommandLine)
+}
+
+func (c *Config) LoadConfigWithFlagSet(fs *pflag.FlagSet) error {
 	loader := config.NewConfigLoader()
 	loader.SetConfigFile(c.ConfigFile)
-	return loader.LoadConfig(c)
+	return loader.LoadConfigWithFlagSet(c, fs)
 }
 
 func (c *Config) Validate() error {
@@ -64,7 +68,7 @@ func (c *Config) Validate() error {
 		if button.Spec == "" {
 			return fmt.Errorf("button %d (%s): spec is required", i, button.Name)
 		}
-		
+
 		// Check that the button has at least one action configured
 		hasAction := button.ClickAction != nil ||
 			button.DoubleClickAction != nil ||
@@ -73,7 +77,7 @@ func (c *Config) Validate() error {
 			button.LongPressAction != nil ||
 			button.DefaultAction != nil ||
 			c.DefaultAction != nil
-		
+
 		if !hasAction {
 			return fmt.Errorf("button %d (%s): no actions configured (no global default-action or button-specific actions)", i, button.Name)
 		}
