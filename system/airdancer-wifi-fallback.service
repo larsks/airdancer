@@ -8,7 +8,7 @@ PartOf=airdancer.target
 [Service]
 EnvironmentFile=-/etc/airdancer/airdancer.env
 Environment=AIRDANCER_LOG_LEVEL=INFO
-EnvironmentFile=-/etc/airdancer/wifi-fallback.conf
+EnvironmentFile=-/etc/airdancer/airdancer-wifi-fallback.conf
 
 Type=exec
 User=root
