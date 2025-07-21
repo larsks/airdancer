@@ -21,7 +21,7 @@ var (
 
 // Switch operation errors
 var (
-	ErrSwitchTurnOn  = errors.New("failed to turn on switch")
-	ErrSwitchTurnOff = errors.New("failed to turn off switch")
+	ErrSwitchTurnOn   = errors.New("failed to turn on switch")
+	ErrSwitchTurnOff  = errors.New("failed to turn off switch")
 	ErrSwitchGetState = errors.New("failed to get switch state")
 )

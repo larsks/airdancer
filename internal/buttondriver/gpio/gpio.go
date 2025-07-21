@@ -19,7 +19,6 @@ type ButtonEvent struct {
 	Timestamp time.Time
 }
 
-
 // ButtonDriver manages GPIO button monitoring with debouncing
 type ButtonDriver struct {
 	chip            *gpiocdev.Chip
@@ -194,21 +193,21 @@ func (bd *ButtonDriver) Stop() {
 
 	close(bd.stopChannel)
 	bd.wg.Wait()
-	
+
 	// Close all GPIO lines
 	for _, buttonPin := range bd.pins {
 		if err := buttonPin.line.Close(); err != nil {
 			log.Printf("Error closing GPIO line for button %s: %v", buttonPin.name, err)
 		}
 	}
-	
+
 	// Close the GPIO chip
 	if bd.chip != nil {
 		if err := bd.chip.Close(); err != nil {
 			log.Printf("Error closing GPIO chip: %v", err)
 		}
 	}
-	
+
 	close(bd.eventChannel)
 	bd.started = false
 	log.Printf("Stopped GPIO button monitoring")
@@ -332,7 +331,6 @@ func (bd *ButtonDriver) GetDebounceDelay() time.Duration {
 func (bd *ButtonDriver) SetDebounceDelay(delay time.Duration) {
 	bd.debounceDelay = delay
 }
-
 
 // getPullString returns a human-readable string for the pull resistor configuration
 func (bd *ButtonDriver) getPullString(pullMode gpio.PullMode, activeHigh bool) string {

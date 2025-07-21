@@ -87,7 +87,7 @@ func (cl *ConfigLoader) LoadConfigWithFlagSet(config any, fs *pflag.FlagSet) err
 			return fmt.Errorf("%w %s: %v", ErrConfigFileRead, cl.configFile, err)
 		}
 
-		// Apply environment variable substitution to config values
+		// Apply simple environment variable expansion to config values
 		cl.expandEnvironmentVariables(v)
 	}
 
@@ -301,7 +301,7 @@ func (cl *ConfigLoader) expandMapValues(m map[string]any) {
 func (cl *ConfigLoader) expandValue(value any) any {
 	switch v := value.(type) {
 	case string:
-		// Custom expansion that preserves original value if env var is not set
+		// Use os.ExpandEnv but preserve original if env var is not set
 		return cl.expandString(v)
 	case map[string]any:
 		cl.expandMapValues(v)
@@ -311,17 +311,6 @@ func (cl *ConfigLoader) expandValue(value any) any {
 			v[i] = cl.expandValue(item)
 		}
 		return v
-	case map[any]any:
-		// Convert to map[string]any and process
-		converted := make(map[string]any)
-		for k, val := range v {
-			if strKey, ok := k.(string); ok {
-				converted[strKey] = cl.expandValue(val)
-			} else {
-				converted[fmt.Sprintf("%v", k)] = cl.expandValue(val)
-			}
-		}
-		return converted
 	default:
 		return value
 	}

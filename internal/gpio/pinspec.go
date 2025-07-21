@@ -28,10 +28,10 @@ const (
 type PinSpec struct {
 	// LineNum is the GPIO line number (e.g., 18 for GPIO18)
 	LineNum int
-	
+
 	// Polarity indicates if the pin is active-high or active-low
 	Polarity Polarity
-	
+
 	// PullMode specifies the pull resistor configuration
 	PullMode PullMode
 }

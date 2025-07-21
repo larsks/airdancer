@@ -50,6 +50,11 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 
 // LoadConfig loads the configuration from a file and binds it to the Config struct.
 func (c *Config) LoadConfig() error {
+	return c.LoadConfigWithFlagSet(pflag.CommandLine)
+}
+
+// LoadConfigWithFlagSet loads the configuration using a custom flag set
+func (c *Config) LoadConfigWithFlagSet(fs *pflag.FlagSet) error {
 	loader := config.NewConfigLoader()
 	loader.SetConfigFile(c.ConfigFile)
 
@@ -60,7 +65,7 @@ func (c *Config) LoadConfig() error {
 		"api-base-url":   "http://localhost:8080",
 	})
 
-	return loader.LoadConfig(c)
+	return loader.LoadConfigWithFlagSet(c, fs)
 }
 
 type UIServer struct {

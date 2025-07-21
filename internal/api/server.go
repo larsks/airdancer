@@ -18,11 +18,13 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/larsks/airdancer/internal/blink"
 	"github.com/larsks/airdancer/internal/config"
+	"github.com/larsks/airdancer/internal/drivers"
 	"github.com/larsks/airdancer/internal/flipflop"
-	"github.com/larsks/airdancer/internal/piface"
 	"github.com/larsks/airdancer/internal/switchcollection"
-	gpio "github.com/larsks/airdancer/internal/switchcollection/gpio_warthog"
 	"github.com/spf13/pflag"
+
+	// Import specific drivers to register them
+	_ "github.com/larsks/airdancer/internal/drivers"
 )
 
 type timerData struct {
@@ -54,19 +56,6 @@ type Server struct {
 // Config holds the configuration for the API server.
 
 type (
-	PiFaceDriverConfig struct {
-		SPIDev      string `mapstructure:"spidev"`
-		MaxSwitches uint   `mapstructure:"max-switches"`
-	}
-
-	GPIODriverConfig struct {
-		Pins []string `mapstructure:"pins"`
-	}
-
-	DummyDriverConfig struct {
-		SwitchCount uint `mapstructure:"switch-count"`
-	}
-
 	CollectionConfig struct {
 		Driver       string                 `mapstructure:"driver"`
 		DriverConfig map[string]interface{} `mapstructure:"driverconfig"`
@@ -135,86 +124,11 @@ func (c *Config) LoadConfigWithFlagSet(fs *pflag.FlagSet) error {
 
 // createSwitchCollection creates a switch collection based on the driver and config.
 func createSwitchCollection(collectionName string, collectionCfg CollectionConfig) (switchcollection.SwitchCollection, error) {
-	switch collectionCfg.Driver {
-	case "piface":
-		var pfCfg PiFaceDriverConfig
-		if err := mapConfigToStruct(collectionCfg.DriverConfig, &pfCfg); err != nil {
-			return nil, fmt.Errorf("failed to parse piface config for collection %s: %w", collectionName, err)
-		}
-
-		spidev := pfCfg.SPIDev
-		if spidev == "" {
-			spidev = "/dev/spidev0.0"
-		}
-
-		sc, err := piface.NewPiFace(true, spidev, pfCfg.MaxSwitches)
-		if err != nil {
-			return nil, fmt.Errorf("%w on %s for collection %s: %v", ErrPiFaceInitFailed, spidev, collectionName, err)
-		}
-		return sc, nil
-
-	case "gpio":
-		var gpioCfg GPIODriverConfig
-		if err := mapConfigToStruct(collectionCfg.DriverConfig, &gpioCfg); err != nil {
-			return nil, fmt.Errorf("failed to parse gpio config for collection %s: %w", collectionName, err)
-		}
-
-		sc, err := gpio.NewGPIOSwitchCollection(true, gpioCfg.Pins)
-		if err != nil {
-			return nil, fmt.Errorf("%w with pins %v for collection %s: %v", ErrGPIOInitFailed, gpioCfg.Pins, collectionName, err)
-		}
-		return sc, nil
-
-	case "dummy":
-		var dummyCfg DummyDriverConfig
-		if err := mapConfigToStruct(collectionCfg.DriverConfig, &dummyCfg); err != nil {
-			return nil, fmt.Errorf("failed to parse dummy config for collection %s: %w", collectionName, err)
-		}
-
-		if dummyCfg.SwitchCount == 0 {
-			dummyCfg.SwitchCount = 4
-		}
-
-		return switchcollection.NewDummySwitchCollection(dummyCfg.SwitchCount), nil
-
-	default:
-		return nil, fmt.Errorf("%w: %s for collection %s", ErrUnknownDriver, collectionCfg.Driver, collectionName)
+	sc, err := drivers.Create(collectionCfg.Driver, collectionCfg.DriverConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create %s driver for collection %s: %w", collectionCfg.Driver, collectionName, err)
 	}
-}
-
-// mapConfigToStruct converts a map[string]interface{} to a specific struct type.
-func mapConfigToStruct(configMap map[string]interface{}, target interface{}) error {
-	// This is a simple implementation. For a more robust solution, you might want to use
-	// a library like mapstructure, but this handles the basic cases we need.
-	switch t := target.(type) {
-	case *PiFaceDriverConfig:
-		if spidev, ok := configMap["spidev"].(string); ok {
-			t.SPIDev = spidev
-		}
-		if maxSwitches, ok := configMap["max-switches"].(uint); ok {
-			t.MaxSwitches = maxSwitches
-		} else if maxSwitches, ok := configMap["max-switches"].(int); ok {
-			t.MaxSwitches = uint(maxSwitches)
-		}
-	case *GPIODriverConfig:
-		if pins, ok := configMap["pins"].([]interface{}); ok {
-			t.Pins = make([]string, len(pins))
-			for i, pin := range pins {
-				if pinStr, ok := pin.(string); ok {
-					t.Pins[i] = pinStr
-				}
-			}
-		} else if pins, ok := configMap["pins"].([]string); ok {
-			t.Pins = pins
-		}
-	case *DummyDriverConfig:
-		if switchCount, ok := configMap["switch-count"].(uint); ok {
-			t.SwitchCount = switchCount
-		} else if switchCount, ok := configMap["switch-count"].(int); ok {
-			t.SwitchCount = uint(switchCount)
-		}
-	}
-	return nil
+	return sc, nil
 }
 
 // NewServer creates a new Server instance.
@@ -235,7 +149,7 @@ func NewServer(cfg *Config) (*Server, error) {
 		}
 
 		if err := sc.Init(); err != nil {
-			return nil, fmt.Errorf("%w for collection %s: %v", ErrDriverInitFailed, collectionName, err)
+			return nil, fmt.Errorf("failed to initialize %s driver for collection %s: %w", collectionCfg.Driver, collectionName, err)
 		}
 
 		collections[collectionName] = sc
@@ -377,7 +291,7 @@ func (s *Server) Start() error {
 	// Initialize all switch collections to off
 	for name, collection := range s.collections {
 		if err := collection.TurnOff(); err != nil {
-			return fmt.Errorf("%w for collection %s: %v", ErrSwitchInitFailed, name, err)
+			return fmt.Errorf("failed to initialize switches for collection %s: %w", name, err)
 		}
 	}
 
@@ -403,7 +317,7 @@ func (s *Server) Start() error {
 	defer cancel() //nolint:errcheck
 
 	if err := srv.Shutdown(ctx); err != nil {
-		return fmt.Errorf("%w: %v", ErrServerShutdownFailed, err)
+		return fmt.Errorf("server shutdown failed: %w", err)
 	}
 
 	log.Println("server gracefully stopped")
