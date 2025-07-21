@@ -18,13 +18,13 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/larsks/airdancer/internal/blink"
 	"github.com/larsks/airdancer/internal/config"
-	"github.com/larsks/airdancer/internal/drivers"
 	"github.com/larsks/airdancer/internal/flipflop"
 	"github.com/larsks/airdancer/internal/switchcollection"
+	"github.com/larsks/airdancer/internal/switchdrivers"
 	"github.com/spf13/pflag"
 
-	// Import specific drivers to register them
-	_ "github.com/larsks/airdancer/internal/drivers"
+	// Import specific switch driver factories to register them
+	_ "github.com/larsks/airdancer/internal/switchdrivers"
 )
 
 type timerData struct {
@@ -124,7 +124,7 @@ func (c *Config) LoadConfigWithFlagSet(fs *pflag.FlagSet) error {
 
 // createSwitchCollection creates a switch collection based on the driver and config.
 func createSwitchCollection(collectionName string, collectionCfg CollectionConfig) (switchcollection.SwitchCollection, error) {
-	sc, err := drivers.Create(collectionCfg.Driver, collectionCfg.DriverConfig)
+	sc, err := switchdrivers.Create(collectionCfg.Driver, collectionCfg.DriverConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create %s driver for collection %s: %w", collectionCfg.Driver, collectionName, err)
 	}

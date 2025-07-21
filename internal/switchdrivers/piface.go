@@ -1,4 +1,4 @@
-package drivers
+package switchdrivers
 
 import (
 	"fmt"
@@ -16,8 +16,8 @@ type PiFaceConfig struct {
 // PiFaceFactory implements Factory for PiFace drivers
 type PiFaceFactory struct{}
 
-// Create creates a new PiFace switch collection
-func (f *PiFaceFactory) Create(config map[string]interface{}) (switchcollection.SwitchCollection, error) {
+// CreateDriver creates a new PiFace switch collection
+func (f *PiFaceFactory) CreateDriver(config map[string]interface{}) (switchcollection.SwitchCollection, error) {
 	cfg, err := f.parseConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse PiFace config: %w", err)
