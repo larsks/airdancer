@@ -1,0 +1,35 @@
+<div class="controls">
+	<div class="per-page-selector">
+		<label for="perPage">Items per page:</label>
+		<select id="perPage" class="form-control">
+			<option value="10">10</option>
+			<option value="20" selected>20</option>
+			<option value="50">50</option>
+			<option value="100">100</option>
+		</select>
+	</div>
+
+	<div class="playback-mode-selector">
+		<label for="playbackMode">Audio playback:</label>
+		<select id="playbackMode" class="form-control">
+			<option value="browser">Browser</option>
+			<option value="server">Server</option>
+		</select>
+		<span id="serverStatus" class="server-status"></span>
+	</div>
+
+	<div class="volume-control">
+		<label for="volumeSlider">Volume:</label>
+		<input type="range" id="volumeSlider" min="0" max="100" value="70" step="1">
+		<span id="volumeValue" class="volume-value">70%</span>
+	</div>
+	
+	<div class="pagination">
+		<button id="prevPage" disabled>Previous</button>
+		<span id="pageInfo">Page 1 of 1</span>
+		<button id="nextPage" disabled>Next</button>
+	</div>
+</div>
+
+<div id="loadingMessage" class="loading hidden">Loading sounds...</div>
+<div id="soundboard" class="soundboard"></div>

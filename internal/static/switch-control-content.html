@@ -1,0 +1,27 @@
+<div class="control-all">
+	<div class="control-group">
+		<div>
+			<h3>Master Control</h3>
+			<p>Control all switches simultaneously</p>
+		</div>
+		<div>
+			<button class="btn btn-success" id="all-on-btn">All On</button>
+			<button class="btn btn-danger" id="all-off-btn">All Off</button>
+		</div>
+	</div>
+</div>
+
+<div class="grid grid-auto-fit" id="switches-container">
+	<!-- Switches will be populated here -->
+</div>
+
+<div id="groups-section" style="display: none; margin-top: 40px; padding-top: 30px; border-top: 2px solid #e9ecef;">
+	<h2 style="color: #2c3e50; margin-bottom: 20px; font-size: 1.8em;">Switch Groups</h2>
+	<div class="grid grid-auto-fit" id="groups-container">
+		<!-- Groups will be populated here -->
+	</div>
+</div>
+
+<div style="text-align: center; color: #6c757d; font-size: 0.9em; margin-top: 20px;" id="last-updated">
+	Last updated: Never
+</div>

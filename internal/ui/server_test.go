@@ -37,8 +37,8 @@ func TestUIServer(t *testing.T) {
 	// Check that the HTML contains expected elements
 	expectedElements := []string{
 		"<title>Airdancer Switch Control</title>",
-		"class=\"switches-grid\"",
-		"API_BASE_URL =",
+		"id=\"switches-container\"",
+		"new SwitchController",
 	}
 
 	for _, element := range expectedElements {

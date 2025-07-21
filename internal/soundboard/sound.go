@@ -45,7 +45,7 @@ func NewSoundManager(soundDirectory string) *SoundManager {
 func (sm *SoundManager) LoadSounds() error {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
-	
+
 	return sm.loadSounds()
 }
 
@@ -159,7 +159,7 @@ func (sm *SoundManager) getFileNameWithoutExt(fileName string) string {
 func (sm *SoundManager) GetSounds() []Sound {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
-	
+
 	// Return a copy to avoid race conditions
 	sounds := make([]Sound, len(sm.sounds))
 	copy(sounds, sm.sounds)
@@ -170,7 +170,7 @@ func (sm *SoundManager) GetSounds() []Sound {
 func (sm *SoundManager) GetSoundsPage(page, pageSize int) ([]Sound, int, error) {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
-	
+
 	if page < 1 {
 		page = 1
 	}
@@ -203,16 +203,16 @@ func (sm *SoundManager) GetSoundsPage(page, pageSize int) ([]Sound, int, error) 
 func (sm *SoundManager) RescanDirectory() (bool, error) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
-	
+
 	// Store the current sounds for comparison
 	oldSounds := make([]Sound, len(sm.sounds))
 	copy(oldSounds, sm.sounds)
-	
+
 	// Rescan the directory
 	if err := sm.loadSounds(); err != nil {
 		return false, err
 	}
-	
+
 	// Compare the old and new sound lists
 	return !sm.soundListsEqual(oldSounds, sm.sounds), nil
 }
@@ -222,19 +222,19 @@ func (sm *SoundManager) soundListsEqual(a, b []Sound) bool {
 	if len(a) != len(b) {
 		return false
 	}
-	
+
 	// Create maps for comparison
 	aMap := make(map[string]Sound)
 	bMap := make(map[string]Sound)
-	
+
 	for _, sound := range a {
 		aMap[sound.FileName] = sound
 	}
-	
+
 	for _, sound := range b {
 		bMap[sound.FileName] = sound
 	}
-	
+
 	// Compare the maps
 	for filename, soundA := range aMap {
 		soundB, exists := bMap[filename]
@@ -242,7 +242,7 @@ func (sm *SoundManager) soundListsEqual(a, b []Sound) bool {
 			return false
 		}
 	}
-	
+
 	return true
 }
 

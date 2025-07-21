@@ -4,18 +4,19 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"html/template"
 	"io/fs"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/larsks/airdancer/internal/config"
+	"github.com/larsks/airdancer/internal/static"
 	"github.com/spf13/pflag"
 )
 
@@ -98,20 +99,47 @@ func (ui *UIServer) setupRoutes() {
 }
 
 func (ui *UIServer) indexHandler(w http.ResponseWriter, r *http.Request) {
-	// Read the index.html file from embedded filesystem
-	indexFile, err := staticFiles.ReadFile("static/index.html")
+	// Get switch controller JavaScript
+	switchControllerJS, err := static.GetSwitchControllerJS()
 	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to read index.html: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("failed to get switch controller JS: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	// Replace the API_BASE_URL placeholder with the actual API URL
-	indexContent := string(indexFile)
-	indexContent = strings.ReplaceAll(indexContent, "{{API_BASE_URL}}", ui.apiBaseURL)
+	// Get switch control content HTML
+	contentHTML, err := static.GetSwitchControlContent()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to get switch control content: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Prepare template data
+	data := static.TemplateData{
+		Title:         "Airdancer Switch Control",
+		DefaultStatus: "Connecting...",
+		Content:       template.HTML(contentHTML),
+		ExtraJS: template.HTML(fmt.Sprintf(`
+			<script>
+				%s
+				
+				// Initialize the switch controller when the page loads
+				document.addEventListener('DOMContentLoaded', () => {
+					new SwitchController('%s');
+				});
+			</script>
+		`, switchControllerJS, ui.apiBaseURL)),
+	}
+
+	// Render the template
+	html, err := static.RenderTemplate(data)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to render template: %v", err), http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(indexContent)) //nolint:errcheck
+	w.Write([]byte(html)) //nolint:errcheck
 }
 
 func (ui *UIServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {

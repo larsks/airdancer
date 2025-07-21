@@ -64,11 +64,11 @@ func (ap *AudioPlayer) PlaySound(soundFilePath string) error {
 		err := cmd.Wait()
 		ap.mutex.Lock()
 		defer ap.mutex.Unlock()
-		
+
 		if ap.currentProcess == cmd {
 			ap.currentProcess = nil
 			ap.currentSoundFile = ""
-			
+
 			// Store any error that occurred during playback
 			if err != nil {
 				ap.lastError = fmt.Errorf("audio playback failed: %w", err)
@@ -117,20 +117,20 @@ func (ap *AudioPlayer) IsPlaying() bool {
 func (ap *AudioPlayer) GetPlaybackStatus() map[string]interface{} {
 	ap.mutex.Lock()
 	defer ap.mutex.Unlock()
-	
+
 	status := map[string]interface{}{
 		"isPlaying":    ap.currentProcess != nil,
 		"currentSound": ap.currentSoundFile,
 	}
-	
+
 	if ap.currentProcess != nil {
 		status["playbackDuration"] = time.Since(ap.playbackStarted).Seconds()
 	}
-	
+
 	if ap.lastError != nil {
 		status["lastError"] = ap.lastError.Error()
 	}
-	
+
 	return status
 }
 

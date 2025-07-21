@@ -95,17 +95,17 @@ func (c *Config) GetBaseURL() string {
 	if c.BaseURL == "" {
 		return ""
 	}
-	
+
 	baseURL := strings.TrimSpace(c.BaseURL)
-	
+
 	// Ensure it starts with /
 	if !strings.HasPrefix(baseURL, "/") {
 		baseURL = "/" + baseURL
 	}
-	
+
 	// Ensure it doesn't end with /
 	baseURL = strings.TrimSuffix(baseURL, "/")
-	
+
 	return baseURL
 }
 
@@ -115,11 +115,11 @@ func (c *Config) GetFullPath(path string) string {
 	if baseURL == "" {
 		return path
 	}
-	
+
 	// Ensure path starts with /
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
 	}
-	
+
 	return baseURL + path
 }
