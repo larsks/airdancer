@@ -11,7 +11,7 @@ import (
 
 	"github.com/larsks/airdancer/internal/buttondriver"
 	"github.com/larsks/airdancer/internal/buttondriver/common"
-	
+
 	// Import button driver factories to register them
 	_ "github.com/larsks/airdancer/internal/buttondriver"
 )
@@ -68,13 +68,13 @@ func (bm *ButtonMonitor) SetGlobalConfig(config *Config) {
 func (bm *ButtonMonitor) createDriver(driverType string) (common.ButtonDriver, error) {
 	// Prepare driver-specific configuration
 	config := make(map[string]interface{})
-	
+
 	// Add GPIO-specific configuration if this is a GPIO driver
 	if driverType == "gpio" {
 		config["pull-mode"] = bm.pullMode
 		config["debounce-ms"] = bm.debounceMs
 	}
-	
+
 	return buttondriver.CreateDriver(driverType, config)
 }
 
