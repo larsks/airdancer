@@ -329,14 +329,21 @@ func (wrapper *ButtonWrapper) executeCommand(command string, actionType string) 
 		return
 	}
 	log.Printf("[%s] Executing command: %s", wrapper.name, command)
-	cmd := exec.Command("sh", "-c", command)
-	env := os.Environ()
-	env = append(env, fmt.Sprintf("BUTTON_ACTION_TYPE=%s", actionType))
-	env = append(env, fmt.Sprintf("BUTTON_NAME=%s", wrapper.name))
-	cmd.Env = env
-	if err := cmd.Run(); err != nil {
-		log.Printf("[%s] Error executing command: %v", wrapper.name, err)
-	}
+
+	// Launch command in background goroutine
+	go func() {
+		cmd := exec.Command("sh", "-c", command)
+		env := os.Environ()
+		env = append(env, fmt.Sprintf("BUTTON_ACTION_TYPE=%s", actionType))
+		env = append(env, fmt.Sprintf("BUTTON_NAME=%s", wrapper.name))
+		cmd.Env = env
+
+		if err := cmd.Run(); err != nil {
+			log.Printf("[%s] Error executing command '%s': %v", wrapper.name, command, err)
+		} else {
+			log.Printf("[%s] Command completed successfully: %s", wrapper.name, command)
+		}
+	}()
 }
 
 func (bm *ButtonMonitor) Close() error {
