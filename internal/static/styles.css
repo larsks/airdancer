@@ -386,6 +386,27 @@ body {
     display: block;
 }
 
+/* Groups section styles */
+.groups-section {
+    margin-top: 40px;
+    padding-top: 30px;
+    border-top: 2px solid #e9ecef;
+}
+
+.groups-section h2 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+    font-size: 1.8em;
+}
+
+/* Last updated styles */
+.last-updated {
+    text-align: center;
+    color: #6c757d;
+    font-size: 0.9em;
+    margin-top: 20px;
+}
+
 /* Responsive visibility */
 @media (max-width: 767px) {
     .hide-mobile {
