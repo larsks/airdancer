@@ -15,7 +15,7 @@ func TestDefaultRegistry_SwitchDrivers(t *testing.T) {
 		foundDrivers[driver] = true
 	}
 
-	expectedDrivers := []string{"piface", "gpio", "dummy"}
+	expectedDrivers := []string{"piface", "gpio", "dummy", "tasmota"}
 
 	for _, expected := range expectedDrivers {
 		if !foundDrivers[expected] {
