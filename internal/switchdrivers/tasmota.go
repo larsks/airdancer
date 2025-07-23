@@ -1,12 +1,15 @@
 package switchdrivers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/larsks/airdancer/internal/switchcollection"
@@ -96,8 +99,10 @@ type TasmotaResponse struct {
 
 // TasmotaSwitch represents a single Tasmota switch
 type TasmotaSwitch struct {
-	address string
-	client  *http.Client
+	address  string
+	client   *http.Client
+	disabled bool
+	mutex    sync.RWMutex
 }
 
 // NewTasmotaSwitch creates a new Tasmota switch
@@ -108,7 +113,8 @@ func NewTasmotaSwitch(address string, timeout time.Duration) *TasmotaSwitch {
 	}
 
 	return &TasmotaSwitch{
-		address: address,
+		address:  address,
+		disabled: false,
 		client: &http.Client{
 			Timeout: timeout,
 		},
@@ -117,23 +123,76 @@ func NewTasmotaSwitch(address string, timeout time.Duration) *TasmotaSwitch {
 
 // TurnOn turns the switch on
 func (s *TasmotaSwitch) TurnOn() error {
+	s.mutex.RLock()
+	if s.disabled {
+		s.mutex.RUnlock()
+		return fmt.Errorf("switch %s is disabled due to network issues", s.address)
+	}
+	s.mutex.RUnlock()
+
 	_, err := s.sendCommand("Power+ON")
-	return err
+	if err != nil {
+		s.markDisabled()
+		return err
+	}
+	s.markEnabled()
+	return nil
 }
 
 // TurnOff turns the switch off
 func (s *TasmotaSwitch) TurnOff() error {
+	s.mutex.RLock()
+	if s.disabled {
+		s.mutex.RUnlock()
+		return fmt.Errorf("switch %s is disabled due to network issues", s.address)
+	}
+	s.mutex.RUnlock()
+
 	_, err := s.sendCommand("Power+OFF")
-	return err
+	if err != nil {
+		s.markDisabled()
+		return err
+	}
+	s.markEnabled()
+	return nil
 }
 
 // GetState returns the current state of the switch
 func (s *TasmotaSwitch) GetState() (bool, error) {
 	resp, err := s.sendCommand("Power")
 	if err != nil {
+		s.markDisabled()
 		return false, err
 	}
+	s.markEnabled()
 	return resp.Power == "ON", nil
+}
+
+// IsDisabled returns true if the switch is disabled due to network issues
+func (s *TasmotaSwitch) IsDisabled() bool {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	return s.disabled
+}
+
+// markDisabled marks the switch as disabled
+func (s *TasmotaSwitch) markDisabled() {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	if !s.disabled {
+		s.disabled = true
+		log.Printf("switch %s marked as disabled due to network connectivity issues", s.address)
+	}
+}
+
+// markEnabled marks the switch as enabled
+func (s *TasmotaSwitch) markEnabled() {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	if s.disabled {
+		s.disabled = false
+		log.Printf("switch %s re-enabled after network connectivity restored", s.address)
+	}
 }
 
 // String returns a string representation of the switch
@@ -170,7 +229,9 @@ func (s *TasmotaSwitch) sendCommand(command string) (*TasmotaResponse, error) {
 
 // TasmotaSwitchCollection represents a collection of Tasmota switches
 type TasmotaSwitchCollection struct {
-	switches []switchcollection.Switch
+	switches   []switchcollection.Switch
+	cancelFunc context.CancelFunc
+	monitorCtx context.Context
 }
 
 // NewTasmotaSwitchCollection creates a new Tasmota switch collection
@@ -180,27 +241,44 @@ func NewTasmotaSwitchCollection(addresses []string, timeout time.Duration) *Tasm
 		switches[i] = NewTasmotaSwitch(addr, timeout)
 	}
 
-	return &TasmotaSwitchCollection{
-		switches: switches,
+	ctx, cancel := context.WithCancel(context.Background())
+	collection := &TasmotaSwitchCollection{
+		switches:   switches,
+		cancelFunc: cancel,
+		monitorCtx: ctx,
 	}
+
+	// Start monitoring goroutine
+	go collection.monitorSwitches()
+	log.Printf("started background monitoring for Tasmota switches (checking every 30 seconds)")
+
+	return collection
 }
 
 // TurnOn turns on all switches in the collection
 func (c *TasmotaSwitchCollection) TurnOn() error {
+	var errors []error
 	for _, sw := range c.switches {
 		if err := sw.TurnOn(); err != nil {
-			return err
+			errors = append(errors, err)
 		}
+	}
+	if len(errors) > 0 {
+		return fmt.Errorf("failed to turn on some switches: %v", errors)
 	}
 	return nil
 }
 
 // TurnOff turns off all switches in the collection
 func (c *TasmotaSwitchCollection) TurnOff() error {
+	var errors []error
 	for _, sw := range c.switches {
 		if err := sw.TurnOff(); err != nil {
-			return err
+			errors = append(errors, err)
 		}
+	}
+	if len(errors) > 0 {
+		return fmt.Errorf("failed to turn off some switches: %v", errors)
 	}
 	return nil
 }
@@ -208,15 +286,24 @@ func (c *TasmotaSwitchCollection) TurnOff() error {
 // GetState returns true if any switch is on
 func (c *TasmotaSwitchCollection) GetState() (bool, error) {
 	for _, sw := range c.switches {
+		// Skip disabled switches when determining collection state
+		if sw.IsDisabled() {
+			continue
+		}
 		state, err := sw.GetState()
 		if err != nil {
-			return false, err
+			continue // Skip switches with errors, they're likely disabled
 		}
 		if state {
 			return true, nil
 		}
 	}
 	return false, nil
+}
+
+// IsDisabled returns false since Tasmota switch collections are never disabled (individual switches can be)
+func (c *TasmotaSwitchCollection) IsDisabled() bool {
+	return false
 }
 
 // String returns a string representation of the collection
@@ -246,23 +333,81 @@ func (c *TasmotaSwitchCollection) GetSwitch(id uint) (switchcollection.Switch, e
 func (c *TasmotaSwitchCollection) GetDetailedState() ([]bool, error) {
 	states := make([]bool, len(c.switches))
 	for i, sw := range c.switches {
+		// For disabled switches, report them as off
+		if sw.IsDisabled() {
+			states[i] = false
+			continue
+		}
 		state, err := sw.GetState()
 		if err != nil {
-			return nil, err
+			states[i] = false // Report as off if there's an error
+			continue
 		}
 		states[i] = state
 	}
 	return states, nil
 }
 
-// Init initializes the switch collection (no-op for Tasmota)
+// Init initializes the switch collection and checks initial connectivity
 func (c *TasmotaSwitchCollection) Init() error {
+	log.Printf("initializing Tasmota switch collection with %d switches", len(c.switches))
+	// Perform initial connectivity check for all switches
+	for _, sw := range c.switches {
+		if tasmotaSwitch, ok := sw.(*TasmotaSwitch); ok {
+			// Try to get the initial state to test connectivity
+			_, err := tasmotaSwitch.sendCommand("Power")
+			if err != nil {
+				// Mark as disabled if unreachable during initialization
+				tasmotaSwitch.markDisabled()
+			} else {
+				log.Printf("switch %s is reachable and ready", tasmotaSwitch.address)
+			}
+		}
+	}
 	return nil
 }
 
-// Close closes the switch collection (no-op for Tasmota)
+// Close closes the switch collection
 func (c *TasmotaSwitchCollection) Close() error {
+	if c.cancelFunc != nil {
+		log.Printf("stopping Tasmota switch monitoring")
+		c.cancelFunc()
+	}
 	return nil
+}
+
+// monitorSwitches periodically checks disabled switches to see if they come back online
+func (c *TasmotaSwitchCollection) monitorSwitches() {
+	ticker := time.NewTicker(30 * time.Second) // Check every 30 seconds
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-c.monitorCtx.Done():
+			return
+		case <-ticker.C:
+			c.checkDisabledSwitches()
+		}
+	}
+}
+
+// checkDisabledSwitches attempts to re-enable disabled switches
+func (c *TasmotaSwitchCollection) checkDisabledSwitches() {
+	disabledCount := 0
+	for _, sw := range c.switches {
+		if tasmotaSwitch, ok := sw.(*TasmotaSwitch); ok && tasmotaSwitch.IsDisabled() {
+			disabledCount++
+			// Try to get state to test connectivity
+			_, err := tasmotaSwitch.sendCommand("Power")
+			if err == nil {
+				// Switch is back online, mark as enabled
+				tasmotaSwitch.markEnabled()
+			}
+		}
+	}
+	if disabledCount > 0 {
+		log.Printf("monitoring check: %d disabled switches found", disabledCount)
+	}
 }
 
 func init() {

@@ -204,16 +204,22 @@ class AirdancerUI {
      * @param {string} id - Unique ID for the toggle
      * @param {boolean} checked - Initial checked state
      * @param {Function} onChange - Change handler
+     * @param {boolean} disabled - Whether the toggle should be disabled
      * @returns {HTMLElement} Toggle switch element
      */
-    createToggleSwitch(id, checked = false, onChange = null) {
+    createToggleSwitch(id, checked = false, onChange = null, disabled = false) {
         const label = document.createElement('label');
         label.className = 'toggle-switch';
+
+        if (disabled) {
+            label.classList.add('disabled');
+        }
 
         const input = document.createElement('input');
         input.type = 'checkbox';
         input.id = id;
         input.checked = checked;
+        input.disabled = disabled;
 
         const slider = document.createElement('span');
         slider.className = 'slider';
@@ -221,7 +227,7 @@ class AirdancerUI {
         label.appendChild(input);
         label.appendChild(slider);
 
-        if (onChange) {
+        if (onChange && !disabled) {
             input.addEventListener('change', onChange);
         }
 

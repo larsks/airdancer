@@ -186,3 +186,8 @@ func (pf *PiFace) GetDetailedState() ([]bool, error) {
 	}
 	return states, nil
 }
+
+// IsDisabled returns false since PiFace collections are never disabled
+func (pf *PiFace) IsDisabled() bool {
+	return false
+}

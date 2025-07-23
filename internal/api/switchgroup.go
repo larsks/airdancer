@@ -121,6 +121,16 @@ func (sg *SwitchGroup) Close() error {
 	return nil
 }
 
+// IsDisabled returns true if any switch in the group is disabled
+func (sg *SwitchGroup) IsDisabled() bool {
+	for _, resolvedSwitch := range sg.switches {
+		if resolvedSwitch.Switch.IsDisabled() {
+			return true
+		}
+	}
+	return false
+}
+
 // GetSwitches returns the map of switches in the group for status reporting.
 func (sg *SwitchGroup) GetSwitches() map[string]*ResolvedSwitch {
 	return sg.switches

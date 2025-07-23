@@ -285,10 +285,11 @@ func (s *Server) setupRoutes() {
 // Start starts the API server.
 
 func (s *Server) Start() error {
-	// Initialize all switch collections to off
+	// Initialize all switch collections to off, but don't fail if some switches are unreachable
 	for name, collection := range s.collections {
 		if err := collection.TurnOff(); err != nil {
-			return fmt.Errorf("failed to initialize switches for collection %s: %w", name, err)
+			log.Printf("Warning: failed to initialize switches for collection %s: %v", name, err)
+			// Continue startup even if some switches are unreachable
 		}
 	}
 

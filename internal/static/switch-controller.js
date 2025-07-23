@@ -169,10 +169,20 @@ class SwitchController extends AirdancerUI {
         card.className = 'card';
         const safeId = this.getSafeId(switchName);
         const stateText = switchData.state.toUpperCase();
+        const isDisabled = switchData.state === 'disabled';
+        
+        if (isDisabled) {
+            card.classList.add('disabled');
+        }
         
         const toggle = this.createToggleSwitch(`switch-${safeId}`, switchData.currentState, (e) => {
-            this.toggleSwitch(switchName, e.target.checked);
-        });
+            if (!isDisabled) {
+                this.toggleSwitch(switchName, e.target.checked);
+            } else {
+                // Prevent state change for disabled switches
+                e.target.checked = !e.target.checked;
+            }
+        }, isDisabled);
         
         card.innerHTML = `
             <div class="card-header">
@@ -357,15 +367,36 @@ class SwitchController extends AirdancerUI {
         const safeId = this.getSafeId(switchName);
         const checkbox = document.getElementById(`switch-${safeId}`);
         const stateLabel = document.getElementById(`state-${safeId}`);
+        const card = checkbox?.closest('.card');
+        const toggleSwitch = checkbox?.closest('.toggle-switch');
+        
+        const isDisabled = switchData.state === 'disabled';
         
         if (checkbox) {
             checkbox.checked = switchData.currentState;
+            checkbox.disabled = isDisabled;
         }
         
         if (stateLabel) {
             const stateText = switchData.state.toUpperCase();
             stateLabel.textContent = stateText;
             stateLabel.className = `state-indicator ${switchData.state}`;
+        }
+        
+        if (card) {
+            if (isDisabled) {
+                card.classList.add('disabled');
+            } else {
+                card.classList.remove('disabled');
+            }
+        }
+        
+        if (toggleSwitch) {
+            if (isDisabled) {
+                toggleSwitch.classList.add('disabled');
+            } else {
+                toggleSwitch.classList.remove('disabled');
+            }
         }
     }
 

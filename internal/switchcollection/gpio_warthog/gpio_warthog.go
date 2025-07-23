@@ -175,6 +175,11 @@ func (sc *WarthogGPIOSwitchCollection) GetDetailedState() ([]bool, error) {
 	return states, nil
 }
 
+// IsDisabled returns false since Warthog GPIO switch collections are never disabled
+func (sc *WarthogGPIOSwitchCollection) IsDisabled() bool {
+	return false
+}
+
 func (sc *WarthogGPIOSwitchCollection) String() string {
 	return fmt.Sprintf("warthog gpio switch collection with %d switches", len(sc.switches))
 }
@@ -209,6 +214,11 @@ func (s *WarthogGPIOSwitch) GetState() (bool, error) {
 	onLevel := s.getOnLevel()
 	isOn := pinLevel == onLevel
 	return isOn, nil
+}
+
+// IsDisabled returns false since Warthog GPIO switches are never disabled
+func (s *WarthogGPIOSwitch) IsDisabled() bool {
+	return false
 }
 
 func (s *WarthogGPIOSwitch) String() string {

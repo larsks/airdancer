@@ -21,6 +21,7 @@ const (
 	switchStateBlink    switchState = "blink"
 	switchStateToggle   switchState = "toggle"
 	switchStateFlipflop switchState = "flipflop"
+	switchStateDisabled switchState = "disabled"
 )
 
 type (
@@ -86,6 +87,11 @@ func (s *Server) switchHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSwitchHelper(w http.ResponseWriter, req *switchRequest, swid string, sw switchcollection.Switch) error {
+	// Check if switch is disabled and reject operations other than status queries
+	if sw.IsDisabled() {
+		return fmt.Errorf("switch %s is disabled due to network connectivity issues", swid)
+	}
+
 	// Cancel any existing timer for this switch
 	if timer, ok := s.timers[swid]; ok {
 		log.Printf("cancelling timer on %s", swid)
@@ -500,6 +506,17 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 
 func (s *Server) getStatusForSwitch(switchName string, sw switchcollection.Switch) (*switchResponse, error) {
 	swid := switchName
+
+	// Check if switch is disabled first
+	if sw.IsDisabled() {
+		return &switchResponse{
+			CurrentState: false,
+			switchRequest: switchRequest{
+				State: switchStateDisabled,
+			},
+		}, nil
+	}
+
 	currentState, err := sw.GetState()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get state for switch %s: %w", sw, err)
@@ -558,6 +575,11 @@ func (s *Server) getStatusForGroup(groupName string, group *SwitchGroup) (*group
 	// Calculate summary state (true if all switches in group are on)
 	allOn := true
 	for _, resolvedSwitch := range group.GetSwitches() {
+		// Skip disabled switches when calculating group summary
+		if resolvedSwitch.Switch.IsDisabled() {
+			allOn = false
+			break
+		}
 		currentState, err := resolvedSwitch.Switch.GetState()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get state for switch %s in group %s: %w", resolvedSwitch.Name, groupName, err)

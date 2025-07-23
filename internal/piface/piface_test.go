@@ -127,6 +127,7 @@ func (m *mockPiFace) ListSwitches() []switchcollection.Switch {
 func (m *mockPiFace) TurnOn() error           { m.outputs = 0xFF; return nil }
 func (m *mockPiFace) TurnOff() error          { m.outputs = 0x00; return nil }
 func (m *mockPiFace) GetState() (bool, error) { return m.outputs == 0xFF, nil }
+func (m *mockPiFace) IsDisabled() bool        { return false }
 func (m *mockPiFace) Init() error             { return nil }
 func (m *mockPiFace) Close() error            { return nil }
 func (m *mockPiFace) String() string          { return "mock-piface" }
@@ -155,6 +156,10 @@ func (m *mockPiFaceOutput) TurnOff() error {
 
 func (m *mockPiFaceOutput) GetState() (bool, error) {
 	return getBit(m.pf.outputs, m.pin), nil
+}
+
+func (m *mockPiFaceOutput) IsDisabled() bool {
+	return false
 }
 
 func (m *mockPiFaceOutput) String() string {

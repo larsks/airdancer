@@ -132,6 +132,11 @@ func (dsc *DummySwitchCollection) GetDetailedState() ([]bool, error) {
 	return states, nil
 }
 
+// IsDisabled returns false since dummy switch collections are never disabled
+func (dsc *DummySwitchCollection) IsDisabled() bool {
+	return false
+}
+
 // String returns a string representation
 func (dsc *DummySwitchCollection) String() string {
 	return fmt.Sprintf("dummy switch collection with %d switches", len(dsc.switches))
@@ -165,6 +170,11 @@ func (ds *DummySwitch) GetState() (bool, error) {
 	defer ds.mutex.RUnlock()
 
 	return ds.state, nil
+}
+
+// IsDisabled returns false since dummy switches are never disabled
+func (ds *DummySwitch) IsDisabled() bool {
+	return false
 }
 
 // String returns a string representation of the switch
