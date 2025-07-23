@@ -63,5 +63,5 @@ func (f *PiFaceFactory) parseConfig(config map[string]interface{}) (*PiFaceConfi
 }
 
 func init() {
-	Register("piface", &PiFaceFactory{})
+	MustRegister("piface", &PiFaceFactory{})
 }

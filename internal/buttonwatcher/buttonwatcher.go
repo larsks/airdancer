@@ -11,9 +11,6 @@ import (
 
 	"github.com/larsks/airdancer/internal/buttondriver"
 	"github.com/larsks/airdancer/internal/buttondriver/common"
-
-	// Import button driver factories to register them
-	_ "github.com/larsks/airdancer/internal/buttondriver"
 )
 
 // ButtonWrapper wraps a button driver with action handling functionality

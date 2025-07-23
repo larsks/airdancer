@@ -71,5 +71,5 @@ func (f *GPIOFactory) parseConfig(config map[string]interface{}) (*GPIOConfig, e
 }
 
 func init() {
-	Register("gpio", &GPIOFactory{})
+	MustRegister("gpio", &GPIOFactory{})
 }

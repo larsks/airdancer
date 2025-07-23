@@ -125,7 +125,7 @@ func (h *Handler) Execute(cmdArgs *cli.CommandArgs) error {
 }
 
 func (h *Handler) showHelp() {
-	fmt.Fprintf(h.stdout, `dancerctl - Command line tool for controlling airdancer switches
+	_, _ = fmt.Fprintf(h.stdout, `dancerctl - Command line tool for controlling airdancer switches
 
 Usage: dancerctl [flags] <command> [arguments]
 
@@ -172,7 +172,7 @@ func (h *Handler) cmdBlink(args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(h.stdout, "Blink started for switch: %s\n", switchName)
+	fmt.Fprintf(h.stdout, "Blink started for switch: %s\n", switchName) //nolint:errcheck
 	return nil
 }
 
@@ -198,7 +198,7 @@ func (h *Handler) cmdFlipflop(args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(h.stdout, "Flipflop started for switch/group: %s\n", switchName)
+	fmt.Fprintf(h.stdout, "Flipflop started for switch/group: %s\n", switchName) //nolint:errcheck
 	return nil
 }
 
@@ -218,7 +218,7 @@ func (h *Handler) cmdOn(args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(h.stdout, "Switch turned on: %s\n", switchName)
+	fmt.Fprintf(h.stdout, "Switch turned on: %s\n", switchName) //nolint:errcheck
 	return nil
 }
 
@@ -238,7 +238,7 @@ func (h *Handler) cmdOff(args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(h.stdout, "Switch turned off: %s\n", switchName)
+	fmt.Fprintf(h.stdout, "Switch turned off: %s\n", switchName) //nolint:errcheck
 	return nil
 }
 
@@ -254,7 +254,7 @@ func (h *Handler) cmdToggle(args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(h.stdout, "Switch toggled: %s\n", switchName)
+	fmt.Fprintf(h.stdout, "Switch toggled: %s\n", switchName) //nolint:errcheck
 	return nil
 }
 
@@ -295,18 +295,18 @@ func (h *Handler) cmdStatus(args []string) error {
 		if switchResp.CurrentState {
 			status = "on"
 		}
-		fmt.Fprintf(h.stdout, "Switch: %s\n", switchName)
-		fmt.Fprintf(h.stdout, "Status: %s\n", status)
-		fmt.Fprintf(h.stdout, "State: %s\n", switchResp.State)
+		fmt.Fprintf(h.stdout, "Switch: %s\n", switchName)      //nolint:errcheck
+		fmt.Fprintf(h.stdout, "Status: %s\n", status)          //nolint:errcheck
+		fmt.Fprintf(h.stdout, "State: %s\n", switchResp.State) //nolint:errcheck
 
 		if switchResp.Duration != nil {
-			fmt.Fprintf(h.stdout, "Duration: %d seconds\n", *switchResp.Duration)
+			fmt.Fprintf(h.stdout, "Duration: %d seconds\n", *switchResp.Duration) //nolint:errcheck
 		}
 		if switchResp.Period != nil {
-			fmt.Fprintf(h.stdout, "Period: %.2f seconds\n", *switchResp.Period)
+			fmt.Fprintf(h.stdout, "Period: %.2f seconds\n", *switchResp.Period) //nolint:errcheck
 		}
 		if switchResp.DutyCycle != nil {
-			fmt.Fprintf(h.stdout, "Duty Cycle: %.2f\n", *switchResp.DutyCycle)
+			fmt.Fprintf(h.stdout, "Duty Cycle: %.2f\n", *switchResp.DutyCycle) //nolint:errcheck
 		}
 	} else {
 		// Try to parse as MultiSwitchResponse (for groups or "all")
@@ -315,18 +315,18 @@ func (h *Handler) cmdStatus(args []string) error {
 			return fmt.Errorf("error parsing switch data: %w", err)
 		}
 
-		fmt.Fprintf(h.stdout, "Switch/Group: %s\n", switchName)
-		fmt.Fprintf(h.stdout, "Summary Status: %s\n", multiResp.State)
-		fmt.Fprintf(h.stdout, "Count: %d\n", multiResp.Count)
+		fmt.Fprintf(h.stdout, "Switch/Group: %s\n", switchName)        //nolint:errcheck
+		fmt.Fprintf(h.stdout, "Summary Status: %s\n", multiResp.State) //nolint:errcheck
+		fmt.Fprintf(h.stdout, "Count: %d\n", multiResp.Count)          //nolint:errcheck
 
 		if len(multiResp.Switches) > 0 {
-			fmt.Fprintf(h.stdout, "Switches:\n")
+			fmt.Fprintf(h.stdout, "Switches:\n") //nolint:errcheck
 			for name, sw := range multiResp.Switches {
 				status := "off"
 				if sw.CurrentState {
 					status = "on"
 				}
-				fmt.Fprintf(h.stdout, "  %s: %s (state: %s)\n", name, status, sw.State)
+				fmt.Fprintf(h.stdout, "  %s: %s (state: %s)\n", name, status, sw.State) //nolint:errcheck
 			}
 		}
 	}
@@ -359,23 +359,23 @@ func (h *Handler) cmdSwitches() error {
 		return fmt.Errorf("error parsing switch data: %w", err)
 	}
 
-	fmt.Fprintf(h.stdout, "Switches (%d total):\n", multiResp.Count)
+	fmt.Fprintf(h.stdout, "Switches (%d total):\n", multiResp.Count) //nolint:errcheck
 	for name, sw := range multiResp.Switches {
 		status := "off"
 		if sw.CurrentState {
 			status = "on"
 		}
-		fmt.Fprintf(h.stdout, "  %s: %s (state: %s)\n", name, status, sw.State)
+		fmt.Fprintf(h.stdout, "  %s: %s (state: %s)\n", name, status, sw.State) //nolint:errcheck
 	}
 
 	if len(multiResp.Groups) > 0 {
-		fmt.Fprintf(h.stdout, "\nGroups:\n")
+		fmt.Fprintf(h.stdout, "\nGroups:\n") //nolint:errcheck
 		for name, group := range multiResp.Groups {
 			status := "off"
 			if group.Summary {
 				status = "on"
 			}
-			fmt.Fprintf(h.stdout, "  %s: %s (state: %s, switches: %s)\n", name, status, group.State, strings.Join(group.Switches, ", "))
+			fmt.Fprintf(h.stdout, "  %s: %s (state: %s, switches: %s)\n", name, status, group.State, strings.Join(group.Switches, ", ")) //nolint:errcheck
 		}
 	}
 
@@ -428,7 +428,7 @@ func (h *Handler) makeAPIRequest(method, path string, body []byte) ([]byte, erro
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	// Read the response body
 	respBody, err := io.ReadAll(resp.Body)

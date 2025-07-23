@@ -199,11 +199,6 @@ func TestGPIOFactory_Integration(t *testing.T) {
 		t.Error("GPIO driver should not be nil")
 	}
 
-	// Test that it implements the common.ButtonDriver interface
-	_, ok := driver.(common.ButtonDriver)
-	if !ok {
-		t.Error("GPIO driver should implement common.ButtonDriver interface")
-	}
 }
 
 func TestEventFactory_Integration(t *testing.T) {
@@ -218,9 +213,4 @@ func TestEventFactory_Integration(t *testing.T) {
 		t.Error("Event driver should not be nil")
 	}
 
-	// Test that it implements the common.ButtonDriver interface
-	_, ok := driver.(common.ButtonDriver)
-	if !ok {
-		t.Error("Event driver should implement common.ButtonDriver interface")
-	}
 }

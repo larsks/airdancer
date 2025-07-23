@@ -38,7 +38,7 @@ func (ap *AudioPlayer) PlaySound(soundFilePath string) error {
 	defer ap.mutex.Unlock()
 
 	// Stop any currently playing sound
-	ap.stopCurrentSound()
+	ap.stopCurrentSound() //nolint:errcheck
 
 	// Build the command to play the audio file
 	args := ap.buildPlayCommand(soundFilePath)

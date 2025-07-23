@@ -48,13 +48,6 @@ func (f *EventDriverFactory) ValidateConfig(config map[string]interface{}) error
 	return nil
 }
 
-// parseConfig converts map to EventDriverConfig struct
-func (f *EventDriverFactory) parseConfig(config map[string]interface{}) (*EventDriverConfig, error) {
-	cfg := &EventDriverConfig{}
-	// Add parsing logic here when event driver gets configuration parameters
-	return cfg, nil
-}
-
 func init() {
-	Register("event", &EventDriverFactory{})
+	MustRegister("event", &EventDriverFactory{})
 }

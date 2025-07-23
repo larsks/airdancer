@@ -206,7 +206,7 @@ func (s *Server) handlePlaySound(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(response) //nolint:errcheck
 }
 
 // handleStopSound handles stopping currently playing sounds
@@ -225,7 +225,7 @@ func (s *Server) handleStopSound(w http.ResponseWriter, r *http.Request) {
 	response["message"] = "Sound stopped on server"
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(response) //nolint:errcheck
 }
 
 // handleAudioInfo provides comprehensive information about audio configuration, status, and volume
@@ -255,7 +255,7 @@ func (s *Server) handleAudioInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(response) //nolint:errcheck
 }
 
 // handleSetVolume sets the ALSA volume
@@ -281,7 +281,7 @@ func (s *Server) handleSetVolume(w http.ResponseWriter, r *http.Request) {
 			"volume":  req.Volume,
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		json.NewEncoder(w).Encode(response) //nolint:errcheck
 		return
 	}
 
@@ -292,7 +292,7 @@ func (s *Server) handleSetVolume(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(response) //nolint:errcheck
 }
 
 // handleRescanSounds manually triggers a rescan of the sound directory
@@ -311,7 +311,7 @@ func (s *Server) handleRescanSounds(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(response) //nolint:errcheck
 }
 
 // handleSoundsStatus returns information about the sound directory status
@@ -324,7 +324,7 @@ func (s *Server) handleSoundsStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(response) //nolint:errcheck
 }
 
 // handleIndex serves the main soundboard page

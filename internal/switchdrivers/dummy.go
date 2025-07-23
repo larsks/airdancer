@@ -51,5 +51,5 @@ func (f *DummyFactory) parseConfig(config map[string]interface{}) (*DummyConfig,
 }
 
 func init() {
-	Register("dummy", &DummyFactory{})
+	MustRegister("dummy", &DummyFactory{})
 }

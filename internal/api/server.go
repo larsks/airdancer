@@ -22,9 +22,6 @@ import (
 	"github.com/larsks/airdancer/internal/switchcollection"
 	"github.com/larsks/airdancer/internal/switchdrivers"
 	"github.com/spf13/pflag"
-
-	// Import specific switch driver factories to register them
-	_ "github.com/larsks/airdancer/internal/switchdrivers"
 )
 
 type timerData struct {
