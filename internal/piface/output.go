@@ -51,6 +51,11 @@ func (pfo *PiFaceOutput) GetState() (bool, error) {
 	return val != 0, nil
 }
 
+// IsDisabled returns false since PiFace outputs are never disabled
+func (pfo *PiFaceOutput) IsDisabled() bool {
+	return false
+}
+
 func (pfo *PiFaceOutput) String() string {
 	return fmt.Sprintf("%s:%d", pfo.pf, pfo.pin)
 }

@@ -160,6 +160,11 @@ func (sc *GPIOSwitchCollection) GetDetailedState() ([]bool, error) {
 	return states, nil
 }
 
+// IsDisabled returns false since GPIO switch collections are never disabled
+func (sc *GPIOSwitchCollection) IsDisabled() bool {
+	return false
+}
+
 func (sc *GPIOSwitchCollection) String() string {
 	return fmt.Sprintf("gpio switch collection with %d switches", len(sc.switches))
 }
@@ -186,6 +191,11 @@ func (s *GPIOSwitch) GetState() (bool, error) {
 	pinLevel := s.pin.Read()
 	onLevel := s.getOnLevel()
 	return pinLevel == onLevel, nil
+}
+
+// IsDisabled returns false since GPIO switches are never disabled
+func (s *GPIOSwitch) IsDisabled() bool {
+	return false
 }
 
 func (s *GPIOSwitch) String() string {

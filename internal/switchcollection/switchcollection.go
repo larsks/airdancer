@@ -5,6 +5,7 @@ type (
 		TurnOn() error
 		TurnOff() error
 		GetState() (bool, error)
+		IsDisabled() bool
 		String() string
 	}
 

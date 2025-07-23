@@ -154,6 +154,19 @@ body {
     box-shadow: 0 5px 15px rgba(0,0,0,0.1);
 }
 
+.card.disabled {
+    opacity: 0.6;
+    background: #f1f3f4;
+    border-color: #dee2e6;
+    cursor: not-allowed;
+}
+
+.card.disabled:hover {
+    border-color: #dee2e6;
+    transform: none;
+    box-shadow: none;
+}
+
 .card-header {
     display: flex;
     justify-content: space-between;
@@ -266,6 +279,11 @@ body {
 .state-indicator.info {
     background: #d1ecf1;
     color: #0c5460;
+}
+
+.state-indicator.disabled {
+    background: #e9ecef;
+    color: #6c757d;
 }
 
 /* Connection status */
@@ -468,6 +486,20 @@ input:focus + .slider {
 
 input:checked + .slider:before {
     transform: translateX(26px);
+}
+
+.toggle-switch.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.toggle-switch.disabled .slider {
+    cursor: not-allowed;
+    background-color: #dee2e6;
+}
+
+.toggle-switch.disabled input:checked + .slider {
+    background-color: #dee2e6;
 }
 
 @media (max-width: 767px) {
