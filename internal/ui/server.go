@@ -2,10 +2,8 @@ package ui
 
 import (
 	"context"
-	"embed"
 	"fmt"
 	"html/template"
-	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -19,9 +17,6 @@ import (
 	"github.com/larsks/airdancer/internal/static"
 	"github.com/spf13/pflag"
 )
-
-//go:embed static/*
-var staticFiles embed.FS
 
 // Config holds the configuration for the UI server.
 type Config struct {
@@ -90,17 +85,11 @@ func (ui *UIServer) setupRoutes() {
 	ui.router.Use(middleware.Logger)
 	ui.router.Use(middleware.Recoverer)
 
-	// Serve static files from embedded filesystem
-	staticFS, err := fs.Sub(staticFiles, "static")
-	if err != nil {
-		panic(fmt.Sprintf("failed to create static filesystem: %v", err))
-	}
-
 	// Serve the main page at root
 	ui.router.Get("/", ui.indexHandler)
 
-	// Serve static assets
-	ui.router.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	// Serve static assets from the shared static package
+	ui.router.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(static.GetAssets()))))
 }
 
 func (ui *UIServer) indexHandler(w http.ResponseWriter, r *http.Request) {
