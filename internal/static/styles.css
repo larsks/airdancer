@@ -286,8 +286,6 @@ body {
 
 /* Loading states */
 .loading {
-    text-align: center;
-    padding: 40px;
     color: #666;
 }
 
