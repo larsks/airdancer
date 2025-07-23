@@ -6,8 +6,6 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
-
-	"github.com/larsks/airdancer/internal/switchcollection"
 )
 
 func TestTasmotaFactory_ParseConfig(t *testing.T) {
@@ -180,11 +178,6 @@ func TestTasmotaFactory_CreateDriver(t *testing.T) {
 			if !tt.wantErr {
 				if driver == nil {
 					t.Error("CreateDriver() returned nil driver")
-				}
-				// Verify it implements the interface
-				_, ok := driver.(switchcollection.SwitchCollection)
-				if !ok {
-					t.Error("CreateDriver() result does not implement SwitchCollection interface")
 				}
 			}
 		})
@@ -479,12 +472,6 @@ func TestTasmotaDriver_Integration(t *testing.T) {
 
 	if driver == nil {
 		t.Error("Tasmota switch driver should not be nil")
-	}
-
-	// Test that it implements the SwitchCollection interface
-	_, ok := driver.(switchcollection.SwitchCollection)
-	if !ok {
-		t.Error("Tasmota switch driver should implement SwitchCollection interface")
 	}
 
 	// Test basic functionality

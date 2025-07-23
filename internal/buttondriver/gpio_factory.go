@@ -95,5 +95,5 @@ func (f *GPIODriverFactory) parseConfig(config map[string]interface{}) (*GPIODri
 }
 
 func init() {
-	Register("gpio", &GPIODriverFactory{})
+	MustRegister("gpio", &GPIODriverFactory{})
 }

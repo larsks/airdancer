@@ -107,11 +107,12 @@ func (bd *ButtonDriver) AddButton(buttonSpec interface{}) error {
 	// Configure pin as input with pull resistor
 	var lineOpts []gpiocdev.LineReqOption
 	lineOpts = append(lineOpts, gpiocdev.AsInput)
-	if pullMode == gpio.PullUp {
+	switch pullMode {
+	case gpio.PullUp:
 		lineOpts = append(lineOpts, gpiocdev.WithPullUp)
-	} else if pullMode == gpio.PullDown {
+	case gpio.PullDown:
 		lineOpts = append(lineOpts, gpiocdev.WithPullDown)
-	} else if pullMode == gpio.PullAuto {
+	case gpio.PullAuto:
 		if spec.ActiveHigh {
 			lineOpts = append(lineOpts, gpiocdev.WithPullDown)
 		} else {

@@ -85,6 +85,13 @@ func Register(name string, factory Factory) error {
 	return defaultRegistry.Register(name, factory)
 }
 
+// MustRegister adds a driver factory to the default registry and panics on error
+func MustRegister(name string, factory Factory) {
+	if err := Register(name, factory); err != nil {
+		panic(fmt.Sprintf("failed to register switch driver %s: %v", name, err))
+	}
+}
+
 // Create creates a switch collection using the default registry
 func Create(driverName string, config map[string]interface{}) (switchcollection.SwitchCollection, error) {
 	return defaultRegistry.Create(driverName, config)

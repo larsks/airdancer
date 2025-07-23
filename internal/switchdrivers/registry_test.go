@@ -2,8 +2,6 @@ package switchdrivers
 
 import (
 	"testing"
-
-	"github.com/larsks/airdancer/internal/switchcollection"
 )
 
 func TestDefaultRegistry_SwitchDrivers(t *testing.T) {
@@ -37,12 +35,6 @@ func TestSwitchDriverFactory_Integration(t *testing.T) {
 
 	if driver == nil {
 		t.Error("Dummy switch driver should not be nil")
-	}
-
-	// Test that it implements the switchcollection.SwitchCollection interface
-	_, ok := driver.(switchcollection.SwitchCollection)
-	if !ok {
-		t.Error("Dummy switch driver should implement switchcollection.SwitchCollection interface")
 	}
 
 	// Test driver functionality

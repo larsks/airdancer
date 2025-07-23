@@ -29,7 +29,7 @@ func (f *TasmotaFactory) CreateDriver(config map[string]interface{}) (switchcoll
 	}
 
 	if len(cfg.Addresses) == 0 {
-		return nil, fmt.Errorf("Tasmota driver requires at least one address")
+		return nil, fmt.Errorf("tasmota driver requires at least one address")
 	}
 
 	if cfg.Timeout == 0 {
@@ -47,7 +47,7 @@ func (f *TasmotaFactory) ValidateConfig(config map[string]interface{}) error {
 	}
 
 	if len(cfg.Addresses) == 0 {
-		return fmt.Errorf("Tasmota driver requires at least one address")
+		return fmt.Errorf("tasmota driver requires at least one address")
 	}
 
 	// Validate that addresses are valid URLs
@@ -149,7 +149,7 @@ func (s *TasmotaSwitch) sendCommand(command string) (*TasmotaResponse, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to send HTTP request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("HTTP request failed with status %d", resp.StatusCode)
@@ -266,5 +266,5 @@ func (c *TasmotaSwitchCollection) Close() error {
 }
 
 func init() {
-	Register("tasmota", &TasmotaFactory{})
+	MustRegister("tasmota", &TasmotaFactory{})
 }

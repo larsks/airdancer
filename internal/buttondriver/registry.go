@@ -104,6 +104,13 @@ func Register(name string, factory Factory) error {
 	return defaultRegistry.Register(name, factory)
 }
 
+// MustRegister adds a driver factory to the default registry and panics on error
+func MustRegister(name string, factory Factory) {
+	if err := Register(name, factory); err != nil {
+		panic(fmt.Sprintf("failed to register button driver %s: %v", name, err))
+	}
+}
+
 // CreateDriver creates a button driver using the default registry
 func CreateDriver(driverType string, config map[string]interface{}) (common.ButtonDriver, error) {
 	return defaultRegistry.CreateDriver(driverType, config)

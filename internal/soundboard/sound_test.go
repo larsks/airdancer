@@ -96,7 +96,7 @@ func TestGetSoundsPage(t *testing.T) {
 	}
 
 	// Test last page
-	sounds, totalPages, err = sm.GetSoundsPage(3, 10)
+	sounds, _, err = sm.GetSoundsPage(3, 10)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -106,13 +106,13 @@ func TestGetSoundsPage(t *testing.T) {
 	}
 
 	// Test out of bounds page
-	sounds, totalPages, err = sm.GetSoundsPage(5, 10)
+	_, _, err = sm.GetSoundsPage(5, 10)
 	if err == nil {
 		t.Error("expected error for out of bounds page")
 	}
 
 	// Test invalid page number
-	sounds, totalPages, err = sm.GetSoundsPage(0, 10)
+	sounds, _, err = sm.GetSoundsPage(0, 10)
 	if err != nil {
 		t.Fatalf("unexpected error for page 0: %v", err)
 	}
