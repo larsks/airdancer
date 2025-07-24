@@ -86,7 +86,7 @@ func (s *Server) switchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) handleSwitchHelper(w http.ResponseWriter, req *switchRequest, swid string, sw switchcollection.Switch) error {
+func (s *Server) handleSwitchHelper(_ http.ResponseWriter, req *switchRequest, swid string, sw switchcollection.Switch) error {
 	// Check if switch is disabled and reject operations other than status queries
 	if sw.IsDisabled() {
 		return fmt.Errorf("switch %s is disabled due to network connectivity issues", swid)
@@ -94,7 +94,7 @@ func (s *Server) handleSwitchHelper(w http.ResponseWriter, req *switchRequest, s
 
 	// Cancel any existing timer for this switch
 	if timer, ok := s.timers[swid]; ok {
-		log.Printf("cancelling timer on %s", swid)
+		log.Printf("canceling timer on %s", swid)
 		timer.timer.Stop()
 		delete(s.timers, swid)
 	}
@@ -102,7 +102,7 @@ func (s *Server) handleSwitchHelper(w http.ResponseWriter, req *switchRequest, s
 	// Stop any running blinker for this switch
 	if blinker, ok := s.blinkers[swid]; ok {
 		if blinker.IsRunning() {
-			log.Printf("cancelling blinker on %s", swid)
+			log.Printf("canceling blinker on %s", swid)
 			if err := blinker.Stop(); err != nil {
 				return fmt.Errorf("failed to cancel blinker on %s: %w", swid, err)
 			}
@@ -113,7 +113,7 @@ func (s *Server) handleSwitchHelper(w http.ResponseWriter, req *switchRequest, s
 	// Stop any running flipflop for this switch
 	if flipflopInstance, ok := s.flipflops[swid]; ok {
 		if flipflopInstance.IsRunning() {
-			log.Printf("cancelling flipflop on %s", swid)
+			log.Printf("canceling flipflop on %s", swid)
 			if err := flipflopInstance.Stop(); err != nil {
 				return fmt.Errorf("failed to cancel flipflop on %s: %w", swid, err)
 			}
@@ -179,7 +179,7 @@ func (s *Server) handleSwitchHelper(w http.ResponseWriter, req *switchRequest, s
 			duration: duration,
 			timer: time.AfterFunc(duration, func() {
 				s.mutex.Lock()
-				defer s.mutex.Unlock() //nolint:errcheck
+				defer s.mutex.Unlock()
 				delete(s.timers, swid)
 
 				// Stop any running blinker for this switch
@@ -205,18 +205,18 @@ func (s *Server) handleAllSwitches(w http.ResponseWriter, r *http.Request) {
 	req, _ := r.Context().Value(switchRequestKey).(switchRequest)
 
 	s.mutex.Lock()
-	defer s.mutex.Unlock() //nolint:errcheck
+	defer s.mutex.Unlock()
 
 	// Cancel any existing timers for all switches
 	for swid, timer := range s.timers {
-		log.Printf("cancelling timer on %s", swid)
+		log.Printf("canceling timer on %s", swid)
 		timer.timer.Stop()
 		delete(s.timers, swid)
 	}
 
 	// Cancel any existing blinker for all switches
 	for swid, blinker := range s.blinkers {
-		log.Printf("cancelling blinker on %s", swid)
+		log.Printf("canceling blinker on %s", swid)
 		if err := blinker.Stop(); err != nil {
 			log.Printf("failed to stop blinker on %s: %v", swid, err)
 		}
@@ -225,7 +225,7 @@ func (s *Server) handleAllSwitches(w http.ResponseWriter, r *http.Request) {
 
 	// Cancel any existing flipflop for all switches
 	for swid, flipflopInstance := range s.flipflops {
-		log.Printf("cancelling flipflop on %s", swid)
+		log.Printf("canceling flipflop on %s", swid)
 		if err := flipflopInstance.Stop(); err != nil {
 			log.Printf("failed to stop flipflop on %s: %v", swid, err)
 		}
@@ -252,12 +252,12 @@ func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, swit
 	req, _ := r.Context().Value(switchRequestKey).(switchRequest)
 
 	s.mutex.Lock()
-	defer s.mutex.Unlock() //nolint:errcheck
+	defer s.mutex.Unlock()
 
 	// Cancel any "all switches" operations that might be running
 	if blinker, ok := s.blinkers["all"]; ok {
 		if blinker.IsRunning() {
-			log.Printf("cancelling blinker on all switches")
+			log.Printf("canceling blinker on all switches")
 			if err := blinker.Stop(); err != nil {
 				s.sendError(w, fmt.Sprintf("Failed to cancel blinker on all: %v", err), http.StatusInternalServerError)
 				return
@@ -267,9 +267,9 @@ func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, swit
 	}
 
 	if timer, ok := s.timers["all"]; ok {
-		log.Printf("cancelling timer on all switches")
+		log.Printf("canceling timer on all switches")
 		timer.timer.Stop()
-		// Turn off all defined switches when cancelling "all" timer
+		// Turn off all defined switches when canceling "all" timer
 		for _, resolvedSwitch := range s.switches {
 			if err := resolvedSwitch.Switch.TurnOff(); err != nil {
 				log.Printf("Failed to turn off switch %s during all timer cancellation: %v", resolvedSwitch.Name, err)
@@ -295,13 +295,13 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 	req, _ := r.Context().Value(switchRequestKey).(switchRequest)
 
 	s.mutex.Lock()
-	defer s.mutex.Unlock() //nolint:errcheck
+	defer s.mutex.Unlock()
 
 	// Handle flipflop specially since it operates on the group as a whole
 	if req.State == switchStateFlipflop {
 		// Cancel any existing timer for this group
 		if timer, ok := s.timers[groupName]; ok {
-			log.Printf("cancelling timer on group %s", groupName)
+			log.Printf("canceling timer on group %s", groupName)
 			timer.timer.Stop()
 			delete(s.timers, groupName)
 		}
@@ -309,7 +309,7 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 		// Stop any running blinker for this group
 		if blinker, ok := s.blinkers[groupName]; ok {
 			if blinker.IsRunning() {
-				log.Printf("cancelling blinker on group %s", groupName)
+				log.Printf("canceling blinker on group %s", groupName)
 				if err := blinker.Stop(); err != nil {
 					s.sendError(w, fmt.Sprintf("failed to cancel blinker on group %s: %v", groupName, err), http.StatusInternalServerError)
 					return
@@ -321,7 +321,7 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 		// Stop any running flipflop for this group
 		if flipflopInstance, ok := s.flipflops[groupName]; ok {
 			if flipflopInstance.IsRunning() {
-				log.Printf("cancelling flipflop on group %s", groupName)
+				log.Printf("canceling flipflop on group %s", groupName)
 				if err := flipflopInstance.Stop(); err != nil {
 					s.sendError(w, fmt.Sprintf("failed to cancel flipflop on group %s: %v", groupName, err), http.StatusInternalServerError)
 					return
@@ -362,7 +362,7 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 				duration: duration,
 				timer: time.AfterFunc(duration, func() {
 					s.mutex.Lock()
-					defer s.mutex.Unlock() //nolint:errcheck
+					defer s.mutex.Unlock()
 					delete(s.timers, groupName)
 
 					if flipflopInstance, ok := s.flipflops[groupName]; ok {
@@ -384,7 +384,7 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 	if req.State == switchStateBlink {
 		// Cancel any existing timer for this group
 		if timer, ok := s.timers[groupName]; ok {
-			log.Printf("cancelling timer on group %s", groupName)
+			log.Printf("canceling timer on group %s", groupName)
 			timer.timer.Stop()
 			delete(s.timers, groupName)
 		}
@@ -392,7 +392,7 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 		// Stop any running blinker for this group
 		if blinker, ok := s.blinkers[groupName]; ok {
 			if blinker.IsRunning() {
-				log.Printf("cancelling blinker on group %s", groupName)
+				log.Printf("canceling blinker on group %s", groupName)
 				if err := blinker.Stop(); err != nil {
 					s.sendError(w, fmt.Sprintf("failed to cancel blinker on group %s: %v", groupName, err), http.StatusInternalServerError)
 					return
@@ -404,7 +404,7 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 		// Stop any running flipflop for this group
 		if flipflopInstance, ok := s.flipflops[groupName]; ok {
 			if flipflopInstance.IsRunning() {
-				log.Printf("cancelling flipflop on group %s", groupName)
+				log.Printf("canceling flipflop on group %s", groupName)
 				if err := flipflopInstance.Stop(); err != nil {
 					s.sendError(w, fmt.Sprintf("failed to cancel flipflop on group %s: %v", groupName, err), http.StatusInternalServerError)
 					return
@@ -439,7 +439,7 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 				duration: duration,
 				timer: time.AfterFunc(duration, func() {
 					s.mutex.Lock()
-					defer s.mutex.Unlock() //nolint:errcheck
+					defer s.mutex.Unlock()
 					delete(s.timers, groupName)
 
 					if blinker, ok := s.blinkers[groupName]; ok {
@@ -460,7 +460,7 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 	// For all other states, first cancel any group-level activities
 	// Cancel any existing timer for this group
 	if timer, ok := s.timers[groupName]; ok {
-		log.Printf("cancelling timer on group %s", groupName)
+		log.Printf("canceling timer on group %s", groupName)
 		timer.timer.Stop()
 		delete(s.timers, groupName)
 	}
@@ -468,7 +468,7 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 	// Stop any running blinker for this group
 	if blinker, ok := s.blinkers[groupName]; ok {
 		if blinker.IsRunning() {
-			log.Printf("cancelling blinker on group %s", groupName)
+			log.Printf("canceling blinker on group %s", groupName)
 			if err := blinker.Stop(); err != nil {
 				s.sendError(w, fmt.Sprintf("failed to cancel blinker on group %s: %v", groupName, err), http.StatusInternalServerError)
 				return
@@ -480,7 +480,7 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 	// Stop any running flipflop for this group
 	if flipflopInstance, ok := s.flipflops[groupName]; ok {
 		if flipflopInstance.IsRunning() {
-			log.Printf("cancelling flipflop on group %s", groupName)
+			log.Printf("canceling flipflop on group %s", groupName)
 			if err := flipflopInstance.Stop(); err != nil {
 				s.sendError(w, fmt.Sprintf("failed to cancel flipflop on group %s: %v", groupName, err), http.StatusInternalServerError)
 				return
@@ -554,7 +554,7 @@ func (s *Server) switchStatusHandler(w http.ResponseWriter, r *http.Request) {
 	switchName := chi.URLParam(r, "name")
 
 	s.mutex.Lock()
-	defer s.mutex.Unlock() //nolint:errcheck
+	defer s.mutex.Unlock()
 
 	if switchName == "all" {
 		s.handleAllSwitchesStatus(w)

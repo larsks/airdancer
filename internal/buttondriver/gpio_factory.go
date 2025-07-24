@@ -20,10 +20,7 @@ type GPIODriverFactory struct{}
 
 // CreateDriver creates a new GPIO button driver
 func (f *GPIODriverFactory) CreateDriver(config map[string]interface{}) (common.ButtonDriver, error) {
-	cfg, err := f.parseConfig(config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse GPIO driver config: %w", err)
-	}
+	cfg := f.parseConfig(config)
 
 	// Convert pull mode string to enum
 	var pullModeEnum gpiotypes.PullMode
@@ -53,10 +50,7 @@ func (f *GPIODriverFactory) ParseButtonSpec(spec string) (interface{}, error) {
 
 // ValidateConfig validates GPIO driver configuration
 func (f *GPIODriverFactory) ValidateConfig(config map[string]interface{}) error {
-	cfg, err := f.parseConfig(config)
-	if err != nil {
-		return err
-	}
+	cfg := f.parseConfig(config)
 
 	// Validate pull mode
 	switch cfg.PullMode {
@@ -75,7 +69,7 @@ func (f *GPIODriverFactory) ValidateConfig(config map[string]interface{}) error 
 }
 
 // parseConfig converts map to GPIODriverConfig struct
-func (f *GPIODriverFactory) parseConfig(config map[string]interface{}) (*GPIODriverConfig, error) {
+func (f *GPIODriverFactory) parseConfig(config map[string]interface{}) *GPIODriverConfig {
 	cfg := &GPIODriverConfig{
 		PullMode:   "auto", // default
 		DebounceMs: 50,     // default 50ms
@@ -91,7 +85,7 @@ func (f *GPIODriverFactory) parseConfig(config map[string]interface{}) (*GPIODri
 		cfg.DebounceMs = int(debounceMs)
 	}
 
-	return cfg, nil
+	return cfg
 }
 
 func init() {

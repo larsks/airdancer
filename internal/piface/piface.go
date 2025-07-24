@@ -95,7 +95,7 @@ func (pf *PiFace) CountSwitches() uint {
 func (pf *PiFace) ListSwitches() []switchcollection.Switch {
 	var switches []switchcollection.Switch
 	for i := range pf.maxSwitches {
-		if sw, err := pf.GetSwitch(uint(i)); err == nil {
+		if sw, err := pf.GetSwitch(i); err == nil {
 			switches = append(switches, sw)
 		}
 	}

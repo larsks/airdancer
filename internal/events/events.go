@@ -225,7 +225,6 @@ func GetEventTypeName(eventTypeName string) (EventType, bool) {
 	default:
 		return 0, false
 	}
-
 }
 
 func GetKeyName(code uint16) string {

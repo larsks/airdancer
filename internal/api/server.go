@@ -312,7 +312,7 @@ func (s *Server) Start() error {
 	log.Println("shutting down server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel() //nolint:errcheck
+	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
 		return fmt.Errorf("server shutdown failed: %w", err)

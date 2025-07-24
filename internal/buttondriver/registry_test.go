@@ -198,7 +198,6 @@ func TestGPIOFactory_Integration(t *testing.T) {
 	if driver == nil {
 		t.Error("GPIO driver should not be nil")
 	}
-
 }
 
 func TestEventFactory_Integration(t *testing.T) {
@@ -212,5 +211,4 @@ func TestEventFactory_Integration(t *testing.T) {
 	if driver == nil {
 		t.Error("Event driver should not be nil")
 	}
-
 }

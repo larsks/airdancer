@@ -167,7 +167,7 @@ func (ui *UIServer) Start() error {
 	log.Println("Shutting down UI server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel() //nolint:errcheck
+	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
 		return fmt.Errorf("%w: %v", ErrServerShutdownFailed, err)
