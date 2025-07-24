@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/adrg/xdg"
 	"github.com/larsks/airdancer/internal/config"
 	"github.com/spf13/pflag"
 )
@@ -27,11 +28,7 @@ func getDefaultServerURL() string {
 }
 
 func getDefaultConfigFile() string {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(homeDir, ".config", "dancer", "dancer.toml")
+	return filepath.Join(xdg.ConfigHome, "dancer", "dancer.toml")
 }
 
 // NewConfig creates a new Config with default values

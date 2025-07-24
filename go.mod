@@ -3,6 +3,7 @@ module github.com/larsks/airdancer
 go 1.23.4
 
 require (
+	github.com/adrg/xdg v0.5.3
 	github.com/emersion/go-imap v1.2.1
 	github.com/emersion/go-message v0.18.2
 	github.com/go-chi/chi/v5 v5.2.2
