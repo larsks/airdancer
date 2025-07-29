@@ -27,14 +27,14 @@ func (h *Handler) Start(config cli.Configurable) error {
 
 	for {
 		// Get interface addresses
-		wlan0addr, err := getInterfaceAddress("wlan0")
+		apiAddr, err := getInterfaceAddress("wlapi")
 		if err != nil {
-			wlan0addr = "???"
+			apiAddr = "???"
 		}
 
-		wlan1addr, err := getInterfaceAddress("wlan1")
+		switchAddr, err := getInterfaceAddress("wlswitch")
 		if err != nil {
-			wlan1addr = "???"
+			switchAddr = "???"
 		}
 
 		// Get API service status
@@ -47,8 +47,8 @@ func (h *Handler) Start(config cli.Configurable) error {
 		//	fmt.Printf("WL0: %s\nWL1: %s\nAPI: %s\nSWI: %s\n", wlan0addr, wlan1addr, apiStatus, switchString)
 		cmd := exec.Command("display1306",
 			"*** AIRDANCER ***",
-			fmt.Sprintf("WL0: %s", wlan0addr),
-			fmt.Sprintf("WL1: %s", wlan1addr),
+			fmt.Sprintf("WLA: %s", apiAddr),
+			fmt.Sprintf("WLS: %s", switchAddr),
 			fmt.Sprintf("API: %s", apiStatus),
 			fmt.Sprintf("SWI: %s", switchString),
 		)

@@ -1,0 +1,2 @@
+ACTION=="add", SUBSYSTEM=="net", ATTRS{vendor}=="0x02d0", ATTRS{device}=="0xa9a6", NAME="wlswitch"
+ACTION=="add", SUBSYSTEM=="net", ATTRS{idVendor}=="0bda", ATTRS{idProduct}=="c811", NAME="wlapi"
