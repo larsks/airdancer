@@ -235,6 +235,10 @@ func (s *Server) handleAllSwitches(w http.ResponseWriter, r *http.Request) {
 	// Apply operation to all defined switches
 	var errors []error
 	for switchName, resolvedSwitch := range s.switches {
+		// Skip disabled switches
+		if resolvedSwitch.Switch.IsDisabled() {
+			continue
+		}
 		if err := s.handleSwitchHelper(w, &req, switchName, resolvedSwitch.Switch); err != nil {
 			errors = append(errors, fmt.Errorf("switch %s: %w", switchName, err))
 		}
@@ -492,6 +496,10 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 	// Now apply operation to all switches in the group
 	var errors []error
 	for switchName, resolvedSwitch := range group.GetSwitches() {
+		// Skip disabled switches
+		if resolvedSwitch.Switch.IsDisabled() {
+			continue
+		}
 		if err := s.handleSwitchHelper(w, &req, switchName, resolvedSwitch.Switch); err != nil {
 			errors = append(errors, fmt.Errorf("switch %s: %w", switchName, err))
 		}
