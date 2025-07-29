@@ -132,6 +132,7 @@ func (s *TasmotaSwitch) TurnOn() error {
 
 	_, err := s.sendCommand("Power+ON")
 	if err != nil {
+		log.Printf("switch %s failed to turn on: %v", s.address, err)
 		s.markDisabled()
 		return err
 	}
@@ -150,6 +151,7 @@ func (s *TasmotaSwitch) TurnOff() error {
 
 	_, err := s.sendCommand("Power+OFF")
 	if err != nil {
+		log.Printf("switch %s failed to turn off: %v", s.address, err)
 		s.markDisabled()
 		return err
 	}
@@ -159,10 +161,18 @@ func (s *TasmotaSwitch) TurnOff() error {
 
 // GetState returns the current state of the switch
 func (s *TasmotaSwitch) GetState() (bool, error) {
+	s.mutex.RLock()
+	if s.disabled {
+		s.mutex.RUnlock()
+		return false, nil
+	}
+	s.mutex.RUnlock()
+
 	resp, err := s.sendCommand("Power")
 	if err != nil {
+		log.Printf("switch %s failed to get state: %v", s.address, err)
 		s.markDisabled()
-		return false, err
+		return false, nil
 	}
 	s.markEnabled()
 	return resp.Power == "ON", nil

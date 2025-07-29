@@ -265,9 +265,15 @@ func TestTasmotaSwitch_HTTPErrors(t *testing.T) {
 	})
 
 	t.Run("GetState error", func(t *testing.T) {
-		_, err := sw.GetState()
-		if err == nil {
-			t.Error("GetState() expected error, got nil")
+		state, err := sw.GetState()
+		if err != nil {
+			t.Errorf("GetState() expected no error, got %v", err)
+		}
+		if state != false {
+			t.Error("GetState() expected false state for disabled switch, got true")
+		}
+		if !sw.IsDisabled() {
+			t.Error("Switch should be marked as disabled after failed GetState()")
 		}
 	})
 }
@@ -282,9 +288,15 @@ func TestTasmotaSwitch_InvalidJSON(t *testing.T) {
 
 	sw := NewTasmotaSwitch(server.URL, 5*time.Second)
 
-	_, err := sw.GetState()
-	if err == nil {
-		t.Error("GetState() expected JSON parsing error, got nil")
+	state, err := sw.GetState()
+	if err != nil {
+		t.Errorf("GetState() expected no error, got %v", err)
+	}
+	if state != false {
+		t.Error("GetState() expected false state for disabled switch, got true")
+	}
+	if !sw.IsDisabled() {
+		t.Error("Switch should be marked as disabled after JSON parsing error")
 	}
 }
 
