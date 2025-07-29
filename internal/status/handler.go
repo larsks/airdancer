@@ -1,0 +1,230 @@
+package status
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"os/exec"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/larsks/airdancer/internal/cli"
+)
+
+// Handler implements the CLI handler for airdancer-status
+type Handler struct{}
+
+// NewHandler creates a new Handler instance
+func NewHandler() *Handler {
+	return &Handler{}
+}
+
+// Start implements the CommandHandler interface
+func (h *Handler) Start(config cli.Configurable) error {
+	cfg := config.(*Config)
+
+	for {
+		// Get interface addresses
+		wlan0addr, err := getInterfaceAddress("wlan0")
+		if err != nil {
+			wlan0addr = "???"
+		}
+
+		wlan1addr, err := getInterfaceAddress("wlan1")
+		if err != nil {
+			wlan1addr = "???"
+		}
+
+		// Get API service status
+		apiStatus := getServiceStatus("airdancer-api")
+
+		// Get switch status
+		switchStatus := getSwitchStatus(cfg.ServerURL)
+		switchString := switchStatusToString(switchStatus)
+
+		//	fmt.Printf("WL0: %s\nWL1: %s\nAPI: %s\nSWI: %s\n", wlan0addr, wlan1addr, apiStatus, switchString)
+		cmd := exec.Command("display1306",
+			"*** AIRDANCER ***",
+			fmt.Sprintf("WL0: %s", wlan0addr),
+			fmt.Sprintf("WL1: %s", wlan1addr),
+			fmt.Sprintf("API: %s", apiStatus),
+			fmt.Sprintf("SWI: %s", switchString),
+		)
+		if err := cmd.Run(); err != nil {
+			log.Printf("failed to run command: %v", err)
+		}
+
+		time.Sleep(cfg.UpdateInterval)
+	}
+
+	return nil
+}
+
+// APIResponse represents the standard API response format
+type APIResponse struct {
+	Status  string      `json:"status"`
+	Message string      `json:"message,omitempty"`
+	Data    interface{} `json:"data,omitempty"`
+}
+
+// MultiSwitchResponse represents the response from /switch/all
+type MultiSwitchResponse struct {
+	Summary  bool                       `json:"summary"`
+	State    string                     `json:"state"`
+	Count    uint                       `json:"count"`
+	Switches map[string]*SwitchResponse `json:"switches"`
+	Groups   map[string]*GroupResponse  `json:"groups,omitempty"`
+}
+
+// SwitchResponse represents individual switch data
+type SwitchResponse struct {
+	State        string   `json:"state"`
+	CurrentState bool     `json:"currentState"`
+	Duration     *int     `json:"duration,omitempty"`
+	Period       *float64 `json:"period,omitempty"`
+	DutyCycle    *float64 `json:"dutyCycle,omitempty"`
+}
+
+// GroupResponse represents switch group data
+type GroupResponse struct {
+	Switches []string `json:"switches"`
+	Summary  bool     `json:"summary"`
+	State    string   `json:"state"`
+}
+
+// SwitchState represents the state of a switch
+type SwitchState struct {
+	CurrentState bool
+	Disabled     bool
+}
+
+// getSwitchStatus contacts the API server and returns switch states
+func getSwitchStatus(serverURL string) []SwitchState {
+	url := fmt.Sprintf("%s/switch/all", serverURL)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		log.Printf("failed to contact API server: %v", err)
+		return []SwitchState{}
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("API server returned status %d", resp.StatusCode)
+		return []SwitchState{}
+	}
+
+	var apiResponse APIResponse
+	if err := json.NewDecoder(resp.Body).Decode(&apiResponse); err != nil {
+		log.Printf("failed to decode API response: %v", err)
+		return []SwitchState{}
+	}
+
+	if apiResponse.Status != "ok" {
+		log.Printf("API returned error status: %s", apiResponse.Message)
+		return []SwitchState{}
+	}
+
+	// Convert data to MultiSwitchResponse
+	dataBytes, err := json.Marshal(apiResponse.Data)
+	if err != nil {
+		log.Printf("failed to marshal API data: %v", err)
+		return []SwitchState{}
+	}
+
+	var switchData MultiSwitchResponse
+	if err := json.Unmarshal(dataBytes, &switchData); err != nil {
+		log.Printf("failed to unmarshal switch data: %v", err)
+		return []SwitchState{}
+	}
+
+	// Extract switch names and sort them for consistent ordering
+	var switchNames []string
+	for name := range switchData.Switches {
+		switchNames = append(switchNames, name)
+	}
+	sort.Strings(switchNames)
+
+	// Extract switch states in sorted order
+	var states []SwitchState
+	for _, name := range switchNames {
+		switchResp := switchData.Switches[name]
+		states = append(states, SwitchState{
+			CurrentState: switchResp.CurrentState,
+			Disabled:     switchResp.State == "disabled",
+		})
+	}
+
+	return states
+}
+
+// switchStatusToString converts switch states to _/X/? format
+func switchStatusToString(states []SwitchState) string {
+	var result strings.Builder
+	for _, state := range states {
+		if state.Disabled {
+			result.WriteString("?")
+		} else if state.CurrentState {
+			result.WriteString("X")
+		} else {
+			result.WriteString("_")
+		}
+	}
+	return result.String()
+}
+
+// IPAddr represents the JSON structure from 'ip -j addr show'
+type IPAddr struct {
+	IfIndex  int        `json:"ifindex"`
+	IfName   string     `json:"ifname"`
+	Flags    []string   `json:"flags"`
+	AddrInfo []AddrInfo `json:"addr_info"`
+}
+
+// AddrInfo represents address information from 'ip -j addr show'
+type AddrInfo struct {
+	Family    string `json:"family"`
+	Local     string `json:"local"`
+	Prefixlen int    `json:"prefixlen"`
+	Scope     string `json:"scope"`
+}
+
+// getInterfaceAddress uses 'ip -j addr show' to get interface address
+func getInterfaceAddress(interfaceName string) (string, error) {
+	cmd := exec.Command("ip", "-j", "addr", "show", interfaceName)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to execute ip command: %w", err)
+	}
+
+	var interfaces []IPAddr
+	err = json.Unmarshal(output, &interfaces)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse JSON output: %w", err)
+	}
+
+	if len(interfaces) != 1 {
+		return "", fmt.Errorf("interface %s not found", interfaceName)
+	}
+
+	// Find the first IPv4 address that's not loopback
+	for _, addr := range interfaces[0].AddrInfo {
+		if addr.Family == "inet" && addr.Scope != "host" {
+			return addr.Local, nil
+		}
+	}
+
+	return "", fmt.Errorf("no IPv4 address found for interface %s", interfaceName)
+}
+
+// getServiceStatus runs 'systemctl is-active' and returns the result
+func getServiceStatus(serviceName string) string {
+	cmd := exec.Command("systemctl", "is-active", serviceName)
+	output, err := cmd.Output()
+	if err != nil {
+		return "inactive"
+	}
+	return strings.TrimSpace(string(output))
+}
