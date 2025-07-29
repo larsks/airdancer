@@ -4,6 +4,7 @@ unitdir=$(sysconfdir)/systemd/system
 cfgdir=$(sysconfdir)/airdancer
 libexecdir=$(prefix)/libexec
 nm_dispatch_dir=$(sysconfdir)/NetworkManager/dispatcher.d
+udevdir=$(sysconfdir)/udev/rules.d
 
 UNITS = \
 	airdancer-api.service \
@@ -22,6 +23,9 @@ CFGFILES = \
 	airdancer-wifi-fallback.conf \
 	airdancer.env
 
+UDEV_RULES = \
+	wlan.rules
+
 SCRIPTS = \
 	airdancer-wifi-fallback.sh
 
@@ -33,7 +37,7 @@ SYSTEMCTL = systemctl
 
 all:
 
-install: install-config install-units install-scripts install-nm-dispatch-scripts
+install: install-config install-units install-scripts install-nm-dispatch-scripts install-udev-rules
 
 install-config:
 	mkdir -p $(DESTDIR)$(cfgdir)
@@ -50,3 +54,7 @@ install-scripts:
 install-nm-dispatch-scripts:
 	mkdir -p $(DESTDIR)$(nm_dispatch_dir)
 	for script in $(NM_DISPATCH_SCRIPTS); do $(INSTALL) -m 755 $$script $(DESTDIR)$(nm_dispatch_dir); done
+
+install-udev-rules:
+	mkdir -p $(DESTDIR)$(udevdir)
+	for rules in $(UDEV_RULES); do $(INSTALL) -m 644 $$rules $(DESTDIR)$(udevdir); done
