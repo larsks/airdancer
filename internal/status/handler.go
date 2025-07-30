@@ -24,29 +24,47 @@ func NewHandler() *Handler {
 // Start implements the CommandHandler interface
 func (h *Handler) Start(config cli.Configurable) error {
 	cfg := config.(*Config)
+	title := "*** AIRDANCER ***"
+	titleLen := len(title)
+	count := 0
+	lastUpdate := time.Time{}
+
+	apiAddr := "???"
+	switchAddr := "???"
+	apiStatus := "???"
+	switchString := "???"
 
 	for {
-		// Get interface addresses
-		apiAddr, err := getInterfaceAddress("wlapi")
-		if err != nil {
-			apiAddr = "???"
+		var err error
+
+		// Rotate title
+		curTitle := title[count:titleLen] + title[0:count]
+		count = (count + 1) % titleLen
+
+		if lastUpdate.Add(cfg.UpdateInterval).Before(time.Now()) {
+			// Get interface addresses
+			apiAddr, err = getInterfaceAddress("wlapi")
+			if err != nil {
+				apiAddr = "???"
+			}
+
+			switchAddr, err = getInterfaceAddress("wlswitch")
+			if err != nil {
+				switchAddr = "???"
+			}
+
+			// Get API service status
+			apiStatus = getServiceStatus("airdancer-api")
+
+			// Get switch status
+			switchStatus := getSwitchStatus(cfg.ServerURL)
+			switchString = switchStatusToString(switchStatus)
+
+			lastUpdate = time.Now()
 		}
 
-		switchAddr, err := getInterfaceAddress("wlswitch")
-		if err != nil {
-			switchAddr = "???"
-		}
-
-		// Get API service status
-		apiStatus := getServiceStatus("airdancer-api")
-
-		// Get switch status
-		switchStatus := getSwitchStatus(cfg.ServerURL)
-		switchString := switchStatusToString(switchStatus)
-
-		//	fmt.Printf("WL0: %s\nWL1: %s\nAPI: %s\nSWI: %s\n", wlan0addr, wlan1addr, apiStatus, switchString)
 		cmd := exec.Command("display1306",
-			"*** AIRDANCER ***",
+			curTitle,
 			fmt.Sprintf("WLA: %s", apiAddr),
 			fmt.Sprintf("WLS: %s", switchAddr),
 			fmt.Sprintf("API: %s", apiStatus),
@@ -56,7 +74,7 @@ func (h *Handler) Start(config cli.Configurable) error {
 			log.Printf("failed to run command: %v", err)
 		}
 
-		time.Sleep(cfg.UpdateInterval)
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	return nil
