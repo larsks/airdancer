@@ -1,13 +1,17 @@
 package status
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
+	"os/signal"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/larsks/airdancer/internal/cli"
@@ -34,11 +38,31 @@ func (h *Handler) Start(config cli.Configurable) error {
 	if err := h.display.Init(); err != nil {
 		return fmt.Errorf("failed to initialize display: %w", err)
 	}
-	defer func() {
+
+	// Set up signal handling for graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Cleanup function
+	cleanup := func() {
+		log.Println("Shutting down gracefully...")
 		h.display.Clear()  //nolint:errcheck
 		h.display.Update() //nolint:errcheck
 		h.display.Close()  //nolint:errcheck
+	}
+
+	// Handle shutdown signal in a separate goroutine
+	go func() {
+		<-sigChan
+		log.Println("Received shutdown signal")
+		cancel()
 	}()
+
+	// Ensure cleanup happens on any exit
+	defer cleanup()
 
 	title := "*** AIRDANCER ***"
 	titleLen := len(title)
@@ -50,60 +74,65 @@ func (h *Handler) Start(config cli.Configurable) error {
 	apiStatus := "???"
 	switchString := "???"
 
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
 	for {
-		var err error
+		select {
+		case <-ctx.Done():
+			// Context canceled, exit gracefully
+			return nil
+		case <-ticker.C:
+			var err error
 
-		// Rotate title
-		curTitle := title[count:titleLen] + title[0:count]
-		count = (count + 1) % titleLen
+			// Rotate title
+			curTitle := title[count:titleLen] + title[0:count]
+			count = (count + 1) % titleLen
 
-		if lastUpdate.Add(cfg.UpdateInterval).Before(time.Now()) {
-			// Get interface addresses
-			apiAddr, err = getInterfaceAddress("wlapi")
-			if err != nil {
-				apiAddr = "???"
+			if lastUpdate.Add(cfg.UpdateInterval).Before(time.Now()) {
+				// Get interface addresses
+				apiAddr, err = getInterfaceAddress("wlapi")
+				if err != nil {
+					apiAddr = "???"
+				}
+
+				switchAddr, err = getInterfaceAddress("wlswitch")
+				if err != nil {
+					switchAddr = "???"
+				}
+
+				// Get API service status
+				apiStatus = getServiceStatus("airdancer-api")
+
+				// Get switch status
+				switchStatus := getSwitchStatus(cfg.ServerURL)
+				switchString = switchStatusToString(switchStatus)
+
+				lastUpdate = time.Now()
 			}
 
-			switchAddr, err = getInterfaceAddress("wlswitch")
-			if err != nil {
-				switchAddr = "???"
+			// Update display with current status
+			lines := []string{
+				curTitle,
+				fmt.Sprintf("WLA: %s", apiAddr),
+				fmt.Sprintf("WLS: %s", switchAddr),
+				fmt.Sprintf("API: %s", apiStatus),
+				fmt.Sprintf("SWI: %s", switchString),
 			}
 
-			// Get API service status
-			apiStatus = getServiceStatus("airdancer-api")
+			if err := h.display.Clear(); err != nil {
+				log.Printf("failed to clear display: %v", err)
+			}
 
-			// Get switch status
-			switchStatus := getSwitchStatus(cfg.ServerURL)
-			switchString = switchStatusToString(switchStatus)
+			if err := h.display.PrintLines(0, lines); err != nil {
+				log.Printf("failed to print lines to display: %v", err)
+			}
 
-			lastUpdate = time.Now()
+			if err := h.display.Update(); err != nil {
+				log.Printf("failed to update display: %v", err)
+			}
 		}
-
-		// Update display with current status
-		lines := []string{
-			curTitle,
-			fmt.Sprintf("WLA: %s", apiAddr),
-			fmt.Sprintf("WLS: %s", switchAddr),
-			fmt.Sprintf("API: %s", apiStatus),
-			fmt.Sprintf("SWI: %s", switchString),
-		}
-
-		if err := h.display.Clear(); err != nil {
-			log.Printf("failed to clear display: %v", err)
-		}
-
-		if err := h.display.PrintLines(0, lines); err != nil {
-			log.Printf("failed to print lines to display: %v", err)
-		}
-
-		if err := h.display.Update(); err != nil {
-			log.Printf("failed to update display: %v", err)
-		}
-
-		time.Sleep(100 * time.Millisecond)
 	}
-
-	return nil
 }
 
 // APIResponse represents the standard API response format

@@ -7,7 +7,6 @@ Type=exec
 EnvironmentFile=-/etc/airdancer/airdancer.env
 User=dancer
 ExecStart=/home/dancer/bin/airdancer-status --config /etc/airdancer/airdancer-status.toml
-ExecStop=/home/dancer/bin/display1306 --clear "Goodbye..."
 Restart=on-failure
 RestartSec=5s
 
