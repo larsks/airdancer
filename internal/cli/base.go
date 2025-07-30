@@ -156,6 +156,10 @@ func (c *BaseCLI) ExecuteWithSubCommands(cmdArgs *CommandArgs, handler SubComman
 func StandardMain(configFactory func() Configurable, handler CommandHandler) {
 	cli := NewBaseCLI(os.Stdout, os.Stderr)
 
+	if handler == nil {
+		log.Fatalf("Error: missing command handler")
+	}
+
 	// Parse command line arguments
 	cmdArgs, err := cli.ParseArgsStandard(os.Args[1:], configFactory)
 	if err != nil {

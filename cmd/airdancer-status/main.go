@@ -9,6 +9,6 @@ import (
 func main() {
 	cli.StandardMain(
 		func() cli.Configurable { return status.NewConfig() },
-		status.NewHandler(),
+		status.NewHandler(nil),
 	)
 }

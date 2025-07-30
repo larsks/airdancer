@@ -15,7 +15,8 @@ import (
 	"time"
 
 	"github.com/larsks/airdancer/internal/cli"
-	"github.com/larsks/display1306/display"
+	"github.com/larsks/display1306/v2/display"
+	"github.com/larsks/display1306/v2/display/fakedriver"
 )
 
 // Handler implements the CLI handler for airdancer-status
@@ -24,15 +25,37 @@ type Handler struct {
 }
 
 // NewHandler creates a new Handler instance
-func NewHandler() *Handler {
+func NewHandler(d *display.Display) *Handler {
 	return &Handler{
-		display: display.NewDisplay(),
+		display: d,
 	}
 }
 
 // Start implements the CommandHandler interface
 func (h *Handler) Start(config cli.Configurable) error {
 	cfg := config.(*Config)
+
+	// Initialize display if not already done
+	if h.display == nil {
+		var d *display.Display
+		var err error
+
+		if cfg.DryRun {
+			// Use fake display driver
+			fakeDriver := fakedriver.NewFakeSSD1306()
+			d, err = display.NewDisplay().WithDriver(fakeDriver).Build()
+			if err != nil {
+				return fmt.Errorf("failed to initialize fake display: %w", err)
+			}
+		} else {
+			// Use real display driver (default behavior)
+			d, err = display.NewDisplay().Build()
+			if err != nil {
+				return fmt.Errorf("failed to initialize display: %w", err)
+			}
+		}
+		h.display = d
+	}
 
 	// Initialize the display
 	if err := h.display.Init(); err != nil {
@@ -49,9 +72,8 @@ func (h *Handler) Start(config cli.Configurable) error {
 	// Cleanup function
 	cleanup := func() {
 		log.Println("Shutting down gracefully...")
-		h.display.Clear()  //nolint:errcheck
-		h.display.Update() //nolint:errcheck
-		h.display.Close()  //nolint:errcheck
+		h.display.ClearScreen() //nolint:errcheck
+		h.display.Close()       //nolint:errcheck
 	}
 
 	// Handle shutdown signal in a separate goroutine
@@ -118,10 +140,6 @@ func (h *Handler) Start(config cli.Configurable) error {
 				fmt.Sprintf("WLS: %s", switchAddr),
 				fmt.Sprintf("API: %s", apiStatus),
 				fmt.Sprintf("SWI: %s", switchString),
-			}
-
-			if err := h.display.Clear(); err != nil {
-				log.Printf("failed to clear display: %v", err)
 			}
 
 			if err := h.display.PrintLines(0, lines); err != nil {

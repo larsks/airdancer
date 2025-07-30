@@ -18,6 +18,7 @@ type Config struct {
 	ServerURL          string        `mapstructure:"server-url"`
 	UpdateInterval     time.Duration `mapstructure:"update-interval"`
 	ConfigFile         string        `mapstructure:"config-file"`
+	DryRun             bool          `mapstructure:"dry-run"`
 	explicitConfigFile bool          // Track if config file was explicitly set
 }
 
@@ -47,6 +48,7 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&c.ConfigFile, "config", defaultConfigFile, "Config file to use")
 	fs.StringVar(&c.ServerURL, "server-url", c.ServerURL, "API server URL")
 	fs.DurationVarP(&c.UpdateInterval, "update-interval", "i", c.UpdateInterval, "Update interval for status loop")
+	fs.BoolVarP(&c.DryRun, "dry-run", "n", c.DryRun, "Use fake display driver instead of hardware")
 }
 
 // LoadConfigFromStruct loads configuration with proper precedence using the common pattern
@@ -80,6 +82,7 @@ func (c *Config) LoadConfigWithFlagSet(fs *pflag.FlagSet) error {
 	loader.SetDefaults(map[string]any{
 		"server-url":      getDefaultServerURL(),
 		"update-interval": 5 * time.Second,
+		"dry-run":         false,
 	})
 
 	return loader.LoadConfigWithFlagSet(c, fs)
