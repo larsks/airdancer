@@ -11,19 +11,35 @@ import (
 	"time"
 
 	"github.com/larsks/airdancer/internal/cli"
+	"github.com/larsks/display1306/display"
 )
 
 // Handler implements the CLI handler for airdancer-status
-type Handler struct{}
+type Handler struct {
+	display *display.Display
+}
 
 // NewHandler creates a new Handler instance
 func NewHandler() *Handler {
-	return &Handler{}
+	return &Handler{
+		display: display.NewDisplay(),
+	}
 }
 
 // Start implements the CommandHandler interface
 func (h *Handler) Start(config cli.Configurable) error {
 	cfg := config.(*Config)
+
+	// Initialize the display
+	if err := h.display.Init(); err != nil {
+		return fmt.Errorf("failed to initialize display: %w", err)
+	}
+	defer func() {
+		h.display.Clear()  //nolint:errcheck
+		h.display.Update() //nolint:errcheck
+		h.display.Close()  //nolint:errcheck
+	}()
+
 	title := "*** AIRDANCER ***"
 	titleLen := len(title)
 	count := 0
@@ -63,15 +79,25 @@ func (h *Handler) Start(config cli.Configurable) error {
 			lastUpdate = time.Now()
 		}
 
-		cmd := exec.Command("display1306",
+		// Update display with current status
+		lines := []string{
 			curTitle,
 			fmt.Sprintf("WLA: %s", apiAddr),
 			fmt.Sprintf("WLS: %s", switchAddr),
 			fmt.Sprintf("API: %s", apiStatus),
 			fmt.Sprintf("SWI: %s", switchString),
-		)
-		if err := cmd.Run(); err != nil {
-			log.Printf("failed to run command: %v", err)
+		}
+
+		if err := h.display.Clear(); err != nil {
+			log.Printf("failed to clear display: %v", err)
+		}
+
+		if err := h.display.PrintLines(0, lines); err != nil {
+			log.Printf("failed to print lines to display: %v", err)
+		}
+
+		if err := h.display.Update(); err != nil {
+			log.Printf("failed to update display: %v", err)
 		}
 
 		time.Sleep(100 * time.Millisecond)
