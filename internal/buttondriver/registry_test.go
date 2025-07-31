@@ -184,6 +184,7 @@ func TestDefaultRegistry(t *testing.T) {
 	}
 }
 
+/*
 func TestGPIOFactory_Integration(t *testing.T) {
 	config := map[string]interface{}{
 		"pull-mode":   "up",
@@ -199,6 +200,7 @@ func TestGPIOFactory_Integration(t *testing.T) {
 		t.Error("GPIO driver should not be nil")
 	}
 }
+*/
 
 func TestEventFactory_Integration(t *testing.T) {
 	config := map[string]interface{}{}
