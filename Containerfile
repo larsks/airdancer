@@ -1,4 +1,6 @@
-FROM docker.io/golang:1.23 AS builder
+FROM docker.io/golang:1.24-alpine AS builder
+
+RUN apk add make
 
 ENV CGO_ENABLED=0
 WORKDIR /src
