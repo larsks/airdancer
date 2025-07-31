@@ -3,6 +3,7 @@ PKG ?= github.com/larsks/airdancer
 GO ?= go
 GOTEST ?= go test
 COMPOSE ?= docker compose
+GOLANGCILINT ?= golangci-lint
 
 # Verbosity control
 ifeq ($(V),1)
@@ -41,16 +42,16 @@ COMMIT = $(shell git rev-parse --short=10 HEAD 2> /dev/null || echo unknown)
 DATE = $(shell date -u +"%Y-%m-%dT%H:%M:%S")
 
 # Main targets
-BINS = $(BIN_DIR)/airdancer-api \
-	$(BIN_DIR)/airdancer-monitor \
-	$(BIN_DIR)/airdancer-ui \
-	$(BIN_DIR)/airdancer-buttons \
-	$(BIN_DIR)/airdancer-soundboard \
-	$(BIN_DIR)/airdancer-status \
-	$(BIN_DIR)/dancerctl \
-	$(BIN_DIR)/gpiotest \
-	$(BIN_DIR)/pfctl \
-	$(BIN_DIR)/configvalidate
+BINS = $(BIN_DIR)/airdancer-api$(BIN_SUFFIX) \
+	$(BIN_DIR)/airdancer-monitor$(BIN_SUFFIX) \
+	$(BIN_DIR)/airdancer-ui$(BIN_SUFFIX) \
+	$(BIN_DIR)/airdancer-buttons$(BIN_SUFFIX) \
+	$(BIN_DIR)/airdancer-soundboard$(BIN_SUFFIX) \
+	$(BIN_DIR)/airdancer-status$(BIN_SUFFIX) \
+	$(BIN_DIR)/dancerctl$(BIN_SUFFIX) \
+	$(BIN_DIR)/gpiotest$(BIN_SUFFIX) \
+	$(BIN_DIR)/pfctl$(BIN_SUFFIX) \
+	$(BIN_DIR)/configvalidate$(BIN_SUFFIX)
 
 .PHONY: all help
 
@@ -97,6 +98,13 @@ debug: all
 # Rebuild target - clean and build all
 .PHONY: rebuild
 rebuild: clean all
+
+.PHONY: lint
+lint:
+	$(GOLANGCILINT) run --fix
+
+.PHONY: check
+check: lint test-unit
 
 .PHONY: run
 run:
