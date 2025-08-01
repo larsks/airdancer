@@ -17,8 +17,12 @@ type Client struct {
 
 // Config holds MQTT client configuration
 type Config struct {
-	ServerURL string
-	ClientID  string
+	ServerURL         string
+	ClientID          string
+	MaxRetries        int           // Maximum number of connection retries (0 = infinite)
+	InitialRetryDelay time.Duration // Initial delay between retries
+	MaxRetryDelay     time.Duration // Maximum delay between retries
+	OnConnect         func(*Client) // Callback to execute when connected
 }
 
 // ButtonEvent represents a button event from the MQTT topic
@@ -29,6 +33,7 @@ type ButtonEvent struct {
 }
 
 // NewClient creates a new MQTT client with the given configuration
+// The client will attempt to connect asynchronously and retry if the initial connection fails
 func NewClient(config Config) (*Client, error) {
 	parsedURL, err := url.Parse(config.ServerURL)
 	if err != nil {
@@ -39,23 +44,63 @@ func NewClient(config Config) (*Client, error) {
 		return nil, fmt.Errorf("MQTT server URL must use mqtt:// scheme")
 	}
 
+	// Set default retry values if not specified
+	initialDelay := config.InitialRetryDelay
+	if initialDelay == 0 {
+		initialDelay = time.Second
+	}
+	maxDelay := config.MaxRetryDelay
+	if maxDelay == 0 {
+		maxDelay = 30 * time.Second
+	}
+
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(config.ServerURL)
 	opts.SetClientID(config.ClientID)
 	opts.SetCleanSession(true)
 	opts.SetAutoReconnect(true)
+	opts.SetMaxReconnectInterval(config.MaxRetryDelay)
 	opts.SetConnectionLostHandler(func(client mqtt.Client, err error) {
 		log.Printf("MQTT connection lost: %v", err)
 	})
 	opts.SetOnConnectHandler(func(client mqtt.Client) {
 		log.Printf("Connected to MQTT broker at %s", config.ServerURL)
+
+		// Execute the callback if provided
+		if config.OnConnect != nil {
+			c := &Client{client: client}
+			config.OnConnect(c)
+		}
 	})
 
 	client := mqtt.NewClient(opts)
 
-	if token := client.Connect(); token.Wait() && token.Error() != nil {
-		return nil, fmt.Errorf("failed to connect to MQTT broker: %w", token.Error())
-	}
+	// Start async connection with retry logic
+	go func() {
+		delay := initialDelay
+		attempt := 0
+		for {
+			if token := client.Connect(); token.Wait() && token.Error() != nil {
+				attempt++
+				if config.MaxRetries > 0 && attempt >= config.MaxRetries {
+					log.Printf("Failed to connect to MQTT broker after %d attempts, giving up: %v", attempt, token.Error())
+					return
+				}
+
+				log.Printf("Failed to connect to MQTT broker (attempt %d): %v. Retrying in %v...", attempt, token.Error(), delay)
+				time.Sleep(delay)
+
+				// Exponential backoff
+				delay = delay * 2
+				if delay > maxDelay {
+					delay = maxDelay
+				}
+				continue
+			}
+			// Connection successful
+			return
+		}
+	}()
 
 	return &Client{client: client}, nil
 }

@@ -75,6 +75,14 @@ func (h *Handler) Start(config cli.Configurable) error {
 		mqttConfig := mqtt.Config{
 			ServerURL: cfg.MqttServer,
 			ClientID:  "airdancer-status",
+			OnConnect: func(client *mqtt.Client) {
+				// Subscribe to button events once connected
+				if err := client.Subscribe("event/button/#", 0, h.handleButtonEvent); err != nil {
+					log.Printf("Failed to subscribe to button events: %v", err)
+				} else {
+					log.Printf("Subscribed to button events on MQTT")
+				}
+			},
 		}
 
 		client, err := mqtt.NewClient(mqttConfig)
@@ -82,13 +90,6 @@ func (h *Handler) Start(config cli.Configurable) error {
 			log.Printf("Failed to initialize MQTT client: %v", err)
 		} else {
 			h.mqttClient = client
-
-			// Subscribe to button events
-			if err := h.mqttClient.Subscribe("event/button/+/+", 0, h.handleButtonEvent); err != nil {
-				log.Printf("Failed to subscribe to button events: %v", err)
-			} else {
-				log.Printf("Subscribed to button events on MQTT")
-			}
 		}
 	}
 
@@ -167,7 +168,7 @@ func (h *Handler) Start(config cli.Configurable) error {
 			}
 
 			// Check if display should be active based on timeout
-			shouldBeActive := h.shouldDisplayBeActive(cfg.DisplayTimeout)
+			shouldBeActive := h.shouldDisplayBeActive(cfg.DisplayTimeout, cfg.MqttServer)
 			h.setDisplayActive(shouldBeActive)
 
 			// Only update display if it should be active
@@ -377,13 +378,19 @@ func (h *Handler) handleButtonEvent(topic string, payload []byte) {
 }
 
 // shouldDisplayBeActive returns true if the display should be active based on timeout
-func (h *Handler) shouldDisplayBeActive(displayTimeout time.Duration) bool {
+func (h *Handler) shouldDisplayBeActive(displayTimeout time.Duration, mqttServerConfig string) bool {
 	if displayTimeout <= 0 {
 		return true // Timeout disabled
 	}
 
 	h.activityMutex.RLock()
 	defer h.activityMutex.RUnlock()
+
+	// Only allow blanking if we have a working MQTT connection to unblank the screen
+	// If no MQTT is configured OR MQTT is configured but not working, never blank
+	if mqttServerConfig == "" || h.mqttClient == nil || !h.mqttClient.IsConnected() {
+		return true
+	}
 
 	return time.Since(h.lastActivity) < displayTimeout
 }
