@@ -2,13 +2,16 @@ package buttonwatcher
 
 import (
 	"cmp"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"os/exec"
 	"sync"
 	"time"
 
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/larsks/airdancer/internal/buttondriver"
 	"github.com/larsks/airdancer/internal/buttondriver/common"
 )
@@ -45,6 +48,7 @@ type ButtonMonitor struct {
 	debounceMs   int
 	pullMode     string
 	globalConfig *Config
+	mqttClient   mqtt.Client
 }
 
 func NewButtonMonitor() *ButtonMonitor {
@@ -60,6 +64,77 @@ func NewButtonMonitor() *ButtonMonitor {
 // SetGlobalConfig sets the global configuration for default values
 func (bm *ButtonMonitor) SetGlobalConfig(config *Config) {
 	bm.globalConfig = config
+
+	// Initialize MQTT client if server is configured
+	if config.MqttServer != "" {
+		if err := bm.initMQTTClient(config.MqttServer); err != nil {
+			log.Printf("Failed to initialize MQTT client: %v", err)
+		}
+	}
+}
+
+// ButtonEvent represents a button event to be published to MQTT
+type ButtonEvent struct {
+	ButtonName string `json:"button_name"`
+	EventName  string `json:"event_name"`
+	Timestamp  string `json:"timestamp"`
+}
+
+// initMQTTClient initializes the MQTT client with the given server URL
+func (bm *ButtonMonitor) initMQTTClient(serverURL string) error {
+	parsedURL, err := url.Parse(serverURL)
+	if err != nil {
+		return fmt.Errorf("invalid MQTT server URL: %w", err)
+	}
+
+	if parsedURL.Scheme != "mqtt" {
+		return fmt.Errorf("MQTT server URL must use mqtt:// scheme")
+	}
+
+	opts := mqtt.NewClientOptions()
+	opts.AddBroker(serverURL)
+	opts.SetClientID("buttonwatcher")
+	opts.SetCleanSession(true)
+	opts.SetAutoReconnect(true)
+	opts.SetConnectionLostHandler(func(client mqtt.Client, err error) {
+		log.Printf("MQTT connection lost: %v", err)
+	})
+	opts.SetOnConnectHandler(func(client mqtt.Client) {
+		log.Printf("Connected to MQTT broker at %s", serverURL)
+	})
+
+	bm.mqttClient = mqtt.NewClient(opts)
+
+	if token := bm.mqttClient.Connect(); token.Wait() && token.Error() != nil {
+		return fmt.Errorf("failed to connect to MQTT broker: %w", token.Error())
+	}
+
+	return nil
+}
+
+// publishMQTTEvent publishes a button event to MQTT
+func (bm *ButtonMonitor) publishMQTTEvent(buttonName, eventName string) {
+	if bm.mqttClient == nil || !bm.mqttClient.IsConnected() {
+		return
+	}
+
+	event := ButtonEvent{
+		ButtonName: buttonName,
+		EventName:  eventName,
+		Timestamp:  time.Now().Format(time.RFC3339),
+	}
+
+	eventJSON, err := json.Marshal(event)
+	if err != nil {
+		log.Printf("Failed to marshal event to JSON: %v", err)
+		return
+	}
+
+	topic := fmt.Sprintf("event/button/%s/%s", buttonName, eventName)
+
+	if token := bm.mqttClient.Publish(topic, 0, false, eventJSON); token.Wait() && token.Error() != nil {
+		log.Printf("Failed to publish MQTT event: %v", token.Error())
+	}
 }
 
 func (bm *ButtonMonitor) createDriver(driverType string) (common.ButtonDriver, error) {
@@ -242,6 +317,7 @@ func (bm *ButtonMonitor) handleButtonEvent(event common.ButtonEvent) {
 		wrapper.isPressed = true
 		wrapper.pressStartTime = event.Timestamp
 		log.Printf("[%s] Button PRESSED", event.Source)
+		bm.publishMQTTEvent(event.Source, "down")
 
 	case common.ButtonReleased:
 		if wrapper.isPressed {
@@ -249,6 +325,7 @@ func (bm *ButtonMonitor) handleButtonEvent(event common.ButtonEvent) {
 			holdDuration := event.Timestamp.Sub(wrapper.pressStartTime)
 
 			log.Printf("[%s] Button RELEASED - Hold duration: %.2f seconds", event.Source, holdDuration.Seconds())
+			bm.publishMQTTEvent(event.Source, "up")
 
 			// Determine action based on hold duration
 			if wrapper.timeout > 0 && holdDuration >= wrapper.timeout {
@@ -256,20 +333,22 @@ func (bm *ButtonMonitor) handleButtonEvent(event common.ButtonEvent) {
 			} else if wrapper.longPressDuration > 0 && holdDuration >= wrapper.longPressDuration {
 				action := cmp.Or(wrapper.longPressAction, wrapper.defaultAction)
 				log.Printf("[%s] Long press detected (%.1fs): %s", event.Source, wrapper.longPressDuration.Seconds(), action)
+				bm.publishMQTTEvent(event.Source, "long_press")
 				wrapper.executeCommand(action, "long-press")
 			} else if wrapper.shortPressDuration > 0 && holdDuration >= wrapper.shortPressDuration {
 				action := cmp.Or(wrapper.shortPressAction, wrapper.defaultAction)
 				log.Printf("[%s] Short press detected (%.1fs): %s", event.Source, wrapper.shortPressDuration.Seconds(), action)
+				bm.publishMQTTEvent(event.Source, "short_press")
 				wrapper.executeCommand(action, "short-press")
 			} else {
 				// Handle click sequence
-				wrapper.handleClickSequence(event.Timestamp)
+				wrapper.handleClickSequence(event.Timestamp, bm)
 			}
 		}
 	}
 }
 
-func (wrapper *ButtonWrapper) handleClickSequence(releaseTime time.Time) {
+func (wrapper *ButtonWrapper) handleClickSequence(releaseTime time.Time, bm *ButtonMonitor) {
 	// Check if this is within the click interval from the last click
 	if !wrapper.lastClickTime.IsZero() && releaseTime.Sub(wrapper.lastClickTime) <= wrapper.clickInterval {
 		wrapper.clickCount++
@@ -292,11 +371,11 @@ func (wrapper *ButtonWrapper) handleClickSequence(releaseTime time.Time) {
 		wrapper.lastClickTime = time.Time{}
 		wrapper.mutex.Unlock()
 
-		wrapper.executeClickAction(clickCount)
+		wrapper.executeClickAction(clickCount, bm)
 	})
 }
 
-func (wrapper *ButtonWrapper) executeClickAction(clickCount int) {
+func (wrapper *ButtonWrapper) executeClickAction(clickCount int, bm *ButtonMonitor) {
 	var action string
 	var actionType string
 
@@ -312,6 +391,10 @@ func (wrapper *ButtonWrapper) executeClickAction(clickCount int) {
 		actionType = "triple-click"
 	default:
 		return
+	}
+
+	if bm != nil {
+		bm.publishMQTTEvent(wrapper.name, actionType)
 	}
 
 	if action != "" {
@@ -346,6 +429,12 @@ func (wrapper *ButtonWrapper) executeCommand(command string, actionType string) 
 func (bm *ButtonMonitor) Close() error {
 	close(bm.stopChan)
 	bm.wg.Wait()
+
+	// Disconnect MQTT client if connected
+	if bm.mqttClient != nil && bm.mqttClient.IsConnected() {
+		bm.mqttClient.Disconnect(250)
+		log.Printf("Disconnected from MQTT broker")
+	}
 
 	for driverType, driver := range bm.drivers {
 		driver.Stop()
