@@ -13,7 +13,7 @@ services:
       USER_PASSWORD: "${USER_PASSWORD:-password}"
   airdancer-api:
     build:
-      context: .
+      context: ..
       dockerfile: Containerfile
     volumes:
       - './dev:/config:z'
@@ -25,7 +25,7 @@ services:
       - "127.0.0.1:8080:8080"
   airdancer-ui:
     build:
-      context: .
+      context: ..
       dockerfile: Containerfile
     volumes:
       - './dev:/config:z'
@@ -37,7 +37,7 @@ services:
       - "127.0.0.1:8081:8081"
   airdancer-monitor:
     build:
-      context: .
+      context: ..
       dockerfile: Containerfile
     volumes:
       - './dev:/config:z'
