@@ -37,9 +37,22 @@ services:
     - /config/airdancer-buttons.toml
     devices:
     - /dev/input/by-id/usb-Microntek_USB_Joystick-event-joystick
+  titles:
+    image: ${AIRDANCER_IMAGE:-ghcr.io/larsks/airdancer:latest}
+    devices:
+    - /dev/i2c-1
+    volumes:
+    - ./titles:/titles
+    working_dir: /titles
+    command:
+    - bash
+    - run-titles.sh
   status:
     network_mode: host
     image: ${AIRDANCER_IMAGE:-ghcr.io/larsks/airdancer:latest}
+    depends_on:
+      titles:
+        condition: service_completed_successfully
     volumes:
       - './config:/config'
     command:
