@@ -1,6 +1,6 @@
 FROM docker.io/golang:1.24-alpine AS builder
 
-RUN apk add make iproute2 curl httpie
+RUN apk add make iproute2 curl httpie alsa-utils
 
 ENV CGO_ENABLED=0
 WORKDIR /src
