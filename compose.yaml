@@ -44,3 +44,19 @@ services:
     - /config/airdancer-status.toml
     devices:
     - /dev/i2c-1
+  soundboard:
+    image: ghcr.io/larsks/airdancer:latest
+    volumes:
+      - './config:/config'
+      - './clips:/clips'
+    command:
+    - airdancer-soundboard
+    - --config
+    - /config/airdancer-soundboard.toml
+    devices:
+    - /dev/snd/controlC0
+    - /dev/snd/controlC1
+    - /dev/snd/pcmC0D0p
+    - /dev/snd/pcmC1D0p
+    - /dev/snd/seq
+    - /dev/snd/timer
