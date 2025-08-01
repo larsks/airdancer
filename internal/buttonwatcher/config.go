@@ -27,6 +27,7 @@ type ButtonConfig struct {
 type Config struct {
 	ConfigFile string         `mapstructure:"config-file"`
 	Buttons    []ButtonConfig `mapstructure:"buttons"`
+	MqttServer string         `mapstructure:"mqtt-server"`
 
 	// Global defaults for timing-related settings
 	ClickInterval      *time.Duration `mapstructure:"click-interval"`
@@ -42,6 +43,7 @@ func NewConfig() *Config {
 
 func (c *Config) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&c.ConfigFile, "config", c.ConfigFile, "Config file to use")
+	fs.StringVar(&c.MqttServer, "mqtt-server", c.MqttServer, "MQTT server URL (mqtt://host:port)")
 }
 
 func (c *Config) LoadConfig() error {
