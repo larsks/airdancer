@@ -127,10 +127,9 @@ func (h *Handler) Start(config cli.Configurable) error {
 
 	apiAddr := "???"
 	switchAddr := "???"
-	apiStatus := "???"
 	switchString := "???"
 
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
@@ -157,9 +156,6 @@ func (h *Handler) Start(config cli.Configurable) error {
 					switchAddr = "???"
 				}
 
-				// Get API service status
-				apiStatus = getServiceStatus("airdancer-api")
-
 				// Get switch status
 				switchStatus := getSwitchStatus(cfg.ServerURL)
 				switchString = switchStatusToString(switchStatus)
@@ -178,7 +174,6 @@ func (h *Handler) Start(config cli.Configurable) error {
 					curTitle,
 					fmt.Sprintf("WLA: %s", apiAddr),
 					fmt.Sprintf("WLS: %s", switchAddr),
-					fmt.Sprintf("API: %s", apiStatus),
 					fmt.Sprintf("SWI: %s", switchString),
 				}
 
@@ -349,16 +344,6 @@ func getInterfaceAddress(interfaceName string) (string, error) {
 	}
 
 	return "", fmt.Errorf("no IPv4 address found for interface %s", interfaceName)
-}
-
-// getServiceStatus runs 'systemctl is-active' and returns the result
-func getServiceStatus(serviceName string) string {
-	cmd := exec.Command("systemctl", "is-active", serviceName)
-	output, err := cmd.Output()
-	if err != nil {
-		return "inactive"
-	}
-	return strings.TrimSpace(string(output))
 }
 
 // handleButtonEvent processes incoming MQTT button events
