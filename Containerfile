@@ -14,5 +14,5 @@ FROM docker.io/alpine:latest
 
 COPY --from=builder /src/bin/* /usr/local/bin
 
-RUN apk add curl
+RUN apk add curl iproute2 httpie alsa-utils bash
 WORKDIR /dancer
