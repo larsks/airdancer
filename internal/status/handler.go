@@ -11,23 +11,31 @@ import (
 	"os/signal"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/larsks/airdancer/internal/cli"
+	"github.com/larsks/airdancer/internal/mqtt"
 	"github.com/larsks/display1306/v2/display"
 	"github.com/larsks/display1306/v2/display/fakedriver"
 )
 
 // Handler implements the CLI handler for airdancer-status
 type Handler struct {
-	display *display.Display
+	display       *display.Display
+	mqttClient    *mqtt.Client
+	displayActive bool
+	lastActivity  time.Time
+	activityMutex sync.RWMutex
 }
 
 // NewHandler creates a new Handler instance
 func NewHandler(d *display.Display) *Handler {
 	return &Handler{
-		display: d,
+		display:       d,
+		displayActive: true,
+		lastActivity:  time.Now(),
 	}
 }
 
@@ -62,6 +70,28 @@ func (h *Handler) Start(config cli.Configurable) error {
 		return fmt.Errorf("failed to initialize display: %w", err)
 	}
 
+	// Initialize MQTT client if configured
+	if cfg.MqttServer != "" {
+		mqttConfig := mqtt.Config{
+			ServerURL: cfg.MqttServer,
+			ClientID:  "airdancer-status",
+		}
+
+		client, err := mqtt.NewClient(mqttConfig)
+		if err != nil {
+			log.Printf("Failed to initialize MQTT client: %v", err)
+		} else {
+			h.mqttClient = client
+
+			// Subscribe to button events
+			if err := h.mqttClient.Subscribe("event/button/+/+", 0, h.handleButtonEvent); err != nil {
+				log.Printf("Failed to subscribe to button events: %v", err)
+			} else {
+				log.Printf("Subscribed to button events on MQTT")
+			}
+		}
+	}
+
 	// Set up signal handling for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -72,6 +102,9 @@ func (h *Handler) Start(config cli.Configurable) error {
 	// Cleanup function
 	cleanup := func() {
 		log.Println("Shutting down gracefully...")
+		if h.mqttClient != nil {
+			h.mqttClient.Disconnect(250)
+		}
 		h.display.ClearScreen() //nolint:errcheck
 		h.display.Close()       //nolint:errcheck
 	}
@@ -133,21 +166,28 @@ func (h *Handler) Start(config cli.Configurable) error {
 				lastUpdate = time.Now()
 			}
 
-			// Update display with current status
-			lines := []string{
-				curTitle,
-				fmt.Sprintf("WLA: %s", apiAddr),
-				fmt.Sprintf("WLS: %s", switchAddr),
-				fmt.Sprintf("API: %s", apiStatus),
-				fmt.Sprintf("SWI: %s", switchString),
-			}
+			// Check if display should be active based on timeout
+			shouldBeActive := h.shouldDisplayBeActive(cfg.DisplayTimeout)
+			h.setDisplayActive(shouldBeActive)
 
-			if err := h.display.PrintLines(0, lines); err != nil {
-				log.Printf("failed to print lines to display: %v", err)
-			}
+			// Only update display if it should be active
+			if shouldBeActive {
+				// Update display with current status
+				lines := []string{
+					curTitle,
+					fmt.Sprintf("WLA: %s", apiAddr),
+					fmt.Sprintf("WLS: %s", switchAddr),
+					fmt.Sprintf("API: %s", apiStatus),
+					fmt.Sprintf("SWI: %s", switchString),
+				}
 
-			if err := h.display.Update(); err != nil {
-				log.Printf("failed to update display: %v", err)
+				if err := h.display.PrintLines(0, lines); err != nil {
+					log.Printf("failed to print lines to display: %v", err)
+				}
+
+				if err := h.display.Update(); err != nil {
+					log.Printf("failed to update display: %v", err)
+				}
 			}
 		}
 	}
@@ -318,4 +358,48 @@ func getServiceStatus(serviceName string) string {
 		return "inactive"
 	}
 	return strings.TrimSpace(string(output))
+}
+
+// handleButtonEvent processes incoming MQTT button events
+func (h *Handler) handleButtonEvent(topic string, payload []byte) {
+	log.Printf("Received button event on topic %s: %s", topic, string(payload))
+
+	// Reset the activity timer
+	h.activityMutex.Lock()
+	h.lastActivity = time.Now()
+
+	// If display was inactive, reactivate it
+	if !h.displayActive {
+		h.displayActive = true
+		log.Printf("Display reactivated by button event")
+	}
+	h.activityMutex.Unlock()
+}
+
+// shouldDisplayBeActive returns true if the display should be active based on timeout
+func (h *Handler) shouldDisplayBeActive(displayTimeout time.Duration) bool {
+	if displayTimeout <= 0 {
+		return true // Timeout disabled
+	}
+
+	h.activityMutex.RLock()
+	defer h.activityMutex.RUnlock()
+
+	return time.Since(h.lastActivity) < displayTimeout
+}
+
+// setDisplayActive sets the display active/inactive state
+func (h *Handler) setDisplayActive(active bool) {
+	h.activityMutex.Lock()
+	defer h.activityMutex.Unlock()
+
+	if h.displayActive != active {
+		h.displayActive = active
+		if !active {
+			log.Printf("Display blanked due to inactivity")
+			h.display.ClearScreen() //nolint:errcheck
+		} else {
+			log.Printf("Display activated")
+		}
+	}
 }

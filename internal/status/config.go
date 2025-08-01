@@ -19,6 +19,8 @@ type Config struct {
 	UpdateInterval     time.Duration `mapstructure:"update-interval"`
 	ConfigFile         string        `mapstructure:"config-file"`
 	DryRun             bool          `mapstructure:"dry-run"`
+	MqttServer         string        `mapstructure:"mqtt-server"`
+	DisplayTimeout     time.Duration `mapstructure:"display-timeout"`
 	explicitConfigFile bool          // Track if config file was explicitly set
 }
 
@@ -39,6 +41,7 @@ func NewConfig() *Config {
 	return &Config{
 		ServerURL:      getDefaultServerURL(),
 		UpdateInterval: 5 * time.Second,
+		DisplayTimeout: 5 * time.Minute,
 	}
 }
 
@@ -49,6 +52,8 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&c.ServerURL, "server-url", c.ServerURL, "API server URL")
 	fs.DurationVarP(&c.UpdateInterval, "update-interval", "i", c.UpdateInterval, "Update interval for status loop")
 	fs.BoolVarP(&c.DryRun, "dry-run", "n", c.DryRun, "Use fake display driver instead of hardware")
+	fs.StringVar(&c.MqttServer, "mqtt-server", c.MqttServer, "MQTT server URL (mqtt://host:port)")
+	fs.DurationVar(&c.DisplayTimeout, "display-timeout", c.DisplayTimeout, "Timeout before blanking display (0 to disable)")
 }
 
 // LoadConfigFromStruct loads configuration with proper precedence using the common pattern
@@ -83,6 +88,8 @@ func (c *Config) LoadConfigWithFlagSet(fs *pflag.FlagSet) error {
 		"server-url":      getDefaultServerURL(),
 		"update-interval": 5 * time.Second,
 		"dry-run":         false,
+		"mqtt-server":     "",
+		"display-timeout": 5 * time.Minute,
 	})
 
 	return loader.LoadConfigWithFlagSet(c, fs)

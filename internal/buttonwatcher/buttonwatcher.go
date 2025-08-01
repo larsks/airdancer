@@ -2,18 +2,16 @@ package buttonwatcher
 
 import (
 	"cmp"
-	"encoding/json"
 	"fmt"
 	"log"
-	"net/url"
 	"os"
 	"os/exec"
 	"sync"
 	"time"
 
-	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/larsks/airdancer/internal/buttondriver"
 	"github.com/larsks/airdancer/internal/buttondriver/common"
+	"github.com/larsks/airdancer/internal/mqtt"
 )
 
 // ButtonWrapper wraps a button driver with action handling functionality
@@ -48,7 +46,7 @@ type ButtonMonitor struct {
 	debounceMs   int
 	pullMode     string
 	globalConfig *Config
-	mqttClient   mqtt.Client
+	mqttClient   *mqtt.Client
 }
 
 func NewButtonMonitor() *ButtonMonitor {
@@ -73,42 +71,19 @@ func (bm *ButtonMonitor) SetGlobalConfig(config *Config) {
 	}
 }
 
-// ButtonEvent represents a button event to be published to MQTT
-type ButtonEvent struct {
-	ButtonName string `json:"button_name"`
-	EventName  string `json:"event_name"`
-	Timestamp  string `json:"timestamp"`
-}
-
 // initMQTTClient initializes the MQTT client with the given server URL
 func (bm *ButtonMonitor) initMQTTClient(serverURL string) error {
-	parsedURL, err := url.Parse(serverURL)
+	mqttConfig := mqtt.Config{
+		ServerURL: serverURL,
+		ClientID:  "buttonwatcher",
+	}
+
+	client, err := mqtt.NewClient(mqttConfig)
 	if err != nil {
-		return fmt.Errorf("invalid MQTT server URL: %w", err)
+		return err
 	}
 
-	if parsedURL.Scheme != "mqtt" {
-		return fmt.Errorf("MQTT server URL must use mqtt:// scheme")
-	}
-
-	opts := mqtt.NewClientOptions()
-	opts.AddBroker(serverURL)
-	opts.SetClientID("buttonwatcher")
-	opts.SetCleanSession(true)
-	opts.SetAutoReconnect(true)
-	opts.SetConnectionLostHandler(func(client mqtt.Client, err error) {
-		log.Printf("MQTT connection lost: %v", err)
-	})
-	opts.SetOnConnectHandler(func(client mqtt.Client) {
-		log.Printf("Connected to MQTT broker at %s", serverURL)
-	})
-
-	bm.mqttClient = mqtt.NewClient(opts)
-
-	if token := bm.mqttClient.Connect(); token.Wait() && token.Error() != nil {
-		return fmt.Errorf("failed to connect to MQTT broker: %w", token.Error())
-	}
-
+	bm.mqttClient = client
 	return nil
 }
 
@@ -118,22 +93,8 @@ func (bm *ButtonMonitor) publishMQTTEvent(buttonName, eventName string) {
 		return
 	}
 
-	event := ButtonEvent{
-		ButtonName: buttonName,
-		EventName:  eventName,
-		Timestamp:  time.Now().Format(time.RFC3339),
-	}
-
-	eventJSON, err := json.Marshal(event)
-	if err != nil {
-		log.Printf("Failed to marshal event to JSON: %v", err)
-		return
-	}
-
-	topic := fmt.Sprintf("event/button/%s/%s", buttonName, eventName)
-
-	if token := bm.mqttClient.Publish(topic, 0, false, eventJSON); token.Wait() && token.Error() != nil {
-		log.Printf("Failed to publish MQTT event: %v", token.Error())
+	if err := bm.mqttClient.PublishButtonEvent(buttonName, eventName); err != nil {
+		log.Printf("Failed to publish MQTT event: %v", err)
 	}
 }
 
@@ -431,9 +392,8 @@ func (bm *ButtonMonitor) Close() error {
 	bm.wg.Wait()
 
 	// Disconnect MQTT client if connected
-	if bm.mqttClient != nil && bm.mqttClient.IsConnected() {
+	if bm.mqttClient != nil {
 		bm.mqttClient.Disconnect(250)
-		log.Printf("Disconnected from MQTT broker")
 	}
 
 	for driverType, driver := range bm.drivers {
