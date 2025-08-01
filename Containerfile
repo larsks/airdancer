@@ -13,7 +13,14 @@ RUN make
 
 FROM docker.io/alpine:latest
 
+ARG TARGETPLATFORM
+
 COPY --from=builder /src/bin/* /usr/local/bin
 
-RUN apk add curl iproute2 httpie alsa-utils bash
+RUN case "$TARGETPLATFORM" in \
+    linux/arm*) EXTRAPACKAGES=raspberrypi-utils-vcgencmd;; \
+  esac; \
+  echo "EXTRAPACKAGES=$EXTRAPACKAGES"; \
+  apk add curl iproute2 httpie alsa-utils bash $EXTRAPACKAGES
+
 WORKDIR /dancer

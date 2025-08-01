@@ -128,6 +128,7 @@ func (h *Handler) Start(config cli.Configurable) error {
 	apiAddr := "???"
 	switchAddr := "???"
 	switchString := "???"
+	tempString := "???"
 
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
@@ -160,6 +161,9 @@ func (h *Handler) Start(config cli.Configurable) error {
 				switchStatus := getSwitchStatus(cfg.ServerURL)
 				switchString = switchStatusToString(switchStatus)
 
+				// Get system temperature
+				tempString = getSystemTemperature()
+
 				lastUpdate = time.Now()
 			}
 
@@ -175,6 +179,7 @@ func (h *Handler) Start(config cli.Configurable) error {
 					fmt.Sprintf("WLA: %s", apiAddr),
 					fmt.Sprintf("WLS: %s", switchAddr),
 					fmt.Sprintf("SWI: %s", switchString),
+					fmt.Sprintf("TMP: %s", tempString),
 				}
 
 				if err := h.display.PrintLines(0, lines); err != nil {
@@ -187,6 +192,23 @@ func (h *Handler) Start(config cli.Configurable) error {
 			}
 		}
 	}
+}
+
+func getSystemTemperature() string {
+	cmd := exec.Command("vcgencmd", "measure_temp")
+	output, err := cmd.Output()
+	if err != nil {
+		log.Printf("failed to call measure_temp command")
+		return "???"
+	}
+
+	parts := strings.Split(strings.TrimSuffix(string(output), "\n"), "=")
+	if len(parts) != 2 {
+		log.Printf("invalid output from measure_temp command: %s", string(output))
+		return "???"
+	}
+
+	return parts[1]
 }
 
 // APIResponse represents the standard API response format

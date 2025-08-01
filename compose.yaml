@@ -66,6 +66,7 @@ services:
     - /config/airdancer-status.toml
     devices:
     - /dev/i2c-1
+    - /dev/vcio
   soundboard:
     image: ${AIRDANCER_IMAGE:-ghcr.io/larsks/airdancer:latest}
     volumes:
