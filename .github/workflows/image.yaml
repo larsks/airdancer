@@ -8,8 +8,8 @@ on:
         type: string
         description: 'Version for which to produce an image'
   push:
-    tags:
-      - 'v*'
+    branches:
+      - 'feature/*'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -34,10 +34,6 @@ jobs:
         with:
           fetch-tags: true
           ref: ${{ inputs.release-version }}
-
-      - name: Verify tag
-        run: |
-          git describe --tag
 
       # Login against a Docker registry except on PR
       # https://github.com/docker/login-action
