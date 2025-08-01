@@ -1,0 +1,46 @@
+services:
+  airdancer-api:
+    image: ghcr.io/larsks/airdancer:latest
+    volumes:
+      - './config:/config:z'
+    command:
+    - airdancer-api
+    - --config
+    - /config/airdancer-api.toml
+    ports:
+      - "8080:8080"
+    devices:
+    - /dev/gpiochip0
+  airdancer-ui:
+    image: ghcr.io/larsks/airdancer:latest
+    volumes:
+      - './config:/config:z'
+    command:
+    - airdancer-ui
+    - --config
+    - /config/airdancer-ui.toml
+    ports:
+      - "8081:8081"
+  airdancer-buttons:
+    image: ghcr.io/larsks/airdancer:latest
+    volumes:
+      - './config:/config:z'
+    environment:
+      DANCER_SERVER_URL: http://airdancer-api:8080
+    command:
+    - airdancer-buttons
+    - --config
+    - /config/airdancer-buttons.toml
+    devices:
+    - /dev/input/by-id/usb-Microntek_USB_Joystick-event-joystick
+  airdancer-status:
+    network_mode: host
+    image: ghcr.io/larsks/airdancer:latest
+    volumes:
+      - './config:/config:z'
+    command:
+    - airdancer-status
+    - --config
+    - /config/airdancer-status.toml
+    devices:
+    - /dev/i2c-1
