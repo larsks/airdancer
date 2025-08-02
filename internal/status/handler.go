@@ -414,6 +414,7 @@ func (h *Handler) setDisplayActive(active bool) {
 			h.display.ClearScreen() //nolint:errcheck
 		} else {
 			log.Printf("Display activated")
+			h.display.ClearScreen() //nolint:errcheck
 		}
 	}
 }
