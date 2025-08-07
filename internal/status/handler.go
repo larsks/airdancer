@@ -43,6 +43,11 @@ func NewHandler(d *display.Display) *Handler {
 func (h *Handler) Start(config cli.Configurable) error {
 	cfg := config.(*Config)
 
+	if cfg.DisplayTimeout > 0 && cfg.MqttServer == "" {
+		log.Printf("ignoring display timeout when mqtt server is not set")
+		cfg.DisplayTimeout = 0
+	}
+
 	// Initialize display if not already done
 	if h.display == nil {
 		var d *display.Display
