@@ -20,6 +20,11 @@ type IMAPConfig struct {
 // TriggerConfig holds trigger configuration
 type TriggerConfig struct {
 	RegexPattern string `mapstructure:"regex-pattern"`
+	To           string `mapstructure:"to"`
+	From         string `mapstructure:"from"`
+	Subject      string `mapstructure:"subject"`
+	IgnoreCase   *bool  `mapstructure:"ignore-case"`
+	Final        bool   `mapstructure:"final"`
 	Command      string `mapstructure:"command"`
 }
 
@@ -137,8 +142,9 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("%w: no triggers configured for mailbox %s", ErrMissingRegexPattern, mailbox.Mailbox)
 		}
 		for j, trigger := range mailbox.Triggers {
-			if trigger.RegexPattern == "" {
-				return fmt.Errorf("%w: pattern is empty in trigger %d of mailbox %s", ErrMissingRegexPattern, j, mailbox.Mailbox)
+			// At least one trigger condition must be specified
+			if trigger.RegexPattern == "" && trigger.To == "" && trigger.From == "" && trigger.Subject == "" {
+				return fmt.Errorf("%w: no trigger conditions specified in trigger %d of mailbox %s", ErrMissingRegexPattern, j, mailbox.Mailbox)
 			}
 		}
 	}

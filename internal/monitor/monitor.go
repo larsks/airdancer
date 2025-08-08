@@ -12,10 +12,14 @@ import (
 	"github.com/emersion/go-message/mail"
 )
 
-// compiledTrigger holds a compiled regex pattern with its associated command
+// compiledTrigger holds compiled patterns and options for a trigger
 type compiledTrigger struct {
-	regex   *regexp.Regexp
-	command string
+	bodyRegex    *regexp.Regexp
+	toRegex      *regexp.Regexp
+	fromRegex    *regexp.Regexp
+	subjectRegex *regexp.Regexp
+	final        bool
+	command      string
 }
 
 // compiledMailbox holds a compiled mailbox configuration
@@ -53,13 +57,51 @@ func NewEmailMonitor(config Config, dialer IMAPDialer, executor CommandExecutor,
 	for _, mailboxConfig := range config.Monitor {
 		var triggers []compiledTrigger
 		for j, triggerConfig := range mailboxConfig.Triggers {
-			regex, err := regexp.Compile(triggerConfig.RegexPattern)
+			// Get ignore-case setting (default true)
+			ignoreCase := true
+			if triggerConfig.IgnoreCase != nil {
+				ignoreCase = *triggerConfig.IgnoreCase
+			}
+
+			// Helper function to compile regex with case sensitivity
+			compileRegex := func(pattern string) (*regexp.Regexp, error) {
+				if pattern == "" {
+					return nil, nil
+				}
+				if ignoreCase {
+					pattern = "(?i)" + pattern
+				}
+				return regexp.Compile(pattern)
+			}
+
+			// Compile all patterns
+			bodyRegex, err := compileRegex(triggerConfig.RegexPattern)
 			if err != nil {
 				return nil, fmt.Errorf("%w \"%s\" in trigger %d of mailbox %s: %v", ErrInvalidRegexPattern, triggerConfig.RegexPattern, j, mailboxConfig.Mailbox, err)
 			}
+
+			toRegex, err := compileRegex(triggerConfig.To)
+			if err != nil {
+				return nil, fmt.Errorf("invalid 'to' pattern \"%s\" in trigger %d of mailbox %s: %v", triggerConfig.To, j, mailboxConfig.Mailbox, err)
+			}
+
+			fromRegex, err := compileRegex(triggerConfig.From)
+			if err != nil {
+				return nil, fmt.Errorf("invalid 'from' pattern \"%s\" in trigger %d of mailbox %s: %v", triggerConfig.From, j, mailboxConfig.Mailbox, err)
+			}
+
+			subjectRegex, err := compileRegex(triggerConfig.Subject)
+			if err != nil {
+				return nil, fmt.Errorf("invalid 'subject' pattern \"%s\" in trigger %d of mailbox %s: %v", triggerConfig.Subject, j, mailboxConfig.Mailbox, err)
+			}
+
 			triggers = append(triggers, compiledTrigger{
-				regex:   regex,
-				command: triggerConfig.Command,
+				bodyRegex:    bodyRegex,
+				toRegex:      toRegex,
+				fromRegex:    fromRegex,
+				subjectRegex: subjectRegex,
+				final:        triggerConfig.Final,
+				command:      triggerConfig.Command,
 			})
 		}
 
@@ -394,31 +436,79 @@ func (em *EmailMonitor) processMessageInMailbox(msg *imap.Message, mailbox compi
 		from = msg.Envelope.From[0].Address()
 	}
 
-	em.logger.Printf("processing message from: %s, Subject: %s in mailbox: %s", from, msg.Envelope.Subject, mailbox.mailbox)
+	// Get To addresses
+	var toAddresses []string
+	for _, addr := range msg.Envelope.To {
+		toAddresses = append(toAddresses, addr.Address())
+	}
 
-	// Get message body
+	em.logger.Printf("processing message from: %s, To: %v, Subject: %s in mailbox: %s", from, toAddresses, msg.Envelope.Subject, mailbox.mailbox)
+
+	// Get message body once
+	var body string
 	for _, part := range msg.Body {
-		body, err := em.extractTextFromPart(part)
+		extractedBody, err := em.extractTextFromPart(part)
 		if err != nil {
 			em.logger.Printf("error extracting text: %v", err)
 			continue
 		}
+		if extractedBody != "" {
+			body = extractedBody
+			break
+		}
+	}
 
-		if body == "" {
-			continue
+	// Check triggers
+	for i, trigger := range mailbox.triggers {
+		matched := true
+
+		// Check body pattern (regex-pattern)
+		if trigger.bodyRegex != nil {
+			if !trigger.bodyRegex.MatchString(body) {
+				matched = false
+			}
 		}
 
-		// Check if body matches any of the configured triggers for this mailbox
-		for i, trigger := range mailbox.triggers {
-			if trigger.regex.MatchString(body) {
-				em.logger.Printf("regex match found in message from: %s (trigger %d in mailbox %s)", from, i, mailbox.mailbox)
+		// Check From header
+		if matched && trigger.fromRegex != nil {
+			if !trigger.fromRegex.MatchString(from) {
+				matched = false
+			}
+		}
 
-				err := em.executeCommand(msg, body, trigger.command)
-				if err != nil {
-					return fmt.Errorf("%w: %v", ErrCommandExecution, err)
+		// Check To header (match against any To address)
+		if matched && trigger.toRegex != nil {
+			toMatched := false
+			for _, toAddr := range toAddresses {
+				if trigger.toRegex.MatchString(toAddr) {
+					toMatched = true
+					break
 				}
+			}
+			if !toMatched {
+				matched = false
+			}
+		}
 
-				// Don't return here - continue checking other triggers
+		// Check Subject header
+		if matched && trigger.subjectRegex != nil {
+			if !trigger.subjectRegex.MatchString(msg.Envelope.Subject) {
+				matched = false
+			}
+		}
+
+		if matched {
+			em.logger.Printf("trigger match found in message from: %s (trigger %d in mailbox %s)", from, i, mailbox.mailbox)
+
+			err := em.executeCommand(msg, body, trigger.command)
+			if err != nil {
+				return fmt.Errorf("%w: %v", ErrCommandExecution, err)
+			}
+
+			// If this trigger has final=true, stop processing further triggers
+			if trigger.final {
+				em.logger.Printf("trigger %d marked as final, stopping trigger processing for this message", i)
+				break
 			}
 		}
 	}

@@ -160,7 +160,7 @@ func TestConfigValidate(t *testing.T) {
 			expectedError: ErrInvalidIMAPPort,
 		},
 		{
-			name: "missing regex pattern",
+			name: "missing all trigger conditions",
 			config: &Config{
 				IMAP: IMAPConfig{
 					Server: "imap.example.com",
@@ -171,13 +171,62 @@ func TestConfigValidate(t *testing.T) {
 						Mailbox: "INBOX",
 						Triggers: []TriggerConfig{
 							{
-								RegexPattern: "", // Missing pattern
+								RegexPattern: "", // No trigger conditions specified
+								To:           "",
+								From:         "",
+								Subject:      "",
 							},
 						},
 					},
 				},
 			},
 			expectedError: ErrMissingRegexPattern,
+		},
+		{
+			name: "valid config with header patterns",
+			config: &Config{
+				IMAP: IMAPConfig{
+					Server: "imap.example.com",
+					Port:   993,
+				},
+				Monitor: []MailboxConfig{
+					{
+						Mailbox: "INBOX",
+						Triggers: []TriggerConfig{
+							{
+								To:      "lars",
+								From:    "amazon",
+								Subject: "delivered:",
+								Final:   true,
+								Command: "echo 'matched'",
+							},
+						},
+					},
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			name: "valid config with ignore-case false",
+			config: &Config{
+				IMAP: IMAPConfig{
+					Server: "imap.example.com",
+					Port:   993,
+				},
+				Monitor: []MailboxConfig{
+					{
+						Mailbox: "INBOX",
+						Triggers: []TriggerConfig{
+							{
+								RegexPattern: "TEST",
+								IgnoreCase:   boolPtr(false),
+								Command:      "echo 'matched'",
+							},
+						},
+					},
+				},
+			},
+			expectedError: nil,
 		},
 		{
 			name: "minimal valid config",
@@ -546,4 +595,8 @@ func TestGetEffectiveRetryInterval(t *testing.T) {
 
 func intPtr(i int) *int {
 	return &i
+}
+
+func boolPtr(b bool) *bool {
+	return &b
 }
