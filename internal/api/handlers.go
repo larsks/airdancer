@@ -127,10 +127,12 @@ func (s *Server) handleSwitchHelper(_ http.ResponseWriter, req *switchRequest, s
 		if err := sw.TurnOn(); err != nil {
 			return fmt.Errorf("failed to turn on switch %s: %w", swid, err)
 		}
+		s.publishMQTTSwitchEvent(swid, "on")
 	case switchStateOff:
 		if err := sw.TurnOff(); err != nil {
 			return fmt.Errorf("failed to turn off switch %s: %w", sw, err)
 		}
+		s.publishMQTTSwitchEvent(swid, "off")
 	case switchStateToggle:
 		var err error
 		var state bool
@@ -142,8 +144,14 @@ func (s *Server) handleSwitchHelper(_ http.ResponseWriter, req *switchRequest, s
 
 		if state {
 			err = sw.TurnOff()
+			if err == nil {
+				s.publishMQTTSwitchEvent(swid, "off")
+			}
 		} else {
 			err = sw.TurnOn()
+			if err == nil {
+				s.publishMQTTSwitchEvent(swid, "on")
+			}
 		}
 
 		if err != nil {
@@ -167,6 +175,7 @@ func (s *Server) handleSwitchHelper(_ http.ResponseWriter, req *switchRequest, s
 		if err := newBlinker.Start(); err != nil {
 			return fmt.Errorf("failed to start blinker for %s: %w", swid, err)
 		}
+		s.publishMQTTSwitchEvent(swid, "blink")
 	case switchStateFlipflop:
 		return fmt.Errorf("flipflop state is only supported for switch groups, not individual switches")
 	}
@@ -192,6 +201,8 @@ func (s *Server) handleSwitchHelper(_ http.ResponseWriter, req *switchRequest, s
 
 				if err := sw.TurnOff(); err != nil {
 					log.Printf("timer failed to turn off switch %s: %v", swid, err)
+				} else {
+					s.publishMQTTSwitchEvent(swid, "off")
 				}
 				log.Printf("timer expired for switch %s after %s", swid, duration)
 			}),
@@ -357,6 +368,7 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 			s.sendError(w, fmt.Sprintf("failed to start flipflop for group %s: %v", groupName, err), http.StatusBadRequest)
 			return
 		}
+		s.publishMQTTSwitchEvent(groupName, "flipflop")
 
 		// Set up auto-off timer if duration specified
 		if req.Duration != nil {
@@ -434,6 +446,7 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 			s.sendError(w, fmt.Sprintf("failed to start blinker for group %s: %v", groupName, err), http.StatusBadRequest)
 			return
 		}
+		s.publishMQTTSwitchEvent(groupName, "blink")
 
 		// Set up auto-off timer if duration specified
 		if req.Duration != nil {

@@ -19,6 +19,7 @@ import (
 	"github.com/larsks/airdancer/internal/blink"
 	"github.com/larsks/airdancer/internal/config"
 	"github.com/larsks/airdancer/internal/flipflop"
+	"github.com/larsks/airdancer/internal/mqtt"
 	"github.com/larsks/airdancer/internal/switchcollection"
 	"github.com/larsks/airdancer/internal/switchdrivers"
 	"github.com/spf13/pflag"
@@ -48,6 +49,7 @@ type Server struct {
 	blinkers    map[string]*blink.Blink
 	flipflops   map[string]*flipflop.Flipflop
 	router      *chi.Mux
+	mqttClient  *mqtt.Client
 }
 
 // Config holds the configuration for the API server.
@@ -73,6 +75,7 @@ type (
 		Collections   map[string]CollectionConfig `mapstructure:"collections"`
 		Switches      map[string]SwitchConfig     `mapstructure:"switches"`
 		Groups        map[string]GroupConfig      `mapstructure:"groups"`
+		MqttServer    string                      `mapstructure:"mqtt-server"`
 	}
 )
 
@@ -114,6 +117,7 @@ func (c *Config) LoadConfigWithFlagSet(fs *pflag.FlagSet) error {
 		"collections":    make(map[string]CollectionConfig),
 		"switches":       make(map[string]SwitchConfig),
 		"groups":         make(map[string]GroupConfig),
+		"mqtt-server":    "",
 	})
 
 	return loader.LoadConfigWithFlagSet(c, fs)
@@ -185,7 +189,16 @@ func NewServer(cfg *Config) (*Server, error) {
 	}
 
 	listenAddr := fmt.Sprintf("%s:%d", cfg.ListenAddress, cfg.ListenPort)
-	return newServerWithCollections(collections, switches, groups, listenAddr, true), nil
+	server := newServerWithCollections(collections, switches, groups, listenAddr, true)
+
+	// Initialize MQTT client if server is configured
+	if cfg.MqttServer != "" {
+		if err := server.initMQTTClient(cfg.MqttServer); err != nil {
+			log.Printf("Failed to initialize MQTT client: %v", err)
+		}
+	}
+
+	return server, nil
 }
 
 // resolveSwitch parses a switch spec and resolves it to a specific switch in a collection.
@@ -259,6 +272,33 @@ func newServerWithCollections(collections map[string]switchcollection.SwitchColl
 	return s
 }
 
+// initMQTTClient initializes the MQTT client with the given server URL
+func (s *Server) initMQTTClient(serverURL string) error {
+	mqttConfig := mqtt.Config{
+		ServerURL: serverURL,
+		ClientID:  "airdancer-api",
+	}
+
+	client, err := mqtt.NewClient(mqttConfig)
+	if err != nil {
+		return err
+	}
+
+	s.mqttClient = client
+	return nil
+}
+
+// publishMQTTSwitchEvent publishes a switch event to MQTT
+func (s *Server) publishMQTTSwitchEvent(switchName, eventName string) {
+	if s.mqttClient == nil || !s.mqttClient.IsConnected() {
+		return
+	}
+
+	if err := s.mqttClient.PublishSwitchEvent(switchName, eventName); err != nil {
+		log.Printf("Failed to publish MQTT switch event: %v", err)
+	}
+}
+
 // setupRoutes configures the HTTP routes and middleware for the server.
 func (s *Server) setupRoutes() {
 	s.router.Get("/", s.listRoutesHandler)
@@ -325,6 +365,11 @@ func (s *Server) Start() error {
 // Close closes all switch collection connections.
 
 func (s *Server) Close() error {
+	// Disconnect MQTT client if connected
+	if s.mqttClient != nil {
+		s.mqttClient.Disconnect(250)
+	}
+
 	var errors []error
 	for name, collection := range s.collections {
 		if err := collection.Close(); err != nil {

@@ -135,6 +135,30 @@ func (c *Client) PublishButtonEvent(buttonName, eventName string) error {
 	return c.Publish(topic, 0, false, eventJSON)
 }
 
+// SwitchEvent represents a switch event from the MQTT topic
+type SwitchEvent struct {
+	SwitchName string `json:"switch_name"`
+	EventName  string `json:"event_name"`
+	Timestamp  string `json:"timestamp"`
+}
+
+// PublishSwitchEvent publishes a switch event to the appropriate MQTT topic
+func (c *Client) PublishSwitchEvent(switchName, eventName string) error {
+	event := SwitchEvent{
+		SwitchName: switchName,
+		EventName:  eventName,
+		Timestamp:  time.Now().Format(time.RFC3339),
+	}
+
+	eventJSON, err := json.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event to JSON: %w", err)
+	}
+
+	topic := fmt.Sprintf("event/switch/%s/%s", switchName, eventName)
+	return c.Publish(topic, 0, false, eventJSON)
+}
+
 // Subscribe subscribes to a topic with the given message handler
 func (c *Client) Subscribe(topic string, qos byte, handler func(topic string, payload []byte)) error {
 	if c.client == nil || !c.client.IsConnected() {
