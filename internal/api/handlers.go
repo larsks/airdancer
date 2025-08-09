@@ -99,26 +99,9 @@ func (s *Server) handleSwitchHelper(_ http.ResponseWriter, req *switchRequest, s
 		delete(s.timers, swid)
 	}
 
-	// Stop any running blinker for this switch
-	if blinker, ok := s.blinkers[swid]; ok {
-		if blinker.IsRunning() {
-			log.Printf("canceling blinker on %s", swid)
-			if err := blinker.Stop(); err != nil {
-				return fmt.Errorf("failed to cancel blinker on %s: %w", swid, err)
-			}
-		}
-		delete(s.blinkers, swid)
-	}
-
-	// Stop any running flipflop for this switch
-	if flipflopInstance, ok := s.flipflops[swid]; ok {
-		if flipflopInstance.IsRunning() {
-			log.Printf("canceling flipflop on %s", swid)
-			if err := flipflopInstance.Stop(); err != nil {
-				return fmt.Errorf("failed to cancel flipflop on %s: %w", swid, err)
-			}
-		}
-		delete(s.flipflops, swid)
+	// Stop any running task for this switch
+	if err := s.taskManager.StopTask(swid); err != nil {
+		return err
 	}
 
 	// Execute switch operation
@@ -170,12 +153,11 @@ func (s *Server) handleSwitchHelper(_ http.ResponseWriter, req *switchRequest, s
 		if err != nil {
 			return fmt.Errorf("failed to create blinker for %s: %w", swid, err)
 		}
-		s.blinkers[swid] = newBlinker
-		log.Printf("start blinker on %s", swid)
-		if err := newBlinker.Start(); err != nil {
+
+		task := NewBlinkTask(newBlinker)
+		if err := s.taskManager.StartTask(swid, task); err != nil {
 			return fmt.Errorf("failed to start blinker for %s: %w", swid, err)
 		}
-		s.publishMQTTSwitchEvent(swid, "blink")
 	case switchStateFlipflop:
 		return fmt.Errorf("flipflop state is only supported for switch groups, not individual switches")
 	}
@@ -191,12 +173,9 @@ func (s *Server) handleSwitchHelper(_ http.ResponseWriter, req *switchRequest, s
 				defer s.mutex.Unlock()
 				delete(s.timers, swid)
 
-				// Stop any running blinker for this switch
-				if blinker, ok := s.blinkers[swid]; ok {
-					if err := blinker.Stop(); err != nil {
-						log.Printf("timer failed to stop blinker on switch %s: %v", swid, err)
-					}
-					delete(s.blinkers, swid)
+				// Stop any running task for this switch
+				if err := s.taskManager.StopTask(swid); err != nil {
+					log.Printf("timer failed to stop task on switch %s: %v", swid, err)
 				}
 
 				if err := sw.TurnOff(); err != nil {
@@ -225,22 +204,9 @@ func (s *Server) handleAllSwitches(w http.ResponseWriter, r *http.Request) {
 		delete(s.timers, swid)
 	}
 
-	// Cancel any existing blinker for all switches
-	for swid, blinker := range s.blinkers {
-		log.Printf("canceling blinker on %s", swid)
-		if err := blinker.Stop(); err != nil {
-			log.Printf("failed to stop blinker on %s: %v", swid, err)
-		}
-		delete(s.blinkers, swid)
-	}
-
-	// Cancel any existing flipflop for all switches
-	for swid, flipflopInstance := range s.flipflops {
-		log.Printf("canceling flipflop on %s", swid)
-		if err := flipflopInstance.Stop(); err != nil {
-			log.Printf("failed to stop flipflop on %s: %v", swid, err)
-		}
-		delete(s.flipflops, swid)
+	// Stop all running tasks
+	if err := s.taskManager.StopAllTasks(); err != nil {
+		log.Printf("failed to stop all tasks: %v", err)
 	}
 
 	// Apply operation to all defined switches
@@ -270,15 +236,9 @@ func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, swit
 	defer s.mutex.Unlock()
 
 	// Cancel any "all switches" operations that might be running
-	if blinker, ok := s.blinkers["all"]; ok {
-		if blinker.IsRunning() {
-			log.Printf("canceling blinker on all switches")
-			if err := blinker.Stop(); err != nil {
-				s.sendError(w, fmt.Sprintf("Failed to cancel blinker on all: %v", err), http.StatusInternalServerError)
-				return
-			}
-			delete(s.blinkers, "all")
-		}
+	if err := s.taskManager.StopTask("all"); err != nil {
+		s.sendError(w, fmt.Sprintf("Failed to cancel task on all: %v", err), http.StatusInternalServerError)
+		return
 	}
 
 	if timer, ok := s.timers["all"]; ok {
@@ -321,28 +281,10 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 			delete(s.timers, groupName)
 		}
 
-		// Stop any running blinker for this group
-		if blinker, ok := s.blinkers[groupName]; ok {
-			if blinker.IsRunning() {
-				log.Printf("canceling blinker on group %s", groupName)
-				if err := blinker.Stop(); err != nil {
-					s.sendError(w, fmt.Sprintf("failed to cancel blinker on group %s: %v", groupName, err), http.StatusInternalServerError)
-					return
-				}
-			}
-			delete(s.blinkers, groupName)
-		}
-
-		// Stop any running flipflop for this group
-		if flipflopInstance, ok := s.flipflops[groupName]; ok {
-			if flipflopInstance.IsRunning() {
-				log.Printf("canceling flipflop on group %s", groupName)
-				if err := flipflopInstance.Stop(); err != nil {
-					s.sendError(w, fmt.Sprintf("failed to cancel flipflop on group %s: %v", groupName, err), http.StatusInternalServerError)
-					return
-				}
-			}
-			delete(s.flipflops, groupName)
+		// Stop any running task for this group
+		if err := s.taskManager.StopTask(groupName); err != nil {
+			s.sendError(w, fmt.Sprintf("failed to cancel task on group %s: %v", groupName, err), http.StatusInternalServerError)
+			return
 		}
 
 		// Create list of switches for the flipflop
@@ -362,13 +304,11 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 			return
 		}
 
-		s.flipflops[groupName] = newFlipflop
-		log.Printf("start flipflop on group %s", groupName)
-		if err := newFlipflop.Start(); err != nil {
+		task := NewFlipflopTask(newFlipflop)
+		if err := s.taskManager.StartTask(groupName, task); err != nil {
 			s.sendError(w, fmt.Sprintf("failed to start flipflop for group %s: %v", groupName, err), http.StatusBadRequest)
 			return
 		}
-		s.publishMQTTSwitchEvent(groupName, "flipflop")
 
 		// Set up auto-off timer if duration specified
 		if req.Duration != nil {
@@ -381,11 +321,8 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 					defer s.mutex.Unlock()
 					delete(s.timers, groupName)
 
-					if flipflopInstance, ok := s.flipflops[groupName]; ok {
-						if err := flipflopInstance.Stop(); err != nil {
-							log.Printf("timer failed to stop flipflop on group %s: %v", groupName, err)
-						}
-						delete(s.flipflops, groupName)
+					if err := s.taskManager.StopTask(groupName); err != nil {
+						log.Printf("timer failed to stop task on group %s: %v", groupName, err)
 					}
 					log.Printf("timer expired for group %s after %s", groupName, duration)
 				}),
@@ -405,28 +342,10 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 			delete(s.timers, groupName)
 		}
 
-		// Stop any running blinker for this group
-		if blinker, ok := s.blinkers[groupName]; ok {
-			if blinker.IsRunning() {
-				log.Printf("canceling blinker on group %s", groupName)
-				if err := blinker.Stop(); err != nil {
-					s.sendError(w, fmt.Sprintf("failed to cancel blinker on group %s: %v", groupName, err), http.StatusInternalServerError)
-					return
-				}
-			}
-			delete(s.blinkers, groupName)
-		}
-
-		// Stop any running flipflop for this group
-		if flipflopInstance, ok := s.flipflops[groupName]; ok {
-			if flipflopInstance.IsRunning() {
-				log.Printf("canceling flipflop on group %s", groupName)
-				if err := flipflopInstance.Stop(); err != nil {
-					s.sendError(w, fmt.Sprintf("failed to cancel flipflop on group %s: %v", groupName, err), http.StatusInternalServerError)
-					return
-				}
-			}
-			delete(s.flipflops, groupName)
+		// Stop any running task for this group
+		if err := s.taskManager.StopTask(groupName); err != nil {
+			s.sendError(w, fmt.Sprintf("failed to cancel task on group %s: %v", groupName, err), http.StatusInternalServerError)
+			return
 		}
 
 		dutyCycle := 0.5
@@ -440,13 +359,11 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 			return
 		}
 
-		s.blinkers[groupName] = newBlinker
-		log.Printf("start blinker on group %s", groupName)
-		if err := newBlinker.Start(); err != nil {
+		task := NewBlinkTask(newBlinker)
+		if err := s.taskManager.StartTask(groupName, task); err != nil {
 			s.sendError(w, fmt.Sprintf("failed to start blinker for group %s: %v", groupName, err), http.StatusBadRequest)
 			return
 		}
-		s.publishMQTTSwitchEvent(groupName, "blink")
 
 		// Set up auto-off timer if duration specified
 		if req.Duration != nil {
@@ -459,11 +376,8 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 					defer s.mutex.Unlock()
 					delete(s.timers, groupName)
 
-					if blinker, ok := s.blinkers[groupName]; ok {
-						if err := blinker.Stop(); err != nil {
-							log.Printf("timer failed to stop blinker on group %s: %v", groupName, err)
-						}
-						delete(s.blinkers, groupName)
+					if err := s.taskManager.StopTask(groupName); err != nil {
+						log.Printf("timer failed to stop task on group %s: %v", groupName, err)
 					}
 					log.Printf("timer expired for group %s after %s", groupName, duration)
 				}),
@@ -482,28 +396,10 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 		delete(s.timers, groupName)
 	}
 
-	// Stop any running blinker for this group
-	if blinker, ok := s.blinkers[groupName]; ok {
-		if blinker.IsRunning() {
-			log.Printf("canceling blinker on group %s", groupName)
-			if err := blinker.Stop(); err != nil {
-				s.sendError(w, fmt.Sprintf("failed to cancel blinker on group %s: %v", groupName, err), http.StatusInternalServerError)
-				return
-			}
-		}
-		delete(s.blinkers, groupName)
-	}
-
-	// Stop any running flipflop for this group
-	if flipflopInstance, ok := s.flipflops[groupName]; ok {
-		if flipflopInstance.IsRunning() {
-			log.Printf("canceling flipflop on group %s", groupName)
-			if err := flipflopInstance.Stop(); err != nil {
-				s.sendError(w, fmt.Sprintf("failed to cancel flipflop on group %s: %v", groupName, err), http.StatusInternalServerError)
-				return
-			}
-		}
-		delete(s.flipflops, groupName)
+	// Stop any running task for this group
+	if err := s.taskManager.StopTask(groupName); err != nil {
+		s.sendError(w, fmt.Sprintf("failed to cancel task on group %s: %v", groupName, err), http.StatusInternalServerError)
+		return
 	}
 
 	// Now apply operation to all switches in the group
@@ -552,14 +448,18 @@ func (s *Server) getStatusForSwitch(switchName string, sw switchcollection.Switc
 		response.State = switchStateOff
 	}
 
-	if blinker, ok := s.blinkers[swid]; ok {
-		if blinker.IsRunning() {
-			period := blinker.GetPeriod()
-			duty := blinker.GetDutyCycle()
+	if task, exists := s.taskManager.GetTask(swid); exists {
+		if task.IsRunning() {
+			if blinkTask, ok := task.(*BlinkTask); ok {
+				period := blinkTask.GetPeriod()
+				duty := blinkTask.GetDutyCycle()
 
-			response.State = switchStateBlink
-			response.Period = &period
-			response.DutyCycle = &duty
+				response.State = switchStateBlink
+				response.Period = &period
+				response.DutyCycle = &duty
+			} else if task.Type() == TaskTypeFlipflop {
+				response.State = switchStateFlipflop
+			}
 		}
 	}
 
@@ -622,15 +522,13 @@ func (s *Server) getStatusForGroup(groupName string, group *SwitchGroup) (*group
 	}
 
 	// Check for group-level activities
-	if blinker, ok := s.blinkers[groupName]; ok {
-		if blinker.IsRunning() {
-			response.State = switchStateBlink
-		}
-	}
-
-	if flipflopInstance, ok := s.flipflops[groupName]; ok {
-		if flipflopInstance.IsRunning() {
-			response.State = switchStateFlipflop
+	if task, exists := s.taskManager.GetTask(groupName); exists {
+		if task.IsRunning() {
+			if task.Type() == TaskTypeBlink {
+				response.State = switchStateBlink
+			} else if task.Type() == TaskTypeFlipflop {
+				response.State = switchStateFlipflop
+			}
 		}
 	}
 
@@ -669,8 +567,8 @@ func (s *Server) handleAllSwitchesStatus(w http.ResponseWriter) {
 		response.State = switchStateOn
 	}
 
-	if blinker, ok := s.blinkers["all"]; ok {
-		if blinker.IsRunning() {
+	if task, exists := s.taskManager.GetTask("all"); exists {
+		if task.IsRunning() && task.Type() == TaskTypeBlink {
 			response.State = switchStateBlink
 		}
 	}
@@ -719,15 +617,13 @@ func (s *Server) handleGroupSwitchStatus(w http.ResponseWriter, groupName string
 		response.State = switchStateOn
 	}
 
-	if blinker, ok := s.blinkers[groupName]; ok {
-		if blinker.IsRunning() {
-			response.State = switchStateBlink
-		}
-	}
-
-	if flipflopInstance, ok := s.flipflops[groupName]; ok {
-		if flipflopInstance.IsRunning() {
-			response.State = switchStateFlipflop
+	if task, exists := s.taskManager.GetTask(groupName); exists {
+		if task.IsRunning() {
+			if task.Type() == TaskTypeBlink {
+				response.State = switchStateBlink
+			} else if task.Type() == TaskTypeFlipflop {
+				response.State = switchStateFlipflop
+			}
 		}
 	}
 

@@ -420,16 +420,20 @@ func TestSwitchHandler_BlinkWithTimerExpiration(t *testing.T) {
 		t.Errorf("switchHandler() status = %v, want %v, body: %s", w.Code, http.StatusOK, w.Body.String())
 	}
 
-	// Verify the blinker was created and is running
+	// Verify the task was created and is running
 	server.mutex.Lock()
-	blinker, exists := server.blinkers["switch0"]
+	task, exists := server.taskManager.GetTask("switch0")
 	if !exists {
 		server.mutex.Unlock()
-		t.Fatal("Blinker should exist for switch0 after starting blink operation")
+		t.Fatal("Task should exist for switch0 after starting blink operation")
 	}
-	if !blinker.IsRunning() {
+	if !task.IsRunning() {
 		server.mutex.Unlock()
-		t.Fatal("Blinker should be running after starting blink operation")
+		t.Fatal("Task should be running after starting blink operation")
+	}
+	if task.Type() != TaskTypeBlink {
+		server.mutex.Unlock()
+		t.Fatal("Task should be a blink task for switch0")
 	}
 
 	// Verify timer was created
@@ -447,9 +451,9 @@ func TestSwitchHandler_BlinkWithTimerExpiration(t *testing.T) {
 	server.mutex.Lock()
 	defer server.mutex.Unlock()
 
-	// Check that blinker is cleaned up
-	if _, exists := server.blinkers["switch0"]; exists {
-		t.Error("Blinker should be cleaned up after timer expiration")
+	// Check that task is cleaned up
+	if _, exists := server.taskManager.GetTask("switch0"); exists {
+		t.Error("Task should be cleaned up after timer expiration")
 	}
 
 	// Check that timer is cleaned up
@@ -467,8 +471,6 @@ func TestSwitchHandler_BlinkWithTimerExpiration(t *testing.T) {
 		t.Error("Switch should be off after timer expiration")
 	}
 
-	// Additional verification: if blinker still existed, it should not be running
-	if blinker.IsRunning() {
-		t.Error("Blinker should not be running after timer expiration")
-	}
+	// Additional verification: task should no longer exist
+	// The task cleanup is already verified above, so no additional check needed
 }

@@ -16,9 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"github.com/larsks/airdancer/internal/blink"
 	"github.com/larsks/airdancer/internal/config"
-	"github.com/larsks/airdancer/internal/flipflop"
 	"github.com/larsks/airdancer/internal/mqtt"
 	"github.com/larsks/airdancer/internal/switchcollection"
 	"github.com/larsks/airdancer/internal/switchdrivers"
@@ -46,8 +44,7 @@ type Server struct {
 	groups      map[string]*SwitchGroup
 	mutex       sync.Mutex
 	timers      map[string]*timerData
-	blinkers    map[string]*blink.Blink
-	flipflops   map[string]*flipflop.Flipflop
+	taskManager *TaskManager
 	router      *chi.Mux
 	mqttClient  *mqtt.Client
 }
@@ -251,10 +248,11 @@ func newServerWithCollections(collections map[string]switchcollection.SwitchColl
 		switches:    switches,
 		groups:      groups,
 		timers:      make(map[string]*timerData),
-		blinkers:    make(map[string]*blink.Blink),
-		flipflops:   make(map[string]*flipflop.Flipflop),
 		router:      chi.NewRouter(),
 	}
+
+	// Initialize TaskManager after server creation
+	s.taskManager = NewTaskManager(s)
 
 	if addProductionMiddleware {
 		s.router.Use(middleware.Logger)
@@ -365,6 +363,13 @@ func (s *Server) Start() error {
 // Close closes all switch collection connections.
 
 func (s *Server) Close() error {
+	// Stop all running tasks
+	if s.taskManager != nil {
+		if err := s.taskManager.StopAllTasks(); err != nil {
+			log.Printf("Error stopping tasks during shutdown: %v", err)
+		}
+	}
+
 	// Disconnect MQTT client if connected
 	if s.mqttClient != nil {
 		s.mqttClient.Disconnect(250)
