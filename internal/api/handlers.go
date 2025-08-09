@@ -121,12 +121,12 @@ func (s *Server) handleSwitchHelper(_ http.ResponseWriter, req *switchRequest, s
 		if state {
 			err = sw.TurnOff()
 			if err == nil {
-				s.publishMQTTSwitchEvent(swid, "off")
+				s.publishSwitchStateChange(swid, false)
 			}
 		} else {
 			err = sw.TurnOn()
 			if err == nil {
-				s.publishMQTTSwitchEvent(swid, "on")
+				s.publishSwitchStateChange(swid, true)
 			}
 		}
 

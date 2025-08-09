@@ -383,6 +383,18 @@ func (s *Server) Close() error {
 	return errorCollector.Result("errors closing collections")
 }
 
+// MQTT publishing helper methods
+
+// publishSwitchStateChange publishes an MQTT event when a switch changes state
+func (s *Server) publishSwitchStateChange(switchName string, newState bool) {
+	if newState {
+		s.publishMQTTSwitchEvent(switchName, "on")
+	} else {
+		s.publishMQTTSwitchEvent(switchName, "off")
+	}
+}
+
+
 func (s *Server) ListRoutes() [][]string {
 	routes := [][]string{}
 
@@ -437,13 +449,13 @@ func (s *Server) setupAutoOffTimer(name string, duration time.Duration, switchOr
 			if err := v.TurnOff(); err != nil {
 				log.Printf("timer failed to turn off group %s: %v", name, err)
 			} else {
-				s.publishMQTTSwitchEvent(name, "off")
+				s.publishSwitchStateChange(name, false)
 			}
 		case switchcollection.Switch:
 			if err := v.TurnOff(); err != nil {
 				log.Printf("timer failed to turn off switch %s: %v", name, err)
 			} else {
-				s.publishMQTTSwitchEvent(name, "off")
+				s.publishSwitchStateChange(name, false)
 			}
 		default:
 			log.Printf("timer cleanup: unknown type for %s", name)

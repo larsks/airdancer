@@ -84,7 +84,7 @@ func (tm *TaskManager) stopTaskUnsafe(name string) error {
 			return fmt.Errorf("failed to cancel %s on %s: %w", task.Type(), name, err)
 		}
 		// Emit stop event
-		tm.server.publishMQTTSwitchEvent(name, "off")
+		tm.server.publishSwitchStateChange(name, false)
 	}
 
 	delete(tm.tasks, name)
