@@ -273,7 +273,6 @@ func TestValidateSwitchRequest(t *testing.T) {
 	}
 }
 
-
 func TestGetSwitchRequestFromContext(t *testing.T) {
 	tests := []struct {
 		name      string

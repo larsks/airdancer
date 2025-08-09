@@ -394,7 +394,6 @@ func (s *Server) publishSwitchStateChange(switchName string, newState bool) {
 	}
 }
 
-
 func (s *Server) ListRoutes() [][]string {
 	routes := [][]string{}
 
@@ -421,7 +420,7 @@ func (s *Server) cancelTimer(name string) {
 // The cleanup function is called when the timer expires
 func (s *Server) setupTimer(name string, duration time.Duration, cleanup func()) {
 	s.cancelTimer(name) // Cancel any existing timer first
-	
+
 	log.Printf("start timer on %s for %v", name, duration)
 	s.timers[name] = &timerData{
 		duration: duration,
@@ -461,7 +460,7 @@ func (s *Server) setupAutoOffTimer(name string, duration time.Duration, switchOr
 			log.Printf("timer cleanup: unknown type for %s", name)
 		}
 	}
-	
+
 	s.setupTimer(name, duration, cleanup)
 }
 
@@ -479,7 +478,7 @@ func (s *Server) cancelAllTasksAndTimers() error {
 	for name := range s.timers {
 		s.cancelTimer(name)
 	}
-	
+
 	// Stop all tasks
 	return s.taskManager.StopAllTasks()
 }

@@ -106,4 +106,3 @@ func (s *Server) validateSwitchRequest(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
-

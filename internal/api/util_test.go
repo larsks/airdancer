@@ -21,13 +21,13 @@ func TestErrorCollector_NewErrorCollector(t *testing.T) {
 
 func TestErrorCollector_Add(t *testing.T) {
 	ec := NewErrorCollector()
-	
+
 	// Test adding nil error (should be ignored)
 	ec.Add("context", nil)
 	if ec.HasErrors() {
 		t.Error("Adding nil error should not create errors")
 	}
-	
+
 	// Test adding error with context
 	err1 := errors.New("test error 1")
 	ec.Add("switch1", err1)
@@ -37,7 +37,7 @@ func TestErrorCollector_Add(t *testing.T) {
 	if ec.Count() != 1 {
 		t.Errorf("Expected count 1, got %d", ec.Count())
 	}
-	
+
 	// Test adding error without context
 	err2 := errors.New("test error 2")
 	ec.Add("", err2)
@@ -48,13 +48,13 @@ func TestErrorCollector_Add(t *testing.T) {
 
 func TestErrorCollector_AddError(t *testing.T) {
 	ec := NewErrorCollector()
-	
+
 	// Test adding nil error (should be ignored)
 	ec.AddError(nil)
 	if ec.HasErrors() {
 		t.Error("Adding nil error should not create errors")
 	}
-	
+
 	// Test adding error
 	err := errors.New("test error")
 	ec.AddError(err)
@@ -72,7 +72,7 @@ func TestErrorCollector_Result(t *testing.T) {
 	if result := ec.Result("context"); result != nil {
 		t.Errorf("Result with no errors should return nil, got %v", result)
 	}
-	
+
 	// Test single error with context
 	ec = NewErrorCollector()
 	err1 := errors.New("test error")
@@ -85,7 +85,7 @@ func TestErrorCollector_Result(t *testing.T) {
 	if result.Error() != expected {
 		t.Errorf("Expected '%s', got '%s'", expected, result.Error())
 	}
-	
+
 	// Test single error without context in Result
 	ec = NewErrorCollector()
 	ec.Add("switch1", err1)
@@ -97,7 +97,7 @@ func TestErrorCollector_Result(t *testing.T) {
 	if result.Error() != expected {
 		t.Errorf("Expected '%s', got '%s'", expected, result.Error())
 	}
-	
+
 	// Test multiple errors
 	ec = NewErrorCollector()
 	err2 := errors.New("test error 2")
@@ -123,20 +123,20 @@ func TestErrorCollector_Errors(t *testing.T) {
 	ec := NewErrorCollector()
 	err1 := errors.New("error 1")
 	err2 := errors.New("error 2")
-	
+
 	ec.AddError(err1)
 	ec.Add("context", err2)
-	
+
 	errors := ec.Errors()
 	if len(errors) != 2 {
 		t.Errorf("Expected 2 errors, got %d", len(errors))
 	}
-	
+
 	// First error should be unchanged
 	if errors[0].Error() != "error 1" {
 		t.Errorf("First error should be 'error 1', got %s", errors[0].Error())
 	}
-	
+
 	// Second error should have context
 	if errors[1].Error() != "context: error 2" {
 		t.Errorf("Second error should be 'context: error 2', got %s", errors[1].Error())
