@@ -15,8 +15,8 @@ type (
 
 const switchRequestKey contextKey = "switchRequest"
 
-// validateSwitchName validates that the switch name parameter is either "all" or a valid switch name
-func (s *Server) validateSwitchName(next http.Handler) http.Handler {
+// validateSwitchOrGroup validates that the switch/group name parameter is valid and exists
+func (s *Server) validateSwitchOrGroup(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switchName := chi.URLParam(r, "name")
 
@@ -107,20 +107,3 @@ func (s *Server) validateSwitchRequest(next http.Handler) http.Handler {
 	})
 }
 
-// validateSwitchExists validates that the requested switch(es) exist
-func (s *Server) validateSwitchExists(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switchName := chi.URLParam(r, "name")
-
-		if switchName != "all" {
-			if _, exists := s.switches[switchName]; !exists {
-				if _, exists := s.groups[switchName]; !exists {
-					s.sendError(w, fmt.Sprintf("Switch or group %s not found", switchName), http.StatusNotFound)
-					return
-				}
-			}
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}

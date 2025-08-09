@@ -303,18 +303,16 @@ func (s *Server) setupRoutes() {
 
 	// Set up routes with validation middleware
 	s.router.Route("/switch", func(r chi.Router) {
-		// GET endpoints for status queries - only need basic name validation for status
+		// GET endpoints for status queries - only need basic validation for status
 		r.With(
 			s.validateJSONRequest,
-			s.validateSwitchName,
-			s.validateSwitchExists,
+			s.validateSwitchOrGroup,
 		).Get("/{name}", s.switchStatusHandler)
 
-		// POST endpoints for switch control - restore full validation middleware chain
+		// POST endpoints for switch control - full validation middleware chain
 		r.With(
 			s.validateJSONRequest,
-			s.validateSwitchName,
-			s.validateSwitchExists,
+			s.validateSwitchOrGroup,
 			s.validateSwitchRequest,
 		).Post("/{name}", s.switchHandler)
 	})
