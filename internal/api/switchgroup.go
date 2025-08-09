@@ -22,30 +22,24 @@ func NewSwitchGroup(name string, switches map[string]*ResolvedSwitch) *SwitchGro
 
 // TurnOn turns on all switches in the group.
 func (sg *SwitchGroup) TurnOn() error {
-	var errors []error
+	errorCollector := NewErrorCollector()
 	for switchName, resolvedSwitch := range sg.switches {
 		if err := resolvedSwitch.Switch.TurnOn(); err != nil {
-			errors = append(errors, fmt.Errorf("switch %s: %w", switchName, err))
+			errorCollector.Add(fmt.Sprintf("switch %s", switchName), err)
 		}
 	}
-	if len(errors) > 0 {
-		return fmt.Errorf("errors turning on group %s: %v", sg.name, errors)
-	}
-	return nil
+	return errorCollector.Result(fmt.Sprintf("errors turning on group %s", sg.name))
 }
 
 // TurnOff turns off all switches in the group.
 func (sg *SwitchGroup) TurnOff() error {
-	var errors []error
+	errorCollector := NewErrorCollector()
 	for switchName, resolvedSwitch := range sg.switches {
 		if err := resolvedSwitch.Switch.TurnOff(); err != nil {
-			errors = append(errors, fmt.Errorf("switch %s: %w", switchName, err))
+			errorCollector.Add(fmt.Sprintf("switch %s", switchName), err)
 		}
 	}
-	if len(errors) > 0 {
-		return fmt.Errorf("errors turning off group %s: %v", sg.name, errors)
-	}
-	return nil
+	return errorCollector.Result(fmt.Sprintf("errors turning off group %s", sg.name))
 }
 
 // GetState returns true if all switches in the group are on.

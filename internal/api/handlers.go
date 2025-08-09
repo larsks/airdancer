@@ -210,19 +210,19 @@ func (s *Server) handleAllSwitches(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Apply operation to all defined switches
-	var errors []error
+	errorCollector := NewErrorCollector()
 	for switchName, resolvedSwitch := range s.switches {
 		// Skip disabled switches
 		if resolvedSwitch.Switch.IsDisabled() {
 			continue
 		}
 		if err := s.handleSwitchHelper(w, &req, switchName, resolvedSwitch.Switch); err != nil {
-			errors = append(errors, fmt.Errorf("switch %s: %w", switchName, err))
+			errorCollector.Add(fmt.Sprintf("switch %s", switchName), err)
 		}
 	}
 
-	if len(errors) > 0 {
-		s.sendError(w, fmt.Sprintf("errors applying to all switches: %v", errors), http.StatusBadRequest)
+	if errorCollector.HasErrors() {
+		s.sendError(w, errorCollector.Result("errors applying to all switches").Error(), http.StatusBadRequest)
 		return
 	}
 	s.sendSuccess(w, req)
@@ -403,19 +403,19 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 	}
 
 	// Now apply operation to all switches in the group
-	var errors []error
+	errorCollector := NewErrorCollector()
 	for switchName, resolvedSwitch := range group.GetSwitches() {
 		// Skip disabled switches
 		if resolvedSwitch.Switch.IsDisabled() {
 			continue
 		}
 		if err := s.handleSwitchHelper(w, &req, switchName, resolvedSwitch.Switch); err != nil {
-			errors = append(errors, fmt.Errorf("switch %s: %w", switchName, err))
+			errorCollector.Add(fmt.Sprintf("switch %s", switchName), err)
 		}
 	}
 
-	if len(errors) > 0 {
-		s.sendError(w, fmt.Sprintf("errors applying to group %s: %v", groupName, errors), http.StatusBadRequest)
+	if errorCollector.HasErrors() {
+		s.sendError(w, errorCollector.Result(fmt.Sprintf("errors applying to group %s", groupName)).Error(), http.StatusBadRequest)
 		return
 	}
 	s.sendSuccess(w, req)

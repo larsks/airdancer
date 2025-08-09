@@ -104,17 +104,14 @@ func (tm *TaskManager) StopAllTasks() error {
 	tm.mutex.Lock()
 	defer tm.mutex.Unlock()
 
-	var errors []error
+	errorCollector := NewErrorCollector()
 	for name := range tm.tasks {
 		if err := tm.stopTaskUnsafe(name); err != nil {
-			errors = append(errors, fmt.Errorf("task %s: %w", name, err))
+			errorCollector.Add(fmt.Sprintf("task %s", name), err)
 		}
 	}
 
-	if len(errors) > 0 {
-		return fmt.Errorf("errors stopping tasks: %v", errors)
-	}
-	return nil
+	return errorCollector.Result("errors stopping tasks")
 }
 
 // BlinkTask wraps a blink.Blink as a Task

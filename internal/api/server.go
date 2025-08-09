@@ -375,17 +375,14 @@ func (s *Server) Close() error {
 		s.mqttClient.Disconnect(250)
 	}
 
-	var errors []error
+	errorCollector := NewErrorCollector()
 	for name, collection := range s.collections {
 		if err := collection.Close(); err != nil {
-			errors = append(errors, fmt.Errorf("failed to close collection %s: %w", name, err))
+			errorCollector.Add(fmt.Sprintf("failed to close collection %s", name), err)
 		}
 	}
 
-	if len(errors) > 0 {
-		return fmt.Errorf("errors closing collections: %v", errors)
-	}
-	return nil
+	return errorCollector.Result("errors closing collections")
 }
 
 func (s *Server) ListRoutes() [][]string {
