@@ -92,11 +92,8 @@ func (s *Server) handleSwitchHelper(_ http.ResponseWriter, req *switchRequest, s
 		return fmt.Errorf("switch %s is disabled due to network connectivity issues", swid)
 	}
 
-	// Cancel any existing timer for this switch
-	s.cancelTimer(swid)
-
-	// Stop any running task for this switch
-	if err := s.taskManager.StopTask(swid); err != nil {
+	// Cancel any existing timer and task for this switch
+	if err := s.cancelTasksAndTimers(swid); err != nil {
 		return err
 	}
 
@@ -173,14 +170,9 @@ func (s *Server) handleAllSwitches(w http.ResponseWriter, r *http.Request) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	// Cancel any existing timers for all switches
-	for swid := range s.timers {
-		s.cancelTimer(swid)
-	}
-
-	// Stop all running tasks
-	if err := s.taskManager.StopAllTasks(); err != nil {
-		log.Printf("failed to stop all tasks: %v", err)
+	// Cancel all existing timers and tasks
+	if err := s.cancelAllTasksAndTimers(); err != nil {
+		log.Printf("failed to cancel all tasks and timers: %v", err)
 	}
 
 	// Apply operation to all defined switches
@@ -209,16 +201,21 @@ func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, swit
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	// If there was an "all" timer running, turn off all switches when canceling it
+	hadAllTimer := false
+	if _, ok := s.timers["all"]; ok {
+		hadAllTimer = true
+	}
+
 	// Cancel any "all switches" operations that might be running
-	if err := s.taskManager.StopTask("all"); err != nil {
-		s.sendError(w, fmt.Sprintf("Failed to cancel task on all: %v", err), http.StatusInternalServerError)
+	if err := s.cancelTasksAndTimers("all"); err != nil {
+		s.sendError(w, fmt.Sprintf("Failed to cancel tasks and timers on all: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	if _, ok := s.timers["all"]; ok {
-		log.Printf("canceling timer on all switches")
-		s.cancelTimer("all")
-		// Turn off all defined switches when canceling "all" timer
+	// Turn off all defined switches if we canceled an "all" timer
+	if hadAllTimer {
+		log.Printf("turning off all switches due to canceled 'all' timer")
 		for _, resolvedSwitch := range s.switches {
 			if err := resolvedSwitch.Switch.TurnOff(); err != nil {
 				log.Printf("Failed to turn off switch %s during all timer cancellation: %v", resolvedSwitch.Name, err)
@@ -247,11 +244,8 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 
 	// Handle flipflop specially since it operates on the group as a whole
 	if req.State == switchStateFlipflop {
-		// Cancel any existing timer for this group
-		s.cancelTimer(groupName)
-
-		// Stop any running task for this group
-		if err := s.taskManager.StopTask(groupName); err != nil {
+		// Cancel any existing timer and task for this group
+		if err := s.cancelTasksAndTimers(groupName); err != nil {
 			s.sendError(w, fmt.Sprintf("failed to cancel task on group %s: %v", groupName, err), http.StatusInternalServerError)
 			return
 		}
@@ -297,11 +291,8 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 
 	// Handle blink specially since it operates on the group as a whole
 	if req.State == switchStateBlink {
-		// Cancel any existing timer for this group
-		s.cancelTimer(groupName)
-
-		// Stop any running task for this group
-		if err := s.taskManager.StopTask(groupName); err != nil {
+		// Cancel any existing timer and task for this group
+		if err := s.cancelTasksAndTimers(groupName); err != nil {
 			s.sendError(w, fmt.Sprintf("failed to cancel task on group %s: %v", groupName, err), http.StatusInternalServerError)
 			return
 		}
@@ -340,11 +331,7 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 	}
 
 	// For all other states, first cancel any group-level activities
-	// Cancel any existing timer for this group
-	s.cancelTimer(groupName)
-
-	// Stop any running task for this group
-	if err := s.taskManager.StopTask(groupName); err != nil {
+	if err := s.cancelTasksAndTimers(groupName); err != nil {
 		s.sendError(w, fmt.Sprintf("failed to cancel task on group %s: %v", groupName, err), http.StatusInternalServerError)
 		return
 	}

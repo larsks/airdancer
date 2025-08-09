@@ -454,3 +454,22 @@ func (s *Server) setupAutoOffTimer(name string, duration time.Duration, switchOr
 	
 	s.setupTimer(name, duration, cleanup)
 }
+
+// Task management helper methods
+
+// cancelTasksAndTimers cancels both timers and tasks for the given name
+func (s *Server) cancelTasksAndTimers(name string) error {
+	s.cancelTimer(name)
+	return s.taskManager.StopTask(name)
+}
+
+// cancelAllTasksAndTimers cancels all timers and tasks
+func (s *Server) cancelAllTasksAndTimers() error {
+	// Cancel all timers
+	for name := range s.timers {
+		s.cancelTimer(name)
+	}
+	
+	// Stop all tasks
+	return s.taskManager.StopAllTasks()
+}
