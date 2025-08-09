@@ -93,11 +93,7 @@ func (s *Server) handleSwitchHelper(_ http.ResponseWriter, req *switchRequest, s
 	}
 
 	// Cancel any existing timer for this switch
-	if timer, ok := s.timers[swid]; ok {
-		log.Printf("canceling timer on %s", swid)
-		timer.timer.Stop()
-		delete(s.timers, swid)
-	}
+	s.cancelTimer(swid)
 
 	// Stop any running task for this switch
 	if err := s.taskManager.StopTask(swid); err != nil {
@@ -165,27 +161,7 @@ func (s *Server) handleSwitchHelper(_ http.ResponseWriter, req *switchRequest, s
 	// Set up auto-off timer if duration specified
 	if req.Duration != nil {
 		duration := time.Duration(*req.Duration) * time.Second
-		log.Printf("start timer on %s for %v", swid, duration)
-		s.timers[swid] = &timerData{
-			duration: duration,
-			timer: time.AfterFunc(duration, func() {
-				s.mutex.Lock()
-				defer s.mutex.Unlock()
-				delete(s.timers, swid)
-
-				// Stop any running task for this switch
-				if err := s.taskManager.StopTask(swid); err != nil {
-					log.Printf("timer failed to stop task on switch %s: %v", swid, err)
-				}
-
-				if err := sw.TurnOff(); err != nil {
-					log.Printf("timer failed to turn off switch %s: %v", swid, err)
-				} else {
-					s.publishMQTTSwitchEvent(swid, "off")
-				}
-				log.Printf("timer expired for switch %s after %s", swid, duration)
-			}),
-		}
+		s.setupAutoOffTimer(swid, duration, sw)
 	}
 
 	return nil
@@ -198,10 +174,8 @@ func (s *Server) handleAllSwitches(w http.ResponseWriter, r *http.Request) {
 	defer s.mutex.Unlock()
 
 	// Cancel any existing timers for all switches
-	for swid, timer := range s.timers {
-		log.Printf("canceling timer on %s", swid)
-		timer.timer.Stop()
-		delete(s.timers, swid)
+	for swid := range s.timers {
+		s.cancelTimer(swid)
 	}
 
 	// Stop all running tasks
@@ -241,16 +215,15 @@ func (s *Server) handleSingleSwitch(w http.ResponseWriter, r *http.Request, swit
 		return
 	}
 
-	if timer, ok := s.timers["all"]; ok {
+	if _, ok := s.timers["all"]; ok {
 		log.Printf("canceling timer on all switches")
-		timer.timer.Stop()
+		s.cancelTimer("all")
 		// Turn off all defined switches when canceling "all" timer
 		for _, resolvedSwitch := range s.switches {
 			if err := resolvedSwitch.Switch.TurnOff(); err != nil {
 				log.Printf("Failed to turn off switch %s during all timer cancellation: %v", resolvedSwitch.Name, err)
 			}
 		}
-		delete(s.timers, "all")
 	}
 
 	resolvedSwitch, exists := s.switches[switchName]
@@ -275,11 +248,7 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 	// Handle flipflop specially since it operates on the group as a whole
 	if req.State == switchStateFlipflop {
 		// Cancel any existing timer for this group
-		if timer, ok := s.timers[groupName]; ok {
-			log.Printf("canceling timer on group %s", groupName)
-			timer.timer.Stop()
-			delete(s.timers, groupName)
-		}
+		s.cancelTimer(groupName)
 
 		// Stop any running task for this group
 		if err := s.taskManager.StopTask(groupName); err != nil {
@@ -313,20 +282,13 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 		// Set up auto-off timer if duration specified
 		if req.Duration != nil {
 			duration := time.Duration(*req.Duration) * time.Second
-			log.Printf("start timer on group %s for %v", groupName, duration)
-			s.timers[groupName] = &timerData{
-				duration: duration,
-				timer: time.AfterFunc(duration, func() {
-					s.mutex.Lock()
-					defer s.mutex.Unlock()
-					delete(s.timers, groupName)
-
-					if err := s.taskManager.StopTask(groupName); err != nil {
-						log.Printf("timer failed to stop task on group %s: %v", groupName, err)
-					}
-					log.Printf("timer expired for group %s after %s", groupName, duration)
-				}),
+			// For flipflop, we just stop the task, don't turn switches off
+			cleanup := func() {
+				if err := s.taskManager.StopTask(groupName); err != nil {
+					log.Printf("timer failed to stop task on group %s: %v", groupName, err)
+				}
 			}
+			s.setupTimer(groupName, duration, cleanup)
 		}
 
 		s.sendSuccess(w, req)
@@ -336,11 +298,7 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 	// Handle blink specially since it operates on the group as a whole
 	if req.State == switchStateBlink {
 		// Cancel any existing timer for this group
-		if timer, ok := s.timers[groupName]; ok {
-			log.Printf("canceling timer on group %s", groupName)
-			timer.timer.Stop()
-			delete(s.timers, groupName)
-		}
+		s.cancelTimer(groupName)
 
 		// Stop any running task for this group
 		if err := s.taskManager.StopTask(groupName); err != nil {
@@ -368,20 +326,13 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 		// Set up auto-off timer if duration specified
 		if req.Duration != nil {
 			duration := time.Duration(*req.Duration) * time.Second
-			log.Printf("start timer on group %s for %v", groupName, duration)
-			s.timers[groupName] = &timerData{
-				duration: duration,
-				timer: time.AfterFunc(duration, func() {
-					s.mutex.Lock()
-					defer s.mutex.Unlock()
-					delete(s.timers, groupName)
-
-					if err := s.taskManager.StopTask(groupName); err != nil {
-						log.Printf("timer failed to stop task on group %s: %v", groupName, err)
-					}
-					log.Printf("timer expired for group %s after %s", groupName, duration)
-				}),
+			// For blink, we just stop the task, don't turn switches off
+			cleanup := func() {
+				if err := s.taskManager.StopTask(groupName); err != nil {
+					log.Printf("timer failed to stop task on group %s: %v", groupName, err)
+				}
 			}
+			s.setupTimer(groupName, duration, cleanup)
 		}
 
 		s.sendSuccess(w, req)
@@ -390,11 +341,7 @@ func (s *Server) handleGroupSwitch(w http.ResponseWriter, r *http.Request, group
 
 	// For all other states, first cancel any group-level activities
 	// Cancel any existing timer for this group
-	if timer, ok := s.timers[groupName]; ok {
-		log.Printf("canceling timer on group %s", groupName)
-		timer.timer.Stop()
-		delete(s.timers, groupName)
-	}
+	s.cancelTimer(groupName)
 
 	// Stop any running task for this group
 	if err := s.taskManager.StopTask(groupName); err != nil {

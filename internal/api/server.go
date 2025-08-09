@@ -395,3 +395,62 @@ func (s *Server) ListRoutes() [][]string {
 
 	return routes
 }
+
+// Timer management helper methods
+
+// cancelTimer cancels and removes a timer for the given name if it exists
+func (s *Server) cancelTimer(name string) {
+	if timer, ok := s.timers[name]; ok {
+		log.Printf("canceling timer on %s", name)
+		timer.timer.Stop()
+		delete(s.timers, name)
+	}
+}
+
+// setupTimer creates and starts a timer for the given name and duration
+// The cleanup function is called when the timer expires
+func (s *Server) setupTimer(name string, duration time.Duration, cleanup func()) {
+	s.cancelTimer(name) // Cancel any existing timer first
+	
+	log.Printf("start timer on %s for %v", name, duration)
+	s.timers[name] = &timerData{
+		duration: duration,
+		timer: time.AfterFunc(duration, func() {
+			s.mutex.Lock()
+			defer s.mutex.Unlock()
+			delete(s.timers, name)
+			cleanup()
+			log.Printf("timer expired for %s after %s", name, duration)
+		}),
+	}
+}
+
+// setupAutoOffTimer creates a timer that will turn off the specified switch/group after the duration
+func (s *Server) setupAutoOffTimer(name string, duration time.Duration, switchOrGroup interface{}) {
+	cleanup := func() {
+		// Stop any running task for this switch/group
+		if err := s.taskManager.StopTask(name); err != nil {
+			log.Printf("timer failed to stop task on %s: %v", name, err)
+		}
+
+		// Turn off the switch or group
+		switch v := switchOrGroup.(type) {
+		case *SwitchGroup:
+			if err := v.TurnOff(); err != nil {
+				log.Printf("timer failed to turn off group %s: %v", name, err)
+			} else {
+				s.publishMQTTSwitchEvent(name, "off")
+			}
+		case switchcollection.Switch:
+			if err := v.TurnOff(); err != nil {
+				log.Printf("timer failed to turn off switch %s: %v", name, err)
+			} else {
+				s.publishMQTTSwitchEvent(name, "off")
+			}
+		default:
+			log.Printf("timer cleanup: unknown type for %s", name)
+		}
+	}
+	
+	s.setupTimer(name, duration, cleanup)
+}
