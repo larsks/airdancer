@@ -81,11 +81,12 @@ func (h *Handler) Start(config cli.Configurable) error {
 			ServerURL: cfg.MqttServer,
 			ClientID:  "airdancer-status",
 			OnConnect: func(client *mqtt.Client) {
-				// Subscribe to button events once connected
-				if err := client.Subscribe("event/button/#", 0, h.handleButtonEvent); err != nil {
-					log.Printf("Failed to subscribe to button events: %v", err)
-				} else {
-					log.Printf("Subscribed to button events on MQTT")
+				for _, topic := range []string{"event/button/#", "event/switch/#"} {
+					if err := client.Subscribe(topic, 0, h.handleButtonEvent); err != nil {
+						log.Printf("Failed to subscribe to %s messages: %v", topic, err)
+					} else {
+						log.Printf("Subscribed to MQTT topic %s", topic)
+					}
 				}
 			},
 		}
