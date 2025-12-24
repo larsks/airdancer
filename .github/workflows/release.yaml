@@ -61,7 +61,7 @@ jobs:
           cd dist && tar -czf airdancer-${{ needs.version.outputs.version }}-${{ matrix.suffix }}.tar.gz -C ${{ matrix.suffix }} .
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: airdancer-${{ needs.version.outputs.version }}-${{ matrix.suffix }}
           path: dist/*.tar.gz
